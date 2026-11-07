@@ -8,18 +8,17 @@ import { RIGHT } from "../client/style-right.mjs";
 import { TOKENS } from "../client/theme.mjs";
 
 const wanted = new URLSearchParams(location.search).get("theme");
-// The palette normally follows the system. A forced theme unstacks it: the night block always, the day block only
-// when day is asked for, and the media query dropped so the system setting cannot disagree. Preview only.
-const MARK = "@media (prefers-color-scheme: light) {";
-const night = TOKENS.slice(0, TOKENS.indexOf(MARK));
-const day = TOKENS.slice(TOKENS.indexOf(MARK)).replace(MARK, "").replace(/\}\s*$/, "");
-const tokens = wanted === "light" ? night + day : wanted === "dark" ? night : TOKENS;
+// The palette is the shell's `.day` class: the plugin sets it from what DSH says. Here a query can force it, and
+// with no query the preview follows the same rule as the plugin.
+import { paletteOf, readSurface } from "../client/palette.mjs";
 
 const style = document.createElement("style");
-style.textContent = [tokens, BASE, RAIL, CHAT, RIGHT].join("\n");
+style.textContent = [TOKENS, BASE, RAIL, CHAT, RIGHT].join("\n");
 document.head.append(style);
 
-const dark = wanted !== "light";
+const day = wanted === "light" || (wanted !== "dark" && paletteOf(readSurface()) === "day");
+for (const root of document.querySelectorAll(".ad-root")) root.classList.toggle("day", day);
+const dark = !day;
 const paper = dark ? "#070a16" : "#F8F5EF";
 document.documentElement.style.background = paper;
 document.body.style.background = paper;

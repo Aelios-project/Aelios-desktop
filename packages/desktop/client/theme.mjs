@@ -1,4 +1,6 @@
-// All colors, radii and shadows are CSS variables on .ad-root, with plain defaults. A skin is a separate
+// All colors, radii and shadows are CSS variables on .ad-root, with plain defaults. The day palette is the
+// `.ad-root.day` class, not a media query: DSH can set its own light or dark independently of the system, and the
+// shell follows DSH (client/palette.mjs decides, and adds the class). A skin is a separate
 // package that only sets these variables, so nothing outside this file holds a color.
 // The default values are copied from Aelios-resident, public/app.css, the night :root block and the
 // light block (AGPL-3.0, same author; main at b118dfb, 2026-11-07). Changed: scoped to .ad-root; the light set
@@ -43,9 +45,8 @@ export const TOKENS = `.ad-root {
   --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-@media (prefers-color-scheme: light) {
-  .ad-root {
-    color-scheme: light;
+.ad-root.day {
+color-scheme: light;
     --bg: #F8F5EF;
     --stars-opacity: .7;
     --star-1: rgba(201, 150, 46, .6);
@@ -74,8 +75,7 @@ export const TOKENS = `.ad-root {
     --err-text: #B23B31;
     --shadow: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 8px 22px rgba(88, 76, 160, .10);
     --avatar-bg: radial-gradient(circle at 35% 30%, #fff6dc, #e9e2fb 75%);
-    --avatar-ring: rgba(201, 150, 46, .45);
-    --input-bg: #fff;
-  }
+--avatar-ring: rgba(201, 150, 46, .45);
+--input-bg: #fff;
 }`;
 

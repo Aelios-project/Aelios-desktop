@@ -57,6 +57,19 @@ function createMessages(get, now = Date.now) {
   };
 }
 
+// client/palette.mjs
+function paletteOf({ scheme, prefersLight = false } = {}) {
+  const told = String(scheme || "").trim().toLowerCase();
+  if (told === "light" || told === "dark") return told === "light" ? "day" : "night";
+  return prefersLight ? "day" : "night";
+}
+function readSurface(doc = globalThis.document) {
+  if (!doc?.documentElement) return { scheme: "", prefersLight: false };
+  const scheme = getComputedStyle(doc.documentElement).colorScheme || "";
+  const prefersLight = typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: light)").matches;
+  return { scheme, prefersLight };
+}
+
 // client/chat.mjs
 var import_react4 = require("react");
 
@@ -1251,9 +1264,8 @@ var TOKENS = `.ad-root {
   --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-@media (prefers-color-scheme: light) {
-  .ad-root {
-    color-scheme: light;
+.ad-root.day {
+color-scheme: light;
     --bg: #F8F5EF;
     --stars-opacity: .7;
     --star-1: rgba(201, 150, 46, .6);
@@ -1282,9 +1294,8 @@ var TOKENS = `.ad-root {
     --err-text: #B23B31;
     --shadow: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 8px 22px rgba(88, 76, 160, .10);
     --avatar-bg: radial-gradient(circle at 35% 30%, #fff6dc, #e9e2fb 75%);
-    --avatar-ring: rgba(201, 150, 46, .45);
-    --input-bg: #fff;
-  }
+--avatar-ring: rgba(201, 150, 46, .45);
+--input-bg: #fff;
 }`;
 
 // client/index.mjs
@@ -1311,9 +1322,26 @@ function useStatus() {
   return status;
 }
 var NARROW = 980;
+function useDay() {
+  const [day, setDay] = (0, import_react12.useState)(() => paletteOf(readSurface()) === "day");
+  (0, import_react12.useEffect)(() => {
+    const update = () => setDay(paletteOf(readSurface()) === "day");
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class", "data-ds-theme-source"] });
+    const media = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: light)") : null;
+    media?.addEventListener?.("change", update);
+    return () => {
+      observer.disconnect();
+      media?.removeEventListener?.("change", update);
+    };
+  }, []);
+  return day;
+}
 function Main() {
   const status = useStatus();
   const t = words();
+  const day = useDay();
   const root = (0, import_react12.useRef)(null);
   (0, import_react12.useEffect)(() => {
     const el = root.current;
@@ -1331,12 +1359,15 @@ function Main() {
   }, []);
   return (0, import_react12.createElement)(
     "div",
-    { className: "ad-root", ref: root },
+    { className: `ad-root${day ? " day" : ""}`, ref: root },
     (0, import_react12.createElement)("div", { className: "ad-sky", "aria-hidden": true }),
     !status ? (0, import_react12.createElement)("div", { className: "ad-note" }, t.connecting) : status.connected ? [(0, import_react12.createElement)(Chat, { key: "chat" }), (0, import_react12.createElement)(Right, { key: "right" })] : (0, import_react12.createElement)(ConnectForm, { defaultWorkspace: status.defaultWorkspace })
   );
 }
-var Side = () => (0, import_react12.createElement)("div", { className: "ad-root ad-side" }, (0, import_react12.createElement)(Left));
+function Side() {
+  const day = useDay();
+  return (0, import_react12.createElement)("div", { className: `ad-root ad-side${day ? " day" : ""}` }, (0, import_react12.createElement)(Left));
+}
 var Nav = () => (0, import_react12.createElement)(
   "svg",
   { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true },

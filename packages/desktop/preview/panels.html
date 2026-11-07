@@ -29,15 +29,15 @@
   import { RAIL } from "../client/style-rail.mjs";
   import { RIGHT } from "../client/style-right.mjs";
   import { TOKENS } from "../client/theme.mjs";
+  import { paletteOf, readSurface } from "../client/palette.mjs";
 
   const wanted = new URLSearchParams(location.search).get("theme");
-  const MARK = "@media (prefers-color-scheme: light) {";
-  const night = TOKENS.slice(0, TOKENS.indexOf(MARK));
-  const day = TOKENS.slice(TOKENS.indexOf(MARK)).replace(MARK, "").replace(/\}\s*$/, "");
   const style = document.createElement("style");
-  style.textContent = [(wanted === "light" ? night + day : wanted === "dark" ? night : TOKENS), BASE, RAIL, CHAT, RIGHT].join("\n");
+  style.textContent = [TOKENS, BASE, RAIL, CHAT, RIGHT].join("\n");
   document.head.append(style);
-  const paper = wanted === "light" ? "#F8F5EF" : "#070a16";
+  const day = wanted === "light" || (wanted !== "dark" && paletteOf(readSurface()) === "day");
+  for (const root of document.querySelectorAll(".ad-root, .ad-right")) root.classList.toggle("day", day);
+  const paper = day ? "#F8F5EF" : "#070a16";
   document.documentElement.style.background = paper;
   document.body.style.background = paper;
 

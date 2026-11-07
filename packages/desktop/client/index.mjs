@@ -1,7 +1,8 @@
 // The browser half. It takes over DSH's left column and the middle area (the way DS Bot shadows slots)
 // and draws the resident's columns itself. The right column holds the panels.
-import { createElement as h, useEffect, useRef } from "react";
+import { createElement as h, useEffect, useRef, useState } from "react";
 import { call } from "./api.mjs";
+import { paletteOf, readSurface } from "./palette.mjs";
 import { Chat } from "./chat.mjs";
 import { ConnectForm } from "./connect-form.mjs";
 import { Left } from "./left.mjs";
@@ -34,9 +35,25 @@ function useStatus() {
 // A panel narrower than this cannot hold two columns beside each other, so the right column overlays instead.
 const NARROW = 980;
 
+/** The day palette follows DSH's own choice, then the system; a change on either side repaints. */
+function useDay() {
+  const [day, setDay] = useState(() => paletteOf(readSurface()) === "day");
+  useEffect(() => {
+    const update = () => setDay(paletteOf(readSurface()) === "day");
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style", "class", "data-ds-theme-source"] });
+    const media = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: light)") : null;
+    media?.addEventListener?.("change", update);
+    return () => { observer.disconnect(); media?.removeEventListener?.("change", update); };
+  }, []);
+  return day;
+}
+
 function Main() {
   const status = useStatus();
   const t = words();
+  const day = useDay();
   const root = useRef(null);
   useEffect(() => {
     const el = root.current;
@@ -52,13 +69,16 @@ function Main() {
     fit();
     return () => observer.disconnect();
   }, []);
-  return h("div", { className: "ad-root", ref: root },
+  return h("div", { className: `ad-root${day ? " day" : ""}`, ref: root },
     h("div", { className: "ad-sky", "aria-hidden": true }),
     !status ? h("div", { className: "ad-note" }, t.connecting)
       : status.connected ? [h(Chat, { key: "chat" }), h(Right, { key: "right" })] : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
 }
 
-const Side = () => h("div", { className: "ad-root ad-side" }, h(Left));
+function Side() {
+  const day = useDay();
+  return h("div", { className: `ad-root ad-side${day ? " day" : ""}` }, h(Left));
+}
 
 const Nav = () => h("svg", { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true },
   h("path", { d: "M3 11 12 3l9 8M6 10v11h12V10M10 21v-7h4v7" }));
