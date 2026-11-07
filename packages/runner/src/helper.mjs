@@ -3,16 +3,20 @@
 // outlives it (session/load or session/resume), so a later turn picks up the same conversation.
 import { createHash } from "node:crypto";
 import { AcpClosed, AcpConnection, AcpError, PROTOCOL_VERSION } from "./acp.mjs";
+import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
 import { answer } from "./permission.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
-/** Added to every prompt. The only way a reply asks the user for a decision; a question mark means nothing. */
-export const CONVENTION = "Only if you cannot go on without a decision from the user, end your reply with one last line that starts with `ASK:` followed by the question. Otherwise just finish, and do not end by asking whether to continue. Reply in the language of the job.";
-const marker = text => {
-  const lines = text.trimEnd().split("\n"), last = lines.at(-1).trim();
-  if (!last.startsWith("ASK:")) return null;
-  return { question: last.slice(4).trim(), body: lines.slice(0, -1).join("\n").trim() };
-};
+/** Added to every prompt. How the helper tells the user something; a question mark means nothing. */
+export const CONVENTION = [
+  "How to talk to the user. Put each marker alone at the start of a line.",
+  "Say nothing and carry on when a step can be undone and is inside the job. Never ask whether to continue.",
+  "`NOTE: ...` anywhere: the user should know, but you keep going.",
+  "`BLOCKED: ...` as your last line: an outside wall you cannot pass (missing permission, no network, a missing dependency).",
+  "`ASK: ...` as your last line: only the user can decide (cannot be undone, costs money, a preference, a permission to give).",
+  "When stuck: (a) try one really different way; (b) then look for a way around, or do the part that is not stuck; (c) only then BLOCKED for an outside wall, or ASK for what only the user can decide.",
+  "Reply in the language of the job."
+].join(" ");
 
 export class Turn {
   /**
@@ -108,7 +112,9 @@ export class Turn {
   }
 
   #outcome(stopReason, how) {
-    const final = this.#text(), base = { sessionId: this.opened, how };
+    const { notes } = takeNotes([...this.finished, this.current].join("\n"));
+    const final = takeNotes(this.#text()).rest, notice = noticeOf(notes.map(note => this.redact(note)));
+    const base = { sessionId: this.opened, how, ...(notice ? { notice } : {}) };
     if (this.timedOut) return this.#stuck(how, "The helper did not finish within the time limit and was stopped.");
     if (stopReason === "cancelled") return this.#cancelled(how);
     if (stopReason === "refusal" || stopReason === "max_tokens" || stopReason === "max_turn_requests") {
@@ -120,11 +126,16 @@ export class Turn {
       const summary = this.redact(`${final || "(the helper left no text)"}\n\nSome actions were refused by this machine's permission tier (${this.tier}):\n${list}`);
       return { ...base, status: "needs_you", summary, ask: { key: "perm:" + short(list), question: this.redact(`The helper wanted to do the following, but this machine's tier is ${this.tier}, so it was refused:\n${list}`) } };
     }
+    if (!final && notes.length) return { ...base, status: "done", summary: this.redact(notes.join("\n")) };
     if (!final) return { ...base, status: "needs_you", summary: "The turn ended, but the helper left no text result.", ask: { key: "silent:" + short(String(this.opened) + Date.now()), question: "The turn ended, but the helper left no text result. Ask again?" } };
-    const asked = marker(final);
-    if (asked) {
-      const question = this.redact(asked.question || "(the helper wants you to decide, but wrote no question)");
-      return { ...base, status: "needs_you", summary: this.redact(asked.body || question), ask: { key: "q:" + short(final), question } };
+    const said = lastMarker(final);
+    if (said?.kind === "blocked") {
+      const reason = this.redact(said.text || "(no reason given)");
+      return { ...base, status: "failed", summary: `Blocked: ${reason}${said.body ? "\n\n" + this.redact(said.body) : ""}` };
+    }
+    if (said?.kind === "ask") {
+      const question = this.redact(said.text || "(the helper wants you to decide, but wrote no question)");
+      return { ...base, status: "needs_you", summary: this.redact(said.body || question), ask: { key: "q:" + short(final), question } };
     }
     return { ...base, status: "done", summary: this.redact(final) };
   }

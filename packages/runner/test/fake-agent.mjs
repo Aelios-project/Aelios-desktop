@@ -31,7 +31,7 @@ store(data => data.log.push({ event: "start", args }));
 process.stdout.write("this line is not JSON, a client must skip it\n");
 
 async function prompt(id, params) {
-  const { sessionId } = params, full = params.prompt.map(part => part.text).join(""), text = full.split("\n\nOnly if you")[0];
+  const { sessionId } = params, full = params.prompt.map(part => part.text).join(""), text = full.split("\n\nHow to talk to the user.")[0];
   const session = load().sessions[sessionId];
   store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd }));
   chunk(sessionId, "starting. ");
@@ -56,7 +56,8 @@ async function prompt(id, params) {
   const long = /LONG:(\d+)/.exec(text);
   if (long) said += " " + "x".repeat(Number(long[1]));
   if (text.includes("CWD")) said += ` cwd=${session?.cwd}`;
-  chunk(sessionId, text.includes("ASKME") ? "I need you to decide.\nASK: Which one first?" : text.includes("QUESTION") ? "Done. Shall I carry on?" : `done: ${text}${said}`);
+  if (text.includes("NOTEME")) chunk(sessionId, "NOTE: found two config files\nWorking on it.\n");
+  chunk(sessionId, text.includes("BLOCKME") ? "Tried two ways.\nBLOCKED: no network from this machine" : text.includes("ASKME") ? "I need you to decide.\nASK: Which one first?" : text.includes("QUESTION") ? "Done. Shall I carry on?" : `done: ${text}${said}`);
   send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
 }
 

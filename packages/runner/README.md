@@ -68,7 +68,7 @@ The runner can only answer permission requests the helper **asks for**, and it o
 - `read`: read, search, think. `edit`: also edits inside the workspace, **and `fetch` (network)**. `full`: everything.
 - Except in `full`, a request with any path outside the workspace is refused. A symlink that points outside counts as outside.
 - It cannot block what a helper does without asking (for example its own tool reading `~/.ssh` with no prompt), or requests with no path. An injected task could use this to read local files and carry them to the cloud. For real isolation, use a dedicated system account, or a VPS with no sensitive files, and tighten the helper's own read and write limits.
-- When the helper needs the user to decide, the last line of its reply must start with `ASK:` and hold one sentence. The runner adds an English line to every task that explains this. Only this marker and refused permission requests become "waiting for you". A reply that ends with a question mark does not count.
+- The helper speaks with markers at the start of a line: `NOTE:` (anywhere; goes in the receipt's `notice`, no stop), `BLOCKED:` (last line; the job ends as `failed` with a `Blocked:` summary), `ASK:` (last line; only the user can decide). With no marker it just carries on or finishes. The runner adds a short English convention with these rules to every task. Only `ASK:` and refused permission requests become "waiting for you". A reply that ends with a question mark does not count.
 
 ## Only one start at a time
 

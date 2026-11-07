@@ -190,6 +190,7 @@ export class Runner {
     });
     if (outcome.sessionId) receipt.sessionId = safeId(outcome.sessionId);
     if (outcome.ask) receipt.ask = outcome.ask;
+    if (outcome.notice) receipt.notice = outcome.notice;
     await this.#queueReceipts([this.#receipt(work, "final", receipt)]);
   }
 
