@@ -1,4 +1,5 @@
-// The shared state of the columns: connection status, the chosen resident, the residents list.
+// The shared state of the columns: connection status, the chosen resident, the residents list,
+// the waiting list, the right column (open or not, which panel) and the thread to open.
 import { useSyncExternalStore } from "react";
 
 export function createStore(initial) {
@@ -13,4 +14,9 @@ export function createStore(initial) {
 
 export const useStore = (store) => useSyncExternalStore(store.subscribe, store.get);
 
-export const store = createStore({ status: null, residents: [], error: "" });
+export const store = createStore({
+  status: null, residents: [], error: "",
+  waiting: { items: [], open: 0 },
+  right: { open: true, panel: "waiting" },
+  focus: "", // the thread the right panel should open
+});

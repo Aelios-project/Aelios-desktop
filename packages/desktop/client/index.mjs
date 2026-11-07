@@ -1,5 +1,5 @@
 // The browser half. It takes over DSH's left column and the middle area (the way DS Bot shadows slots)
-// and draws the resident's columns itself. The right panels come in the next slice.
+// and draws the resident's columns itself. The right column holds the panels.
 import { createElement as h, useEffect } from "react";
 import { call } from "./api.mjs";
 import { Chat } from "./chat.mjs";
@@ -7,7 +7,11 @@ import { ConnectForm } from "./connect-form.mjs";
 import { Left } from "./left.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
-import { LAYOUT, TOKENS } from "./theme.mjs";
+import { Right } from "./right.mjs";
+import { BASE } from "./style-base.mjs";
+import { CHAT } from "./style-chat.mjs";
+import { RIGHT } from "./style-right.mjs";
+import { TOKENS } from "./theme.mjs";
 
 export const inject = ["slots", "layout"];
 
@@ -31,7 +35,7 @@ function Main() {
   const t = words();
   return h("div", { className: "ad-root" },
     !status ? h("div", { className: "ad-note" }, t.connecting)
-      : status.connected ? h(Chat) : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
+      : status.connected ? [h(Chat, { key: "chat" }), h(Right, { key: "right" })] : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
 }
 
 const Side = () => h("div", { className: "ad-root ad-side" }, h(Left));
@@ -43,7 +47,7 @@ export function apply(ctx) {
   const t = words();
   ctx.effect(() => {
     const style = document.createElement("style");
-    style.textContent = `${TOKENS}\n${LAYOUT}\n.ad-side .ad-left { width: 100%; border: 0; background: transparent; }`;
+    style.textContent = [TOKENS, BASE, CHAT, RIGHT].join("\n");
     document.head.append(style);
     return () => style.remove();
   });

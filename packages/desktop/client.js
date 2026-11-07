@@ -28,7 +28,7 @@ __export(index_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(index_exports);
-var import_react5 = require("react");
+var import_react12 = require("react");
 
 // client/api.mjs
 var ROUTE = "/api/aelios-desktop";
@@ -58,6 +58,25 @@ function createMessages(get, now = Date.now) {
 }
 
 // client/chat.mjs
+var import_react4 = require("react");
+
+// client/icons.mjs
+var import_react = require("react");
+var PATHS = {
+  send: "M12 19V5M5.5 11.5 12 5l6.5 6.5",
+  back: "M15 18l-6-6 6-6",
+  close: "M6 6l12 12M18 6 6 18",
+  stop: "M7 7h10v10H7z",
+  open: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
+  panel: "M4 5h16v14H4zM15 5v14"
+};
+var Icon = ({ name }) => (0, import_react.createElement)(
+  "svg",
+  { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true },
+  (0, import_react.createElement)("path", { d: PATHS[name] })
+);
+
+// client/md.mjs
 var import_react2 = require("react");
 
 // client/markdown.mjs
@@ -316,8 +335,17 @@ function renderMarkdown(el, text) {
   mdAppend(el.ownerDocument, el, parseMarkdown(text));
 }
 
+// client/md.mjs
+function Md({ text }) {
+  const ref = (0, import_react2.useRef)(null);
+  (0, import_react2.useEffect)(() => {
+    if (ref.current) renderMarkdown(ref.current, text || "");
+  }, [text]);
+  return (0, import_react2.createElement)("div", { className: "ad-md", ref });
+}
+
 // client/store.mjs
-var import_react = require("react");
+var import_react3 = require("react");
 function createStore(initial) {
   let state = initial;
   const listeners = /* @__PURE__ */ new Set();
@@ -333,8 +361,16 @@ function createStore(initial) {
     }
   };
 }
-var useStore = (store2) => (0, import_react.useSyncExternalStore)(store2.subscribe, store2.get);
-var store = createStore({ status: null, residents: [], error: "" });
+var useStore = (store2) => (0, import_react3.useSyncExternalStore)(store2.subscribe, store2.get);
+var store = createStore({
+  status: null,
+  residents: [],
+  error: "",
+  waiting: { items: [], open: 0 },
+  right: { open: true, panel: "waiting" },
+  focus: ""
+  // the thread the right panel should open
+});
 
 // client/strings.mjs
 var WORDS = {
@@ -355,6 +391,30 @@ var WORDS = {
     disconnect: "Disconnect",
     empty: "Nothing yet. Say hello.",
     sending: "Sending…",
+    panels: { threads: "Threads", waiting: "Waiting", board: "Board", tools: "Tools" },
+    soon: "Nothing here yet",
+    nothingWaiting: "Nothing is waiting for you.",
+    collapse: "Collapse the side panel",
+    expand: "Open the side panel",
+    back: "Back",
+    open: "Open thread",
+    markRead: "Mark read",
+    stop: "Stop it",
+    sayTo: "Talk to it directly, not through the resident",
+    sendTo: "Send to it",
+    noThreads: "No threads yet. Ask the resident to look something up and the work will show here.",
+    done: "Finished",
+    threadsOff: "Background help is off.",
+    expired: "expired",
+    mine: "You said",
+    given: "The resident said",
+    result: "Handed back",
+    thread: "Thread",
+    files: "Files",
+    task: { sent: "Sent out", working: "Working", done: "Done", failed: "Failed", needs_you: "Needs you", quiet: "No reply", stopped: "Stopped", chosen: "Chosen", settled: "Dealt with" },
+    kind: { ask: "Waiting for you", note: "Progress", done: "Done", stuck: "Stuck" },
+    runs: { local: "Runs at the resident", linux: "Runs on GitHub Actions", machine: "Runs on a machine", retired: "Old route, retired" },
+    tasksN: "tasks",
     runner: { unpaired: "runner not paired", stopped: "runner stopped", starting: "runner starting", running: "runner running", crashed: "runner stopped with an error", locked: "runner already running elsewhere", revoked: "pairing was revoked" }
   },
   zh: {
@@ -374,6 +434,30 @@ var WORDS = {
     disconnect: "断开",
     empty: "还没有消息，先打个招呼吧。",
     sending: "正在发送…",
+    panels: { threads: "线程", waiting: "等你", board: "看板", tools: "小工具" },
+    soon: "这里还空着",
+    nothingWaiting: "没有在等你的事。",
+    collapse: "收起右栏",
+    expand: "打开右栏",
+    back: "返回",
+    open: "打开线程",
+    markRead: "已读",
+    stop: "叫它停下",
+    sayTo: "直接跟它说，不经过住户",
+    sendTo: "发给它",
+    noThreads: "还没有线程。在聊天里让它去查点什么、写点什么，它交出去的活会出现在这里。",
+    done: "做完的",
+    threadsOff: "后台帮忙关着。",
+    expired: "过期了",
+    mine: "你说的",
+    given: "住户交代的",
+    result: "交回来的",
+    thread: "线程",
+    files: "它做的文件",
+    task: { sent: "派出去了", working: "在干活", done: "做完了", failed: "没做成", needs_you: "等你拍板", quiet: "没回音", stopped: "已停下", chosen: "拍板了", settled: "处理过了" },
+    kind: { ask: "等你", note: "进展", done: "做完了", stuck: "卡住了" },
+    runs: { local: "在住户这里干", linux: "在 GitHub Actions 上干", machine: "在机器上干", retired: "旧线路，已停用" },
+    tasksN: "单",
     runner: { unpaired: "runner 未配对", stopped: "runner 已停止", starting: "runner 正在启动", running: "runner 运行中", crashed: "runner 出错停止", locked: "runner 已在别处运行", revoked: "配对已被撤销" }
   }
 };
@@ -381,24 +465,18 @@ var words = () => typeof navigator !== "undefined" && /^zh/i.test(navigator.lang
 
 // client/chat.mjs
 var POLL_MS = 5e3;
-function Md({ text }) {
-  const ref = (0, import_react2.useRef)(null);
-  (0, import_react2.useEffect)(() => {
-    if (ref.current) renderMarkdown(ref.current, text || "");
-  }, [text]);
-  return (0, import_react2.createElement)("div", { ref });
-}
 var clock = (at) => at ? new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
 function Chat() {
   const t = words();
-  const { status } = useStore(store);
+  const { status, residents, right } = useStore(store);
   const resident = status?.resident || "default";
-  const [lines, setLines] = (0, import_react2.useState)([]);
-  const [text, setText] = (0, import_react2.useState)("");
-  const [busy, setBusy] = (0, import_react2.useState)(false);
-  const [error, setError] = (0, import_react2.useState)("");
-  const end = (0, import_react2.useRef)(null);
-  const reader = (0, import_react2.useRef)(null);
+  const name = residents.find((r) => r.id === resident)?.name || t.title;
+  const [lines, setLines] = (0, import_react4.useState)([]);
+  const [text, setText] = (0, import_react4.useState)("");
+  const [busy, setBusy] = (0, import_react4.useState)(false);
+  const [error, setError] = (0, import_react4.useState)("");
+  const end = (0, import_react4.useRef)(null);
+  const reader = (0, import_react4.useRef)(null);
   const refresh = async () => {
     try {
       const next = await reader.current();
@@ -408,7 +486,7 @@ function Chat() {
       setError(e.message);
     }
   };
-  (0, import_react2.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     reader.current = createMessages((path) => web(path, { resident }));
     setLines([]);
     void refresh();
@@ -417,7 +495,7 @@ function Chat() {
     }, POLL_MS);
     return () => clearInterval(timer);
   }, [resident]);
-  (0, import_react2.useEffect)(() => {
+  (0, import_react4.useEffect)(() => {
     end.current?.scrollIntoView?.({ block: "end" });
   }, [lines.length]);
   async function send() {
@@ -443,50 +521,56 @@ function Chat() {
     }
   };
   const runner = status?.runner;
-  return (0, import_react2.createElement)(
+  const state = runner && (t.runner[runner.state] || runner.state) + (runner.error ? ` · ${runner.error}` : "");
+  return (0, import_react4.createElement)(
     "section",
     { className: "ad-main" },
-    (0, import_react2.createElement)(
+    (0, import_react4.createElement)(
       "div",
-      { className: "ad-head" },
-      t.title,
-      runner && (0, import_react2.createElement)("span", { className: "ad-state" }, t.runner[runner.state] || runner.state, runner.error ? ` · ${runner.error}` : ""),
-      runner && ["stopped", "crashed", "revoked"].includes(runner.state) && (0, import_react2.createElement)("button", { className: "ad-btn quiet", onClick: async () => store.set({ status: await call("start") }) }, t.start),
-      (0, import_react2.createElement)("button", { className: "ad-btn quiet", onClick: async () => store.set({ status: await call("disconnect") }) }, t.disconnect)
+      { className: "ad-top" },
+      (0, import_react4.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, name.slice(0, 1)),
+      (0, import_react4.createElement)("div", { className: "ad-who" }, (0, import_react4.createElement)("span", { className: "ad-name" }, name), state && (0, import_react4.createElement)("span", { className: "ad-status" }, state)),
+      runner && ["stopped", "crashed", "revoked"].includes(runner.state) && (0, import_react4.createElement)("button", { className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
+      (0, import_react4.createElement)("button", { className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("disconnect") }) }, t.disconnect),
+      !right.open && (0, import_react4.createElement)("button", { className: "ad-icon-btn", type: "button", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, (0, import_react4.createElement)(Icon, { name: "panel" }))
     ),
-    (0, import_react2.createElement)(
+    (0, import_react4.createElement)(
       "div",
-      { className: "ad-lines", "aria-live": "polite" },
-      lines.length === 0 && (0, import_react2.createElement)("div", { className: "ad-note" }, t.empty),
-      lines.map((line, i) => (0, import_react2.createElement)(
+      { className: "ad-stream", "aria-live": "polite" },
+      lines.length === 0 && (0, import_react4.createElement)("div", { className: "ad-note" }, t.empty),
+      lines.map((line, i) => (0, import_react4.createElement)(
         "div",
-        { key: line.id ?? i, className: `ad-row ${line.role === "user" ? "user" : "assistant"}` },
-        (0, import_react2.createElement)(
+        { key: line.id ?? i, className: `ad-row ${line.role === "user" ? "me" : "ai"}` },
+        (0, import_react4.createElement)(
           "div",
           { className: "ad-bubble" },
-          line.role === "user" ? line.text : (0, import_react2.createElement)(Md, { text: line.text }),
-          (0, import_react2.createElement)("span", { className: "ad-meta" }, clock(line.at))
+          line.role === "user" ? line.text : (0, import_react4.createElement)(Md, { text: line.text }),
+          (0, import_react4.createElement)("span", { className: "ad-meta" }, clock(line.at))
         )
       )),
-      (0, import_react2.createElement)("div", { ref: end })
+      (0, import_react4.createElement)("div", { ref: end })
     ),
-    error && (0, import_react2.createElement)("div", { className: "ad-error", role: "alert" }, error),
-    (0, import_react2.createElement)(
+    error && (0, import_react4.createElement)("div", { className: "ad-error", role: "alert", style: { padding: "0 16px" } }, error),
+    (0, import_react4.createElement)("div", { className: "ad-compose" }, (0, import_react4.createElement)(
       "div",
-      { className: "ad-compose" },
-      (0, import_react2.createElement)("textarea", { rows: 2, value: text, placeholder: t.write, "aria-label": t.write, onChange: (e) => setText(e.target.value), onKeyDown: onKey }),
-      (0, import_react2.createElement)("button", { className: "ad-btn", disabled: busy || !text.trim(), onClick: send }, busy ? t.sending : t.send)
-    )
+      { className: "ad-bar" },
+      (0, import_react4.createElement)(
+        "div",
+        { className: "ad-field" },
+        (0, import_react4.createElement)("textarea", { rows: 1, value: text, placeholder: t.write, "aria-label": t.write, onChange: (e) => setText(e.target.value), onKeyDown: onKey })
+      ),
+      (0, import_react4.createElement)("button", { className: "ad-round", type: "button", disabled: busy || !text.trim(), onClick: send, "aria-label": t.send, title: t.send }, (0, import_react4.createElement)(Icon, { name: "send" }))
+    ))
   );
 }
 
 // client/connect-form.mjs
-var import_react3 = require("react");
+var import_react5 = require("react");
 function ConnectForm({ defaultWorkspace = "" }) {
   const t = words();
-  const [form, setForm] = (0, import_react3.useState)({ url: "", key: "", workspace: "", helper: "dsh", access: "edit", confirmFull: false });
-  const [busy, setBusy] = (0, import_react3.useState)(false);
-  const [error, setError] = (0, import_react3.useState)("");
+  const [form, setForm] = (0, import_react5.useState)({ url: "", key: "", workspace: "", helper: "dsh", access: "edit", confirmFull: false });
+  const [busy, setBusy] = (0, import_react5.useState)(false);
+  const [error, setError] = (0, import_react5.useState)("");
   const set = (name) => (e) => setForm({ ...form, [name]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   async function submit(e) {
     e.preventDefault();
@@ -501,28 +585,28 @@ function ConnectForm({ defaultWorkspace = "" }) {
       setBusy(false);
     }
   }
-  const field = (name, label, props = {}) => (0, import_react3.createElement)("label", null, label, (0, import_react3.createElement)("input", { value: form[name], onChange: set(name), disabled: busy, ...props }));
-  return (0, import_react3.createElement)(
+  const field = (name, label, props = {}) => (0, import_react5.createElement)("label", null, label, (0, import_react5.createElement)("input", { value: form[name], onChange: set(name), disabled: busy, ...props }));
+  return (0, import_react5.createElement)(
     "form",
     { className: "ad-form", onSubmit: submit },
     field("url", t.address, { type: "url", required: true, placeholder: "https://", autoComplete: "off" }),
     field("key", t.key, { type: "password", required: true, autoComplete: "off" }),
     field("workspace", t.folder, { placeholder: defaultWorkspace }),
-    (0, import_react3.createElement)("label", null, t.helper, (0, import_react3.createElement)("select", { value: form.helper, onChange: set("helper"), disabled: busy }, (0, import_react3.createElement)("option", { value: "dsh" }, "DSH"), (0, import_react3.createElement)("option", { value: "kiro" }, "Kiro"))),
-    (0, import_react3.createElement)("label", null, t.access, (0, import_react3.createElement)("select", { value: form.access, onChange: set("access"), disabled: busy }, ["read", "edit", "full"].map((v) => (0, import_react3.createElement)("option", { key: v, value: v }, v)))),
-    form.access === "full" && (0, import_react3.createElement)("label", null, (0, import_react3.createElement)("span", null, (0, import_react3.createElement)("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
-    error && (0, import_react3.createElement)("div", { className: "ad-error", role: "alert" }, error),
-    (0, import_react3.createElement)("button", { className: "ad-btn", type: "submit", disabled: busy }, busy ? t.connecting : t.connect)
+    (0, import_react5.createElement)("label", null, t.helper, (0, import_react5.createElement)("select", { value: form.helper, onChange: set("helper"), disabled: busy }, (0, import_react5.createElement)("option", { value: "dsh" }, "DSH"), (0, import_react5.createElement)("option", { value: "kiro" }, "Kiro"))),
+    (0, import_react5.createElement)("label", null, t.access, (0, import_react5.createElement)("select", { value: form.access, onChange: set("access"), disabled: busy }, ["read", "edit", "full"].map((v) => (0, import_react5.createElement)("option", { key: v, value: v }, v)))),
+    form.access === "full" && (0, import_react5.createElement)("label", null, (0, import_react5.createElement)("span", null, (0, import_react5.createElement)("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
+    error && (0, import_react5.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    (0, import_react5.createElement)("button", { className: "ad-btn", type: "submit", disabled: busy }, busy ? t.connecting : t.connect)
   );
 }
 
 // client/left.mjs
-var import_react4 = require("react");
+var import_react6 = require("react");
 var POLL_MS2 = 3e4;
 function Left() {
   const t = words();
   const { status, residents } = useStore(store);
-  (0, import_react4.useEffect)(() => {
+  (0, import_react6.useEffect)(() => {
     const load = async () => {
       try {
         store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] });
@@ -537,18 +621,426 @@ function Left() {
   }, []);
   const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
   const list = residents.length ? residents : [{ id: "default", name: t.title }];
-  return (0, import_react4.createElement)(
+  return (0, import_react6.createElement)(
     "nav",
     { className: "ad-left", "aria-label": t.residents },
-    (0, import_react4.createElement)("h2", null, t.residents),
-    list.map((r) => (0, import_react4.createElement)(
+    (0, import_react6.createElement)("h2", null, t.residents),
+    list.map((r) => (0, import_react6.createElement)(
       "button",
       { key: r.id, className: "ad-item", type: "button", "aria-current": (status?.resident || "default") === r.id, onClick: () => pick(r.id) },
-      (0, import_react4.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
-      (0, import_react4.createElement)("span", null, r.name || r.id)
+      (0, import_react6.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
+      (0, import_react6.createElement)("span", null, r.name || r.id)
     ))
   );
 }
+
+// client/right.mjs
+var import_react11 = require("react");
+
+// client/panels.mjs
+var import_react10 = require("react");
+
+// client/panel-ids.mjs
+var PANEL_IDS = ["waiting", "threads", "board", "tools"];
+
+// client/panel-waiting.mjs
+var import_react7 = require("react");
+
+// client/threads-api.mjs
+function stateOf(task) {
+  if (!task) return "";
+  if (task.status !== "needs_you" || task.waiting !== false) return task.status;
+  return task.chosen ? "chosen" : "settled";
+}
+var pillOf = (state) => ({ working: "warn", sent: "warn", needs_you: "hot", done: "ok", failed: "bad", quiet: "bad", chosen: "ok" })[state] || "";
+var isWorking = (thread) => thread?.status === "sent" || thread?.status === "working";
+function splitThreads(list = []) {
+  const open = (t) => isWorking(t) || t.waiting;
+  return { open: list.filter(open), done: list.filter((t) => !open(t)) };
+}
+var post = (path, resident, body, request) => web(path, { method: "POST", body, resident }, request);
+var loadThreads = (resident, request) => web("/web/threads", { resident }, request);
+var loadThread = (resident, id, request) => web(`/web/thread?id=${encodeURIComponent(id)}`, { resident }, request);
+var sayToThread = (resident, id, text, request) => post("/web/thread/say", resident, { id, text }, request);
+var stopThread = (resident, id, request) => post("/web/thread/stop", resident, { id }, request);
+var loadWaiting = (resident, request) => web("/web/waiting", { resident }, request);
+var markSeen = (resident, item, request) => post("/web/waiting/seen", resident, item ? { id: item.id } : { all: true }, request);
+var choose = (resident, task, text, request) => post("/web/task/choose", resident, { id: task, text }, request);
+var when = (at) => at ? new Date(at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+var safeLink = (url) => /^https?:\/\/[^\s<>"'`]+$/i.test(url || "");
+
+// client/panel-waiting.mjs
+function WaitingPanel() {
+  const t = words();
+  const { status, waiting, right } = useStore(store);
+  const resident = status?.resident || "default";
+  const [busy, setBusy] = (0, import_react7.useState)("");
+  const [error, setError] = (0, import_react7.useState)("");
+  const run = (key, job) => async () => {
+    if (busy) return;
+    setBusy(key);
+    try {
+      await job();
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
+  };
+  const answer = (item, option) => run(item.task, async () => {
+    await choose(resident, item.task, option);
+    store.set({ waiting: await loadWaiting(resident) });
+  });
+  const read = (item) => run(item.id, async () => store.set({ waiting: await markSeen(resident, item) }));
+  const open = (item) => async () => {
+    if (item.kind !== "ask") await read(item)();
+    store.set({ focus: item.thread, right: { ...right, panel: "threads" } });
+  };
+  return (0, import_react7.createElement)(
+    "div",
+    { className: "ad-panel" },
+    error && (0, import_react7.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    waiting.items.length === 0 && (0, import_react7.createElement)("div", { className: "ad-note" }, t.nothingWaiting),
+    waiting.items.map((item) => (0, import_react7.createElement)(
+      "div",
+      { key: item.id, className: `ad-trow${item.kind === "ask" && !item.expired ? " ask" : ""}${item.expired ? " dim" : ""}` },
+      (0, import_react7.createElement)(
+        "span",
+        { className: "top-line" },
+        (0, import_react7.createElement)("span", { className: "t" }, item.title),
+        (0, import_react7.createElement)("span", { className: `ad-pill ${item.kind === "ask" && !item.expired ? "hot" : item.kind === "stuck" ? "bad" : item.kind === "done" ? "ok" : ""}` }, t.kind[item.kind] + (item.expired ? ` · ${t.expired}` : ""))
+      ),
+      (0, import_react7.createElement)("span", { className: "sub" }, (0, import_react7.createElement)("span", null, item.line), (0, import_react7.createElement)("span", null, when(item.at))),
+      (0, import_react7.createElement)(
+        "span",
+        { className: "ad-links" },
+        (item.options || []).map((option, i) => (0, import_react7.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: answer(item, option) }, option)),
+        (0, import_react7.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.open, "aria-label": t.open, onClick: open(item) }, (0, import_react7.createElement)(Icon, { name: "open" })),
+        item.kind !== "ask" && (0, import_react7.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.markRead, "aria-label": t.markRead, onClick: read(item) }, (0, import_react7.createElement)(Icon, { name: "close" }))
+      )
+    ))
+  );
+}
+
+// client/panel-threads.mjs
+var import_react9 = require("react");
+
+// client/thread-view.mjs
+var import_react8 = require("react");
+var POLL_MS3 = 5e3;
+function Line({ line, thread, t, onChoose, busy }) {
+  const task = line.role === "result" ? (thread.tasks || []).find((x) => x.id === line.task && x.waiting) : null;
+  const shown = (thread.tasks || []).find((x) => x.id === line.task);
+  const state = shown && shown.status === line.status ? stateOf(shown) : line.status;
+  const who = line.role === "user" ? line.direct ? t.mine : t.given : line.role === "result" ? t.result : t.thread;
+  const links = (line.links || []).filter(safeLink);
+  return (0, import_react8.createElement)(
+    "div",
+    { className: `ad-tline r-${line.role}` },
+    (0, import_react8.createElement)("div", { className: "who-l" }, (0, import_react8.createElement)("span", null, who), line.role === "result" && (0, import_react8.createElement)("span", { className: `ad-pill ${pillOf(state)}` }, t.task[state] || state)),
+    (line.steps || []).map((step, i) => (0, import_react8.createElement)("div", { key: i, className: "step-l" }, step)),
+    line.text && (line.direct ? (0, import_react8.createElement)("div", { className: "text" }, line.text) : (0, import_react8.createElement)("div", { className: "text" }, (0, import_react8.createElement)(Md, { text: line.text }))),
+    (line.files?.length > 0 || links.length > 0 || task) && (0, import_react8.createElement)(
+      "div",
+      { className: "ad-links" },
+      (line.files || []).map((f) => (0, import_react8.createElement)("span", { key: f.path, className: "ad-pill", title: f.path }, f.path.split("/").pop())),
+      links.map((l) => (0, import_react8.createElement)("a", { key: l, className: "ad-btn quiet small", href: l, target: "_blank", rel: "noopener noreferrer" }, new URL(l).host)),
+      task && (task.choices || []).map((c, i) => (0, import_react8.createElement)("button", { key: c, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: busy, onClick: () => onChoose(task, c) }, c))
+    )
+  );
+}
+function ThreadView({ resident, id, onBack }) {
+  const t = words();
+  const [thread, setThread] = (0, import_react8.useState)(null);
+  const [draft, setDraft] = (0, import_react8.useState)("");
+  const [busy, setBusy] = (0, import_react8.useState)(false);
+  const [error, setError] = (0, import_react8.useState)("");
+  const reload = async () => {
+    try {
+      setThread(await loadThread(resident, id));
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  (0, import_react8.useEffect)(() => {
+    setThread(null);
+    void reload();
+    const timer = setInterval(() => {
+      if (!document.hidden) void reload();
+    }, POLL_MS3);
+    return () => clearInterval(timer);
+  }, [resident, id]);
+  const act = async (job) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await job();
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const say = () => act(async () => {
+    const text = draft.trim();
+    if (!text) return;
+    setThread(await sayToThread(resident, id, text));
+    setDraft("");
+  });
+  const onChoose = (task, text) => act(async () => {
+    await choose(resident, task.id, text);
+    store.set({ waiting: await loadWaiting(resident) });
+    await reload();
+  });
+  const onKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
+      e.preventDefault();
+      void say();
+    }
+  };
+  return (0, import_react8.createElement)(
+    "div",
+    { className: "ad-panel" },
+    (0, import_react8.createElement)(
+      "div",
+      { className: "ad-links" },
+      (0, import_react8.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.back, "aria-label": t.back, onClick: onBack }, (0, import_react8.createElement)(Icon, { name: "back" })),
+      (0, import_react8.createElement)("strong", { style: { flex: 1, minWidth: 0, overflowWrap: "anywhere" } }, thread?.title || t.thread),
+      thread && thread.runs === "machine" && thread.status === "working" && (0, import_react8.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.stop, "aria-label": t.stop, disabled: busy, onClick: () => act(() => stopThread(resident, id)) }, (0, import_react8.createElement)(Icon, { name: "stop" }))
+    ),
+    thread && (0, import_react8.createElement)("span", { className: "ad-hint" }, t.runs[thread.runs] || ""),
+    (thread?.lines || []).map((line) => (0, import_react8.createElement)(Line, { key: line.id, line, thread, t, onChoose, busy })),
+    (thread?.files || []).length > 0 && (0, import_react8.createElement)("div", { className: "ad-tline" }, (0, import_react8.createElement)("div", { className: "who-l" }, t.files), thread.files.map((f) => (0, import_react8.createElement)("div", { key: f.path, className: "step-l" }, f.path))),
+    error && (0, import_react8.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    thread?.canSay && (0, import_react8.createElement)(
+      "div",
+      { className: "ad-say" },
+      (0, import_react8.createElement)("textarea", { rows: 2, value: draft, placeholder: t.sayTo, "aria-label": t.sayTo, onChange: (e) => setDraft(e.target.value), onKeyDown: onKey }),
+      (0, import_react8.createElement)("button", { type: "button", className: "ad-round", disabled: busy || !draft.trim(), title: t.sendTo, "aria-label": t.sendTo, onClick: say }, (0, import_react8.createElement)(Icon, { name: "send" }))
+    )
+  );
+}
+
+// client/panel-threads.mjs
+var POLL_MS4 = 1e4;
+function Row({ item, t, onOpen }) {
+  const working = isWorking(item);
+  return (0, import_react9.createElement)(
+    "button",
+    { type: "button", className: `ad-trow${working ? " working" : ""}${item.waiting ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
+    (0, import_react9.createElement)("span", { className: "top-line" }, (0, import_react9.createElement)("span", { className: "t" }, item.title), (0, import_react9.createElement)("span", { className: `ad-pill ${pillOf(stateOf(item))}` }, t.task[stateOf(item)] || item.status)),
+    working && (0, import_react9.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react9.createElement)("span")),
+    (0, import_react9.createElement)("span", { className: "sub" }, (0, import_react9.createElement)("span", null, `${t.runs[item.runs] || ""} · ${item.tasks} ${t.tasksN}`), (0, import_react9.createElement)("span", null, when(item.updatedAt)))
+  );
+}
+function ThreadsPanel() {
+  const t = words();
+  const { status, focus } = useStore(store);
+  const resident = status?.resident || "default";
+  const [data, setData] = (0, import_react9.useState)({ loaded: false, on: true, threads: [] });
+  const [error, setError] = (0, import_react9.useState)("");
+  const [id, setId] = (0, import_react9.useState)("");
+  (0, import_react9.useEffect)(() => {
+    if (focus) {
+      setId(focus);
+      store.set({ focus: "" });
+    }
+  }, [focus]);
+  (0, import_react9.useEffect)(() => {
+    const load = async () => {
+      try {
+        const d = await loadThreads(resident);
+        setData({ loaded: true, on: Boolean(d.on), threads: d.threads || [] });
+        setError("");
+      } catch (e) {
+        setError(e.message);
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS4);
+    return () => clearInterval(timer);
+  }, [resident]);
+  if (id) return (0, import_react9.createElement)(ThreadView, { resident, id, onBack: () => setId("") });
+  const { open, done } = splitThreads(data.threads);
+  return (0, import_react9.createElement)(
+    "div",
+    { className: "ad-panel" },
+    error && (0, import_react9.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    data.loaded && !data.on && (0, import_react9.createElement)("p", { className: "ad-hint" }, t.threadsOff),
+    open.map((item) => (0, import_react9.createElement)(Row, { key: item.id, item, t, onOpen: setId })),
+    done.length > 0 && (0, import_react9.createElement)("p", { className: "ad-group" }, t.done),
+    done.map((item) => (0, import_react9.createElement)(Row, { key: item.id, item, t, onOpen: setId })),
+    data.loaded && data.threads.length === 0 && (0, import_react9.createElement)("div", { className: "ad-note" }, t.noThreads)
+  );
+}
+
+// client/panels.mjs
+var Empty = () => (0, import_react10.createElement)("div", { className: "ad-panel" }, (0, import_react10.createElement)("div", { className: "ad-slot" }, words().soon));
+var DRAW = { waiting: WaitingPanel, threads: ThreadsPanel };
+var PANELS = PANEL_IDS.map((id) => ({ id, render: DRAW[id] || Empty }));
+
+// client/right.mjs
+var POLL_MS5 = 1e4;
+function Right() {
+  const t = words();
+  const { status, waiting, right } = useStore(store);
+  const resident = status?.resident || "default";
+  (0, import_react11.useEffect)(() => {
+    const load = async () => {
+      try {
+        store.set({ waiting: await loadWaiting(resident) });
+      } catch {
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS5);
+    return () => clearInterval(timer);
+  }, [resident]);
+  if (!right.open) return null;
+  const panel = PANELS.find((p) => p.id === right.panel) || PANELS[0];
+  return (0, import_react11.createElement)(
+    "aside",
+    { className: "ad-right", "aria-label": t.panels[panel.id] },
+    (0, import_react11.createElement)(
+      "div",
+      { className: "ad-right-top" },
+      (0, import_react11.createElement)("div", { className: "ad-tabs", role: "tablist" }, PANELS.map((p) => (0, import_react11.createElement)(
+        "button",
+        { key: p.id, type: "button", role: "tab", className: "ad-tab", "aria-selected": p.id === panel.id, onClick: () => store.set({ right: { ...right, panel: p.id } }) },
+        t.panels[p.id],
+        p.id === "waiting" && waiting.open > 0 && (0, import_react11.createElement)("span", { className: "ad-badge" }, waiting.open)
+      ))),
+      (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn", title: t.collapse, "aria-label": t.collapse, onClick: () => store.set({ right: { ...right, open: false } }) }, (0, import_react11.createElement)(Icon, { name: "close" }))
+    ),
+    (0, import_react11.createElement)(panel.render)
+  );
+}
+
+// client/style-base.mjs
+var BASE = `
+.ad-root { display: flex; height: 100%; min-height: 0; color: var(--text-1); background: var(--bg); font-family: var(--font); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.ad-root *, .ad-root *::before, .ad-root *::after { box-sizing: border-box; }
+.ad-root button, .ad-root input, .ad-root textarea, .ad-root select { font: inherit; color: inherit; }
+.ad-root button { cursor: pointer; }
+.ad-root a { color: var(--accent-text); }
+.ad-root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ad-icon-btn { flex: none; width: 36px; height: 36px; border: 0; border-radius: 12px; display: grid; place-items: center; background: transparent; color: var(--text-2); position: relative; }
+.ad-icon-btn:hover { color: var(--text-1); background: var(--line-soft); }
+.ad-icon-btn svg { width: 18px; height: 18px; }
+.ad-icon-btn.sm { width: 32px; height: 32px; }
+.ad-avatar { position: relative; flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--avatar-bg); box-shadow: 0 0 0 1px var(--avatar-ring), 0 0 18px rgba(139, 124, 246, .22); color: var(--text-2); font-family: var(--serif); }
+.ad-avatar.mini { width: 24px; height: 24px; font-size: 12px; }
+.ad-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 12px; border: 0; background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.ad-btn:hover { filter: brightness(1.05); }
+.ad-btn.quiet { border: 1px solid var(--line); background: transparent; color: var(--text-1); font-weight: 400; }
+.ad-btn.quiet:hover { border-color: var(--accent); }
+.ad-btn.small { height: 32px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+.ad-btn:disabled { opacity: .45; cursor: default; }
+.ad-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.ad-pill.ok { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: var(--ok-soft); }
+.ad-pill.warn { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.ad-pill.hot { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.ad-pill.bad { color: var(--err-text); border-color: color-mix(in srgb, var(--err) 50%, transparent); }
+.ad-hint { margin: 0; font-size: 13px; color: var(--text-3); }
+.ad-note { color: var(--text-3); font-size: 13px; text-align: center; margin: auto; padding: 0 16px; }
+.ad-error { color: var(--err-text); font-size: 13px; }
+.ad-form { margin: auto; width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; padding: 24px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
+.ad-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
+.ad-form input, .ad-form select { min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--input-bg); }
+.ad-md { overflow-wrap: anywhere; }
+.ad-md p, .ad-md ul, .ad-md ol, .ad-md pre, .ad-md blockquote, .ad-md .md-table, .ad-md h3, .ad-md h4, .ad-md hr { margin: 0 0 .55em; }
+.ad-md > :last-child { margin-bottom: 0; }
+.ad-md h3 { font-size: 1.08em; font-weight: 700; } .ad-md h4 { font-size: 1em; font-weight: 700; }
+.ad-md ul, .ad-md ol { padding-left: 1.35em; }
+.ad-md code { font-family: var(--mono); font-size: .88em; padding: .1em .35em; border-radius: 6px; background: var(--line-soft); }
+.ad-md pre { padding: 8px 10px; border-radius: 10px; background: var(--line-soft); overflow-x: auto; font-size: 12.5px; line-height: 1.5; }
+.ad-md pre code { padding: 0; background: none; font-size: inherit; }
+.ad-md blockquote { padding-left: 10px; border-left: 3px solid var(--line); color: var(--text-2); }
+.ad-md a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.ad-md hr { border: 0; border-top: 1px solid var(--line); }
+.ad-md .md-table { max-width: 100%; overflow-x: auto; }
+.ad-md table { border-collapse: collapse; font-size: .9em; }
+.ad-md th, .ad-md td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+.ad-md th { background: var(--line-soft); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .ad-root * { animation: none !important; transition: none !important; } }
+`;
+
+// client/style-chat.mjs
+var CHAT = `
+.ad-left { flex: none; width: 260px; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-right: 1px solid var(--line); background: var(--glass); overflow: auto; }
+.ad-side .ad-left { width: 100%; border: 0; background: transparent; }
+.ad-left h2 { margin: 4px 6px 6px; font-size: 12px; font-weight: 500; letter-spacing: .12em; color: var(--text-3); }
+.ad-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 14px; background: transparent; text-align: left; }
+.ad-item:hover { background: var(--line-soft); }
+.ad-item[aria-current="true"] { background: var(--accent-soft); }
+.ad-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ad-top { display: flex; align-items: center; gap: 10px; padding: 10px 8px 8px 16px; background: var(--glass); border-bottom: 1px solid var(--line-soft); backdrop-filter: blur(14px); }
+.ad-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ad-name { font-family: var(--serif); font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-status { font-size: 12px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-stream { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 12px; }
+.ad-row { display: flex; flex-direction: column; gap: 4px; max-width: 82%; }
+.ad-row.ai { align-self: flex-start; align-items: flex-start; }
+.ad-row.me { align-self: flex-end; align-items: flex-end; }
+.ad-bubble { position: relative; max-width: 100%; padding: 9px 13px; border-radius: 6px 18px 18px 18px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow-wrap: anywhere; user-select: text; }
+.ad-row.me .ad-bubble { background: var(--mine); border-color: var(--mine-line); box-shadow: none; border-radius: 18px 18px 6px 18px; white-space: pre-wrap; }
+.ad-meta { float: right; margin: 9px -3px -6px 12px; font-size: 11px; line-height: 1; color: var(--text-4); white-space: nowrap; }
+.ad-row.me .ad-meta { color: var(--text-3); }
+.ad-compose { background: var(--glass); border-top: 1px solid var(--line-soft); backdrop-filter: blur(14px); }
+.ad-bar { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 10px; }
+.ad-field { flex: 1; min-width: 0; display: flex; align-items: flex-end; min-height: 44px; padding: 0 4px 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--panel-strong); }
+.ad-field:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ad-field textarea { flex: 1; min-width: 0; max-height: 38vh; padding: 10px 0; border: 0; outline: 0; background: transparent; resize: none; font-size: 15px; line-height: 1.5; }
+.ad-field textarea::placeholder { color: var(--text-4); }
+.ad-round { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 0; background: var(--accent); color: var(--on-accent); }
+.ad-round svg { width: 20px; height: 20px; }
+.ad-round:disabled { opacity: .5; cursor: default; }
+`;
+
+// client/style-right.mjs
+var RIGHT = `
+.ad-right { flex: none; width: 340px; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--glass); }
+.ad-right-top { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--line-soft); }
+.ad-tabs { flex: 1; min-width: 0; display: flex; gap: 4px; overflow-x: auto; }
+.ad-tab { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); font-size: 13px; white-space: nowrap; }
+.ad-tab:hover { background: var(--line-soft); }
+.ad-tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.ad-badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+.ad-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.ad-panel > * { flex-shrink: 0; }
+.ad-group { margin: 6px 0 -6px; padding: 0 6px; font-size: 12px; font-weight: 500; letter-spacing: .12em; color: var(--text-3); }
+.ad-trow { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel); color: inherit; text-align: left; width: 100%; }
+button.ad-trow:hover { border-color: var(--accent); }
+.ad-trow.working { border-style: dashed; border-color: var(--line-dash); }
+.ad-trow.ask { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-soft); }
+.ad-trow.dim { opacity: .55; }
+.ad-trow .top-line { display: flex; align-items: center; gap: 8px; }
+.ad-trow .t { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.ad-trow .sub { display: flex; gap: 8px; font-size: 12px; color: var(--text-3); }
+.ad-trow .sub span:first-child { flex: 1; min-width: 0; }
+.ad-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ad-track { position: relative; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.ad-track span { position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; border-radius: 2px; background: var(--accent); animation: ad-slide 1.6s infinite ease-in-out; }
+@keyframes ad-slide { to { left: 100%; } }
+.ad-tline { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); }
+.ad-tline.r-user { background: var(--mine); border-color: var(--mine-line); }
+.ad-tline.r-result { border-style: dashed; border-color: var(--line-dash); }
+.ad-tline .who-l { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+.ad-tline .step-l { font-size: 12px; color: var(--text-4); overflow-wrap: anywhere; }
+.ad-tline .text { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ad-tline .text.ad-md { white-space: normal; }
+.ad-say { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: flex-end; padding-top: 8px; background: var(--glass); }
+.ad-say textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 30vh; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
+.ad-say .ad-round { width: 40px; height: 40px; }
+.ad-slot { margin: auto; text-align: center; color: var(--text-4); font-size: 13px; }
+`;
 
 // client/theme.mjs
 var TOKENS = `.ad-root {
@@ -559,6 +1051,7 @@ var TOKENS = `.ad-root {
   --panel-strong: rgba(23, 29, 58, .94);
   --line: rgba(148, 163, 255, .16);
   --line-soft: rgba(148, 163, 255, .10);
+  --line-dash: rgba(148, 163, 255, .32);
   --mine: rgba(244, 160, 124, .16);
   --mine-line: rgba(244, 160, 124, .35);
   --text-1: #eef0ff;
@@ -569,7 +1062,11 @@ var TOKENS = `.ad-root {
   --accent-text: #F4A07C;
   --accent-soft: rgba(244, 160, 124, .12);
   --on-accent: #251304;
+  --violet-text: #b3a8ff;
+  --ok: #7BD3A0;
   --ok-text: #a7e6c2;
+  --ok-soft: rgba(123, 211, 160, .1);
+  --err: #f87171;
   --err-text: #fca5a5;
   --shadow: 0 1px 0 rgba(180, 190, 255, .07) inset, 0 10px 30px rgba(2, 5, 18, .5);
   --avatar-bg: radial-gradient(circle at 35% 30%, #2d2b66, #11142e 72%);
@@ -578,48 +1075,47 @@ var TOKENS = `.ad-root {
   --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
   --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  .ad-root {
+    color-scheme: light;
+    --bg: #F8F5EF;
+    --glass: rgba(248, 245, 239, .74);
+    --panel: rgba(255, 255, 255, .82);
+    --panel-strong: rgba(255, 255, 255, .97);
+    --line: rgba(109, 92, 210, .16);
+    --line-soft: rgba(109, 92, 210, .10);
+    --line-dash: rgba(109, 92, 210, .3);
+    --mine: rgba(244, 160, 124, .24);
+    --mine-line: rgba(214, 120, 84, .35);
+    --text-1: #232437;
+    --text-2: #3c3e5c;
+    --text-3: #5a5d82;
+    --text-4: #666a90;
+    --accent-text: #B0532F;
+    --accent-soft: rgba(244, 160, 124, .16);
+    --on-accent: #2a1608;
+    --violet-text: #5B4BC4;
+    --ok: #3E9A6A;
+    --ok-text: #2c7a52;
+    --ok-soft: rgba(62, 154, 106, .1);
+    --err: #B23B31;
+    --err-text: #B23B31;
+    --shadow: 0 1px 0 rgba(255, 255, 255, .7) inset, 0 8px 22px rgba(88, 76, 160, .10);
+    --avatar-bg: radial-gradient(circle at 35% 30%, #fff6dc, #e9e2fb 75%);
+    --avatar-ring: rgba(201, 150, 46, .45);
+    --input-bg: #fff;
+  }
 }`;
-var LAYOUT = `
-.ad-root { display: flex; height: 100%; min-height: 0; color: var(--text-1); background: var(--bg); font-family: var(--font); }
-.ad-root * { box-sizing: border-box; }
-.ad-left { flex: none; width: 260px; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-right: 1px solid var(--line); background: var(--glass); overflow: auto; }
-.ad-left h2 { margin: 4px 6px 6px; font-size: 12px; font-weight: 600; color: var(--text-3); }
-.ad-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 12px; background: transparent; color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
-.ad-item:hover { background: var(--line-soft); }
-.ad-item[aria-current="true"] { background: var(--accent-soft); }
-.ad-avatar { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--avatar-bg); box-shadow: 0 0 0 1px var(--avatar-ring); font-family: var(--serif); }
-.ad-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-.ad-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ad-head { padding: 10px 16px; border-bottom: 1px solid var(--line); font-weight: 600; }
-.ad-state { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--text-3); }
-.ad-lines { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px; }
-.ad-row { display: flex; }
-.ad-row.user { justify-content: flex-end; }
-.ad-bubble { position: relative; max-width: min(640px, 85%); padding: 9px 13px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow-wrap: anywhere; user-select: text; }
-.ad-row.user .ad-bubble { background: var(--mine); border-color: var(--mine-line); white-space: pre-wrap; }
-.ad-bubble p { margin: 0 0 6px; } .ad-bubble p:last-child { margin: 0; }
-.ad-meta { display: block; margin-top: 4px; font-size: 11px; color: var(--text-4); text-align: right; }
-.ad-compose { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
-.ad-compose textarea, .ad-form input, .ad-form select { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--input-bg); color: var(--text-1); font: inherit; }
-.ad-btn { padding: 9px 16px; border-radius: 12px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font: inherit; cursor: pointer; }
-.ad-btn:disabled { opacity: .5; cursor: default; }
-.ad-btn.quiet { background: transparent; color: var(--accent-text); }
-.ad-root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ad-form { margin: auto; width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; padding: 24px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
-.ad-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
-.ad-error { color: var(--err-text); font-size: 13px; }
-.ad-note { color: var(--text-3); font-size: 13px; }
-@media (prefers-reduced-motion: reduce) { .ad-root * { animation: none !important; transition: none !important; } }
-`;
 
 // client/index.mjs
 var inject = ["slots", "layout"];
 var PANEL = "aelios-desktop";
 var SHADOW_PRIORITY = -100;
-var POLL_MS3 = 5e3;
+var POLL_MS6 = 5e3;
 function useStatus() {
   const { status } = useStore(store);
-  (0, import_react5.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     const load = async () => {
       try {
         store.set({ status: await call("status") });
@@ -630,7 +1126,7 @@ function useStatus() {
     void load();
     const timer = setInterval(() => {
       if (!document.hidden) void load();
-    }, POLL_MS3);
+    }, POLL_MS6);
     return () => clearInterval(timer);
   }, []);
   return status;
@@ -638,25 +1134,23 @@ function useStatus() {
 function Main() {
   const status = useStatus();
   const t = words();
-  return (0, import_react5.createElement)(
+  return (0, import_react12.createElement)(
     "div",
     { className: "ad-root" },
-    !status ? (0, import_react5.createElement)("div", { className: "ad-note" }, t.connecting) : status.connected ? (0, import_react5.createElement)(Chat) : (0, import_react5.createElement)(ConnectForm, { defaultWorkspace: status.defaultWorkspace })
+    !status ? (0, import_react12.createElement)("div", { className: "ad-note" }, t.connecting) : status.connected ? [(0, import_react12.createElement)(Chat, { key: "chat" }), (0, import_react12.createElement)(Right, { key: "right" })] : (0, import_react12.createElement)(ConnectForm, { defaultWorkspace: status.defaultWorkspace })
   );
 }
-var Side = () => (0, import_react5.createElement)("div", { className: "ad-root ad-side" }, (0, import_react5.createElement)(Left));
-var Nav = () => (0, import_react5.createElement)(
+var Side = () => (0, import_react12.createElement)("div", { className: "ad-root ad-side" }, (0, import_react12.createElement)(Left));
+var Nav = () => (0, import_react12.createElement)(
   "svg",
   { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true },
-  (0, import_react5.createElement)("path", { d: "M3 11 12 3l9 8M6 10v11h12V10M10 21v-7h4v7" })
+  (0, import_react12.createElement)("path", { d: "M3 11 12 3l9 8M6 10v11h12V10M10 21v-7h4v7" })
 );
 function apply(ctx) {
   const t = words();
   ctx.effect(() => {
     const style = document.createElement("style");
-    style.textContent = `${TOKENS}
-${LAYOUT}
-.ad-side .ad-left { width: 100%; border: 0; background: transparent; }`;
+    style.textContent = [TOKENS, BASE, CHAT, RIGHT].join("\n");
     document.head.append(style);
     return () => style.remove();
   });
