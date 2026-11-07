@@ -103,6 +103,31 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(done.ask, undefined);
   });
 
+  t("a BLOCKED: line is failed with a Blocked: summary and no ask", async r => {
+    r.start();
+    const blocked = await final(r, r.cloud.push({ text: "BLOCKME fetch it" }));
+    assert.equal(blocked.status, "failed");
+    assert.equal(blocked.ask, undefined);
+    assert.match(blocked.summary, /^Blocked: no network from this machine\n\nTried two ways\./);
+  });
+
+  t("NOTE: lines leave the result and go in the notice, mid-turn or last; a plain question mark stays done", async r => {
+    r.start();
+    const noted = await final(r, r.cloud.push({ text: "NOTEME please" }));
+    assert.equal(noted.status, "done");
+    assert.deepEqual(noted.notice, { text: "found two config files", fyi: true });
+    assert.ok(!noted.summary.includes("found two config files"));
+    assert.ok(noted.summary.includes("done: NOTEME please"));
+    const quiet = await final(r, r.cloud.push({ text: "QUESTION again" }));
+    assert.equal(quiet.notice, undefined);
+  });
+
+  t("the convention names the four ways to speak and the ladder, and no person", async r => {
+    r.start();
+    await final(r, r.cloud.push({ text: "plain" }));
+    for (const word of ["NOTE:", "BLOCKED:", "ASK:", "really different way", "way around", "A denied permission or a limit the user set is never worked around", "Reply in the language of the job"]) assert.ok(r.prompts()[0].full.includes(word), word);
+  });
+
   t("an ASK: line is needs_you with an ask, and the next finished turn resolves it", async r => {
     r.start();
     const asked = await final(r, r.cloud.push({ text: "ASKME which one" }));

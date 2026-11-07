@@ -66,7 +66,7 @@ Terms: a **thread** is one ACP session with one fixed workspace. A **job**, **sa
 2. WHEN a reply merely ends with a question mark THEN the runner SHALL treat the work as `done`.
 3. WHEN a permission request is refused THEN the runner SHALL send `needs_you` and say what was refused.
 4. WHEN a thread finishes with `done` THEN the runner SHALL send the keys of that thread's open asks in `resolve`.
-5. The runner SHALL add one English line to each message to the helper, which explains the `ASK:` rule, asks it to reply in the language of the job, and names no person.
+5. The runner SHALL add a short English convention to each message to the helper. It explains `NOTE:`, `BLOCKED:` and `ASK:`, a ladder for getting unstuck, and the language rule, and it names no person. The markers are specified in the waiting-list spec (requirement 9).
 
 ### 7. Permissions
 
