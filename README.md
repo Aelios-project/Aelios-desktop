@@ -46,9 +46,10 @@ cloud resident <── runner dials out ── aelios-runner ── ACP (stdio) 
 For the Kiroween rules, this is what was there before the submission period (2026-10-30 to 2026-12-04) and what is new.
 
 - **Aelios-resident** is the cloud resident. It existed before the submission period and is not part of this submission. The repository is [Aelios-project/Aelios-resident](https://github.com/Aelios-project/Aelios-resident).
-- **The runner** was first written on 2026-11-07, inside Aelios-resident, in [PR #65](https://github.com/Aelios-project/Aelios-resident/pull/65) (commit `feba81c`, the ACP runner with Kiro and DSH plugs) and [PR #67](https://github.com/Aelios-project/Aelios-resident/pull/67) (commit `a7f6a86`, the `aelios-runner/1` protocol). It was then moved here with its history, using `git subtree split --prefix=runner`. The commits in `packages/runner` keep their original dates and messages.
-- **Only the runner's own files were changed in the move**: paths, `package.json` (name, license, `files`, `bin`, `engines`) and the English translation of its two docs. The code is as it was.
-- The desktop app, the `.kiro` folder, and the root files are new in this repository.
+- **The runner** was first written on 2026-11-07, inside Aelios-resident, in [PR #65](https://github.com/Aelios-project/Aelios-resident/pull/65) (commit `feba81c`, the ACP runner with Kiro and DSH plugs) and [PR #67](https://github.com/Aelios-project/Aelios-resident/pull/67) (squashed into `e46f199` on main, the `aelios-runner/1` protocol). It was then moved here with its history, using `git subtree split --prefix=runner`. The commits in `packages/runner` keep their original dates and messages (`bf5f186` and `04b93f2` are the same two changes before the squash).
+- **The cloud half of the protocol** (`src/machine.ts` and the matching changes in Aelios-resident, PR #67) was also written on 2026-11-07, inside the submission period. The runner needs it to work. The rest of Aelios-resident existed before the period.
+- **Changes after the move:** the code was changed in one way only. Every message the runner sends (receipt text, errors, comments, test fixtures) was translated from Chinese to English, and the task line sent to the helper now ends with "Reply in the language of the job." The docs were translated too, and `packages/runner/package.json` got its name, license, `files`, `bin` and `engines` fields.
+- The desktop app plan, the `.kiro` folder, and the root files are new in this repository.
 
 ## License
 
