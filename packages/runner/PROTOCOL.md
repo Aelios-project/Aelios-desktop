@@ -1,120 +1,120 @@
-# runner ↔ 云端协议 `aelios-runner/1`
+# runner <-> cloud protocol `aelios-runner/1`
 
-这是 runner 和住户（Worker）之间的协议。云端那一半在 `src/machine.ts`；runner 自己的测试对着 `test/fake-cloud.mjs`。云端：一个住户只配一台机器；`cancelled` 在线程页上显示成「没做成」；机器离线时住户派活当场被拒，不排队。
-它不复用旧的 `/desktop/v1`。想法借自 agent-autoloop 的接单协议：只往外连、领活幂等、每份活一个 token、回执可重放、回执里带 ask / notice / resolve。
+This is the protocol between the runner and the resident (a Worker). The cloud half lives in the Aelios-resident repository (`src/machine.ts`). The runner's own tests run against `test/fake-cloud.mjs`. On the cloud side: a resident has one machine; `cancelled` shows on the thread page as "not done"; when the machine is offline, a job is refused on the spot and not queued.
+It does not reuse the older `/desktop/v1`. The idea is borrowed from the job-taking protocol of agent-autoloop: dial out only, idempotent claim, one token per job, replayable receipts, and ask / notice / resolve inside the receipt.
 
-## 原则
+## Principles
 
-1. runner 只往外连，不开端口。云端够不到 runner，所以"给线程说话"也是云端放一条消息、runner 来取。
-2. 活是**发给线程的消息**。线程 = 一个 ACP 会话 = 一个固定工作目录。消息有四种：`job`、`say`、`mail`、`cancel`。
-3. 云端只给文字和线程号。**用哪个帮手、在哪个目录、什么权限，只由 runner 本机配置决定。** 消息里多出来的字段（`cwd`、`agent`、`command`……）一律不看。`access` 只能把权限往下调，不能往上加。
-4. 领活幂等：同一个 `claimKey` 重来，拿回同一份活。
-5. 每份活有自己的 `token`，只对这份活有效。回执带 `workId` + `token`。
-6. 回执带 `receiptId`，可重放：内容相同返回 `duplicate`，内容不同返回 409。
-7. 帮手不知道用户是谁：云端写进 `text` / `instruction` 的内容里不放用户的名字和人设。runner 原样转给帮手，只在后面加一句英文的 `ASK:` 约定（见下）。
+1. The runner only dials out. It opens no port. The cloud cannot reach the runner, so "talk to a thread" also means the cloud puts a message down and the runner comes to fetch it.
+2. A job is **a message sent to a thread**. A thread is one ACP session with one fixed workspace. There are four kinds of message: `job`, `say`, `mail`, `cancel`.
+3. The cloud gives only text and a thread id. **Which helper, which folder, and which permission are decided only by this machine's runner config.** Extra fields in a message (`cwd`, `agent`, `command`, ...) are never read. `access` can only lower the permission, never raise it.
+4. Claiming is idempotent: the same `claimKey` again returns the same job.
+5. Each job has its own `token`, valid for that job only. A receipt carries `workId` + `token`.
+6. A receipt carries a `receiptId` and can be replayed: the same content returns `duplicate`; different content returns 409.
+7. The helper does not know who the user is: the cloud puts no user name or persona in `text` / `instruction`. The runner passes the text to the helper as is, and adds only one English `ASK:` convention (see below).
 
-## 地址
+## Addresses
 
-住户是 `default` 时前缀为空，否则是 `/r/<id>`。下面写 `{P}`。
+For the resident `default` the prefix is empty. Otherwise it is `/r/<id>`. Below it is written `{P}`.
 
-| 地址 | 谁调用 | 凭据 |
+| Address | Called by | Credential |
 |---|---|---|
-| `POST {P}/web/runner/code` → `{code, expiresAt}` | 设置页生成一次性配对码（10 分钟） | 请求头 `x-web-key` |
-| `POST {P}/runner/v1/pair` `{label, code}` → `{runnerId, token, protocol}` | 配对时调一次，用配对码 | 无（配对码本身） |
-| `POST {P}/web/runner/register` `{label}` → `{runnerId, token, protocol}` | 同上，用网页钥匙代替配对码 | 请求头 `x-web-key` |
-| `POST {P}/web/runner/revoke` `{runnerId}` → `{ok}` | 解除配对 | 请求头 `x-web-key` |
-| `POST {P}/runner/v1/heartbeat` | runner，每个周期一次 | `Authorization: Bearer <token>` |
-| `POST {P}/runner/v1/poll` | runner | 同上 |
-| `POST {P}/runner/v1/receipt` | runner | 同上 |
+| `POST {P}/web/runner/code` -> `{code, expiresAt}` | The settings page, to make a one-time pairing code (10 minutes) | Header `x-web-key` |
+| `POST {P}/runner/v1/pair` `{label, code}` -> `{runnerId, token, protocol}` | Called once when pairing, with the pairing code | None (the code itself) |
+| `POST {P}/web/runner/register` `{label}` -> `{runnerId, token, protocol}` | Same, using the web key instead of a code | Header `x-web-key` |
+| `POST {P}/web/runner/revoke` `{runnerId}` -> `{ok}` | Unpair | Header `x-web-key` |
+| `POST {P}/runner/v1/heartbeat` | The runner, once per cycle | `Authorization: Bearer <token>` |
+| `POST {P}/runner/v1/poll` | The runner | Same |
+| `POST {P}/runner/v1/receipt` | The runner | Same |
 
-请求体是 JSON 对象，每个请求最多 16 KB。出错时返回 `{error, code}` 加状态码。
-- 403：不是撤销（前面的防火墙、WAF 也会回 403），当临时错误，间隔越来越长地重试，回执留着。
-- 401 `UNAUTHORIZED`：**只有这个**表示配对被撤销。**撤销 = 停下**：runner 取消正在跑的一轮，排着的活不再跑，没发出去的回执丢掉，然后退出。
-- 413：回执太大。runner 把文字截短一半再发，不丢结果；截完没变小就放弃这份（不会反复重发）。runner 自己发之前也会按字节把整份回执截到 15,000 字节以内（长的是 `summary` 和 `ask.question`，`resolve` 最多 50 项）。
-- 409 `INVALID_TOKEN` / `UNKNOWN_WORK`、其它 400：这条回执永远不会被收，runner 丢掉它。
-- 429、5xx、连不上：runner 留着，下个周期重发。
+A request body is a JSON object, at most 16 KB. On error the response is `{error, code}` plus a status code.
+- 403: not a revoke (a firewall or WAF in front can also answer 403). Treat it as a temporary error, retry with longer and longer gaps, and keep the receipts.
+- 401 `UNAUTHORIZED`: **only this one** means the pairing was revoked. **Revoked means stop**: the runner cancels the running turn, queued work no longer runs, unsent receipts are dropped, and it exits.
+- 413: the receipt is too big. The runner cuts the text in half and sends again without losing the result. If it did not get smaller, it gives up on that receipt (so it never resends forever). Before sending, the runner also cuts the whole receipt to under 15,000 bytes (the long parts are `summary` and `ask.question`; `resolve` holds at most 50 items).
+- 409 `INVALID_TOKEN` / `UNKNOWN_WORK`, and other 400: this receipt will never be accepted. The runner drops it.
+- 429, 5xx, cannot connect: the runner keeps the receipt and resends next cycle.
 
-一个住户同时有几个 runner，由云端定；runner 只认自己的 token。
+How many runners a resident may have is decided by the cloud. The runner knows only its own token.
 
 ## heartbeat
 
 ```jsonc
-// 请求
-{ "plugin": "kiro", "busy": "thread-id 或 null" }
-// 响应
+// request
+{ "plugin": "kiro", "busy": "thread-id or null" }
+// response
 { "ok": true, "protocol": "aelios-runner/1" }
 ```
 
-云端凭它判断"在线"，并给 runner 手里还没交回执的活续租（5 分钟）。租约过期的活云端标成"状态待确认"，**不会重新派**。
+The cloud uses it to decide "online", and to renew the lease (5 minutes) on work the runner holds without a receipt yet. When a lease runs out, the cloud marks that work "state to be confirmed" and **does not send it again**.
 
-## poll：领活
+## poll: claim work
 
 ```jsonc
-// 请求
+// request
 { "claimKey": "ck_…", "accept": ["job", "say", "mail", "cancel"] }
-// 响应
+// response
 { "work": null }
-{ "work": { /* Work，见下 */ } }
+{ "work": { /* Work, see below */ } }
 ```
 
-- `claimKey` 是 runner 每次领活前生成并存盘的随机串。同一个 `claimKey` 再来，云端返回**同一份** work（响应丢了也不丢活）。拿到活并存盘后，runner 才换新的 `claimKey`。
-- `accept` 是这次愿意收的消息种类。runner 空闲时收全部；正在跑一轮、或本机队列里还有活时，只收 `say`、`mail`、`cancel`（所以不会同时跑两个新 job）。云端只能返回种类在 `accept` 里的 work，同一线程里的消息按放入顺序给。
+- `claimKey` is a random string the runner makes and saves to disk before each claim. The same `claimKey` again gets the **same** work back from the cloud (so a lost response loses nothing). Only after the work is received and saved does the runner switch to a new `claimKey`.
+- `accept` is the kinds of message the runner will take this time. When idle it takes all. While a turn runs, or the local queue still holds work, it takes only `say`, `mail`, `cancel` (so two new jobs never run at once). The cloud may return only work whose kind is in `accept`. Messages in one thread come in the order they were put down.
 
 ### Work
 
 ```jsonc
 {
-  "workId": "w_…",          // 1 到 64 位：字母、数字、_ . : -
-  "token": "wt_…",          // 这份活的专用凭据
-  "thread": "t_…",          // 线程号：一个线程对应一个 ACP 会话
+  "workId": "w_…",          // 1 to 64 characters: letters, digits, _ . : -
+  "token": "wt_…",          // the credential for this work only
+  "thread": "t_…",          // thread id: one thread is one ACP session
   "kind": "job",            // job | say | mail | cancel
-  "title": "…",             // 可选，只给日志，不给帮手
-  "text": "…",              // job / say / mail 的正文，最多 16000 字
-  "access": "read",         // 可选：read | edit | full。只能比本机配置低
-  "interrupt": true         // 仅 say：默认 true
+  "title": "…",             // optional, for logs only, not given to the helper
+  "text": "…",              // body of job / say / mail, at most 16000 characters
+  "access": "read",         // optional: read | edit | full. Can only be lower than the machine config
+  "interrupt": true         // say only: default true
 }
 ```
 
-| kind | 来源 | runner 怎么做 |
+| kind | From | What the runner does |
 |---|---|---|
-| `job` | 住户派活 | 排进队，轮到时发给该线程的 ACP 会话（没有就新开）。 |
-| `say` | 用户直接对线程说话（**停下重来**） | `interrupt` 为 true（默认）：线程正在跑就先 `session/cancel`，被打断的那份活交 `cancelled`，然后马上把这句话发进**同一个**会话。线程空闲就直接发。`interrupt:false` 当 `mail`。回话不经住户转述：这份活的回执就是线程自己的话。 |
-| `mail` | 住户往线程的信箱投信（**排队**） | 不打断。线程在跑就排在后面，先交一个 `queued` 回执；跑完当前一轮再按顺序发进同一个会话。 |
-| `cancel` | 停下，不再接着做 | 取消该线程正在跑的一轮，并丢掉它本机队列里还没跑的活（各交一份 `cancelled`）。这份 `cancel` 自己交 `done`。 |
+| `job` | The resident gives work | Queued. When its turn comes, it is sent to the thread's ACP session (a new one if none). |
+| `say` | The user talks to the thread directly (**stop and restart**) | If `interrupt` is true (default) and the thread is running: first `session/cancel`, the interrupted work gets `cancelled`, then the words go at once into the **same** session. If the thread is idle, they are sent directly. `interrupt:false` acts like `mail`. The reply does not pass through the resident: this work's receipt is the thread's own words. |
+| `mail` | The resident drops a letter in the thread's mailbox (**queued**) | No interrupt. If the thread is running it waits behind, with a `queued` receipt first. After the current turn ends it is sent to the same session in order. |
+| `cancel` | Stop, do not carry on | Cancels the thread's running turn and drops work waiting in its local queue (each gets a `cancelled` receipt). The `cancel` itself gets `done`. |
 
-## receipt：回执
+## receipt
 
 ```jsonc
 {
-  "receiptId": "w_…:final",   // 同一份内容永远同一个 id；runner 用 "<workId>:<type>"
+  "receiptId": "w_…:final",   // the same content always has the same id; the runner uses "<workId>:<type>"
   "workId": "w_…",
   "token": "wt_…",
   "type": "started",          // started | queued | final
-  "sessionId": "…",           // 可选，ACP 会话号（不透明，最多 160 位；过不了校验就换成短摘要）
-  // 只有 final 带下面这些：
+  "sessionId": "…",           // optional, the ACP session id (opaque, at most 160 characters; replaced by a short digest if it fails the check)
+  // only final carries the rest:
   "status": "done",           // done | failed | needs_you | cancelled
-  "summary": "…",             // 最多 4000 字；runner 把里面原样出现的工作目录路径和 token 换掉，别的不处理
+  "summary": "…",             // at most 4000 characters; the runner replaces workspace paths and tokens that appear as is, and nothing else
   "ask":    { "key": "…", "question": "…", "options": ["…"], "recommend": "…" },
   "notice": { "text": "…", "fyi": true },
   "resolve": ["key", "…"]
 }
 ```
 
-- `started`：帮手会话已经建好或接回，开始跑。`queued`：这封 `mail` 排在后面了。`final`：这份活到头了，一份活只有一个 `final`。
-- `status` 的意思：`done` 做完；`failed` 没做成（帮手报错）；`needs_you` 需要用户拍板，**必带 `ask`**；`cancelled` 被 `say` 打断或被 `cancel` 停下。
-- **`ask`** 是"等你"列表里的一项。`key` 是同一件事的稳定编号：同一个 `key` 开着就不重复问。云端把它列进"等你"，不刷聊天。`options` 和 `recommend` 可选。
-- **`notice`** 只告知；`fyi:true` 表示不需要回应。
-- **`resolve`** 是 `key` 的列表：这些问题现在自己好了（用户回答了，或后续一轮已经做完），云端把对应的卡片收掉。runner 在某个线程做完（`done`）后，把这个线程还开着的 `ask` 全部放进 `resolve`。
-- 同一个 `receiptId` 重发：内容一样返回 `{ok:true, duplicate:true}`，不一样返回 409 `RECEIPT_CONFLICT`。
-- 已交过 `final` 的活，再来别的内容的 `final` 返回 409 `TERMINAL_CONFLICT`；租约过期后迟到、`token` 对得上的 `final` 仍然收下（对账）。
+- `started`: the helper session is made or resumed, and work begins. `queued`: this `mail` is waiting behind. `final`: this work is finished. A work has only one `final`.
+- `status`: `done` finished; `failed` not done (the helper errored); `needs_you` the user must decide, **always with `ask`**; `cancelled` interrupted by `say` or stopped by `cancel`.
+- **`ask`** is one item in the "waiting for you" list. `key` is a stable id for the same matter: while a `key` is open it is not asked again. The cloud lists it under "waiting for you" and does not post it into the chat. `options` and `recommend` are optional.
+- **`notice`** only informs. `fyi:true` means no reply is needed.
+- **`resolve`** is a list of `key`s: these questions have settled by themselves (the user answered, or a later turn finished), and the cloud closes the matching cards. When a thread finishes (`done`), the runner puts all of that thread's still-open `ask` keys into `resolve`.
+- Sending the same `receiptId` again: same content returns `{ok:true, duplicate:true}`; different content returns 409 `RECEIPT_CONFLICT`.
+- For work that already has a `final`, another `final` with different content returns 409 `TERMINAL_CONFLICT`. A `final` that arrives late after the lease ran out, with a matching `token`, is still accepted (reconciliation).
 
-回执写进本机的待发队列（outbox）再发，所以断线、重启都不会丢，也不会因为重发而让帮手再做一遍：runner 的"领到过的活"和"交过的回执"都落盘，重启后遇到还没有 `final` 的在跑的活，交 `needs_you`（"状态待确认，不会自动重做"），不会重跑。
+A receipt is written to a local outbox before it is sent, so a lost connection or a restart loses nothing, and a resend never makes the helper do the work again. The runner saves both "work it has claimed" and "receipts it has delivered" to disk. After a restart, work that is still running with no `final` gets `needs_you` ("state to be confirmed, not redone on its own") and does not run again.
 
-## runner 的本机规则（不在协议里，但云端要知道）
+## The runner's local rules (not in the protocol, but the cloud should know)
 
-- 每个线程固定一个工作目录，第一次用时定下，之后不变。
-- 权限请求（`session/request_permission`）按档位自动答：`read` 只许读/搜索/思考；`edit` 再加工作目录里的编辑，**也放行 `fetch`（联网）**；`full` 都许。只选"只这一次"，不留长期许可。被拒的请求会让这一轮交 `needs_you`，`ask` 里写明被拒的是什么。
-- 除 `full` 外，请求里带路径（`locations`）而且有一个在工作目录外（符号链接指出去的也算外面），一律拒。
-- **这条拦截的边界：只拦帮手主动来问的请求，而且只看它自己报的类型和路径。** 帮手如果不问就直接读（比如 `read` 档下读 `~/.ssh`），或者请求里没写路径，runner 看不见也拦不住；被注入的活可能因此把本机文件读出来带回云端。真要隔离，用专门的系统账号或一台里面没有敏感文件的 VPS 跑 runner，并在帮手自己的设置里收紧它的读写范围。
-- 真正需要用户拍板时，帮手要把回复的**最后一行单独写成 `ASK:` 开头，后面跟问题**。runner 在每条发给帮手的内容后面都加一句英文约定说明这一点（不含任何人名或人设）。只有这个标记和被拒的权限请求才交 `needs_you`；回复以问号结尾不算，当普通做完。
-- 帮手的输出和仓库里的文字都只是数据：它们不能决定派给谁、在哪个目录、用什么权限。注意它们能写出 `ASK:` 行，所以一张"等你"卡片只说明有人想问，不说明问得对。
+- Each thread has one fixed workspace, set on first use and never changed.
+- Permission requests (`session/request_permission`) are answered by tier: `read` allows only read / search / think; `edit` adds edits inside the workspace, **and also allows `fetch` (network)**; `full` allows all. Only "allow once" is chosen, never a standing permission. A refused request makes the turn end as `needs_you`, and the `ask` says what was refused.
+- Except in `full`, a request that carries paths (`locations`) with any path outside the workspace is refused. A symlink that points outside counts as outside.
+- **The limit of this check: it blocks only requests the helper asks for, and only by the kind and paths the helper reports.** If the helper reads without asking (for example reading `~/.ssh` in `read` tier), or the request lists no path, the runner cannot see or stop it. An injected job could use this to read local files and carry them to the cloud. For real isolation, use a dedicated system account or a VPS with no sensitive files, and tighten the helper's own read and write limits.
+- When the user really must decide, the helper writes the **last line of its reply alone, starting with `ASK:` and then the question**. The runner adds an English line after every message sent to the helper to explain this (it holds no person's name or persona). Only this marker and refused permission requests end as `needs_you`. A reply that ends with a question mark does not count and is treated as normally done.
+- The helper's output and the text in the repository are only data. They cannot decide who gets the work, which folder, or which permission. Note that they can write an `ASK:` line, so a "waiting for you" card only shows that someone wants to ask, not that the question is right.

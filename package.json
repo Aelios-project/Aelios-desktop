@@ -1,0 +1,11 @@
+{
+  "name": "aelios-desktop",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "workspaces": ["packages/runner"],
+  "scripts": {
+    "test": "npm test --workspace aelios-runner"
+  }
+}
