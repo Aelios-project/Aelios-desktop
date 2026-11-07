@@ -16,6 +16,7 @@ export const useStore = (store) => useSyncExternalStore(store.subscribe, store.g
 
 export const store = createStore({
   status: null, residents: [], threads: [], error: "",
+  rail: true, // ours covers DSH's whole left column; false hands it back to DSH
   waiting: { items: [], open: 0 },
   right: { open: true, panel: "waiting", overlay: false },
   focus: "", // the thread the right panel should open

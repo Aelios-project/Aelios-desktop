@@ -20,6 +20,8 @@ export const inject = ["slots", "layout"];
 const PANEL = "aelios-desktop";
 const SHADOW_PRIORITY = -100; // lower renders first, so ours wins over DSH's own cell
 const POLL_MS = 5000;
+// The rail starts in place on every load: the plugin's whole point. "Back to DSH" hands the column back for the
+// rest of that visit, and the chat header's button takes it again.
 
 function useStatus() {
   const { status } = useStore(store);
@@ -75,9 +77,10 @@ function Main() {
       : status.connected ? [h(Chat, { key: "chat" }), h(Right, { key: "right" })] : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
 }
 
-function Side() {
+/** The whole left column while ours is in place; its foot hands the column back to DSH. */
+function Side({ onBack }) {
   const day = useDay();
-  return h("div", { className: `ad-root ad-side${day ? " day" : ""}` }, h(Left));
+  return h("div", { className: `ad-root ad-side${day ? " day" : ""}` }, h(Left, { onBack }));
 }
 
 const Nav = () => h("svg", { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true },
@@ -95,11 +98,13 @@ export function apply(ctx) {
   ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: PANEL }, Main));
   ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name: "sidebar.panellist", id: PANEL, order: 5, label: () => t.title }, Nav));
 
-  // The left column is shadowed only while connected, so an unconnected DSH keeps its own list.
+  // The whole left column is shadowed while connected and while the reader wants our rail; the foot button hands
+  // it back to DSH, which is also how DSH's own navigation comes back.
+  const back = () => { store.set({ rail: false }); ctx.layout.selectPanel(null); };
   let release = null;
   const sync = () => {
-    const on = Boolean(store.get().status?.connected);
-    if (on && !release) release = ctx.slots.inject("sidebar.workspaces", () => ctx.slots.register({ name: "sidebar.workspaces", priority: SHADOW_PRIORITY }, Side));
+    const on = Boolean(store.get().status?.connected) && store.get().rail;
+    if (on && !release) release = ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar", priority: SHADOW_PRIORITY }, () => h(Side, { onBack: back })));
     if (!on && release) { release(); release = null; }
   };
   ctx.effect(() => { const off = store.subscribe(sync); sync(); return () => { off(); release?.(); release = null; }; });

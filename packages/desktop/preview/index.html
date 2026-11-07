@@ -55,7 +55,10 @@
           <span class="ad-t">Read the new spec</span>
           <span class="ad-s">Yesterday 15:02</span>
         </button>
-        <div class="ad-rail-foot"><button type="button" class="ad-btn quiet small">Disconnect</button></div>
+        <div class="ad-rail-foot">
+          <button type="button" class="ad-btn quiet small" title="Back to DSH">Back to DSH</button>
+          <button type="button" class="ad-icon-btn sm" aria-label="Disconnect" title="Disconnect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+        </div>
       </nav>
 
       <section class="ad-main">
@@ -85,6 +88,31 @@
               <span class="ad-meta">09:14</span>
             </div>
           </div>
+          <div class="ad-row ai">
+            <div class="ad-busy open">
+              <button type="button" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z"/></svg><span>thought for a moment · used 2 tools</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+              <div class="ad-busy-list">
+                <div class="ad-busy-item"><button type="button"><span class="what">thought</span><span class="detail">the lease is the one that needs a look</span><span class="state"></span></button></div>
+                <div class="ad-busy-item"><button type="button"><span class="what">read the ledger</span><span class="detail">ledger/july.csv</span><span class="state"></span></button></div>
+                <div class="ad-busy-item"><button type="button" aria-expanded="true"><span class="what">searched the web</span><span class="detail">rent notice rules</span><span class="state"></span></button>
+                  <div><div class="label">Result</div><pre>Two notices in the same week is unusual.
+Check the second one before paying.</pre></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="ad-row ai">
+            <div class="ad-pics">
+              <button type="button" aria-label="Open the picture"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Crect width='260' height='260' fill='%23f4a07c'/%3E%3Ccircle cx='100' cy='96' r='46' fill='%23f8f5ef'/%3E%3Crect x='40' y='160' width='180' height='26' rx='13' fill='%23f8f5ef'/%3E%3C/svg%3E" alt=""></button>
+              <button type="button" aria-label="Open the picture"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Crect width='260' height='260' fill='%238b7cf6'/%3E%3Crect x='36' y='70' width='188' height='18' rx='9' fill='%23f8f5ef'/%3E%3Crect x='36' y='108' width='140' height='18' rx='9' fill='%23f8f5ef'/%3E%3Crect x='36' y='146' width='164' height='18' rx='9' fill='%23f8f5ef'/%3E%3C/svg%3E" alt=""></button>
+            </div>
+            <div class="ad-bubble first"><div class="ad-md"><p>Two notices from the same week — one is probably a duplicate.</p></div><span class="ad-meta">09:16</span></div>
+          </div>
+          <div class="ad-row ai">
+            <div class="ad-files">
+              <button type="button" class="ad-file" title="weekly-note.md"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span class="n">weekly-note.md</span><span class="s">6 KB</span></button>
+            </div>
+            <div class="ad-bubble first"><div class="ad-md"><p>The note is drafted; the numbers are from the July ledger.</p></div><span class="ad-meta">09:18</span></div>
+          </div>
           <div class="ad-row me">
             <div class="ad-bubble">What is it waiting on?<span class="ad-meta">09:20</span></div>
           </div>
@@ -97,7 +125,12 @@
           <div class="grow"></div>
         </div>
         <div class="ad-compose">
+          <div class="ad-thumbs">
+            <div><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%237BD3A0'/%3E%3C/svg%3E" alt=""><button type="button" class="ad-x" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+            <div><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23F6DDAE'/%3E%3C/svg%3E" alt=""><button type="button" class="ad-x" aria-label="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          </div>
           <div class="ad-bar">
+            <button type="button" class="ad-round quiet" aria-label="Send pictures" title="Send pictures"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
             <div class="ad-field"><textarea rows="1" placeholder="Write to the resident" aria-label="Write to the resident"></textarea></div>
             <button type="button" class="ad-round" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
           </div>

@@ -22,6 +22,10 @@ const dark = !day;
 const paper = dark ? "#070a16" : "#F8F5EF";
 document.documentElement.style.background = paper;
 document.body.style.background = paper;
+// The conversation opens at its end, the way the shell draws it.
+const stream = document.querySelector(".ad-stream");
+if (stream) stream.scrollTop = stream.scrollHeight;
+
 const bar = document.querySelector(".frame-bar");
 bar.style.color = dark ? "#7f85b0" : "#5a5d82";
 bar.style.borderBottomColor = dark ? "rgba(148,163,255,.12)" : "rgba(109,92,210,.14)";

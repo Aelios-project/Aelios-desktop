@@ -5,6 +5,8 @@ const ALLOWED = [
   "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
   "waiting", "waiting/seen", "task/choose", "pin",
 ];
+// Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.
+const BYTES = ["picture", "file", "media"];
 const RESIDENT = /^[a-z][a-z0-9-]{0,23}$/;
 const MAX_BYTES = 4 * 1024 * 1024;
 
@@ -18,11 +20,24 @@ export function target(base, resident, path, method = "GET") {
   if (typeof path !== "string" || path.length > 2048 || !path.startsWith("/web/") || /[\\#\x00-\x20]/.test(path)) throw new ProxyError("path not allowed");
   const [pathname, query = ""] = path.split("?");
   if (/%(?:2f|5c|2e)/i.test(pathname) || pathname.split("/").some((p) => p === "." || p === "..")) throw new ProxyError("path not allowed");
-  if (!ALLOWED.includes(pathname.slice("/web/".length))) throw new ProxyError("path not allowed", 403);
+  const name = pathname.slice("/web/".length);
+  if (!ALLOWED.includes(name) && !BYTES.includes(name)) throw new ProxyError("path not allowed", 403);
   if (resident !== "default" && !RESIDENT.test(resident ?? "")) throw new ProxyError("resident not allowed");
   const url = new URL((resident === "default" ? "" : `/r/${resident}`) + pathname + (query ? `?${query}` : ""), base);
   if (url.origin !== new URL(base).origin) throw new ProxyError("path not allowed");
   return url;
+}
+
+/** One of the resident's byte routes: its pictures, a handed-over file, a sticker. Read only. */
+export async function forwardBytes(connection, { resident = connection.resident, path = "" }, request = fetch) {
+  const name = path.split("?")[0].slice("/web/".length);
+  if (!BYTES.includes(name)) throw new ProxyError("path not allowed", 403);
+  const url = target(connection.url, resident, path, "GET");
+  const response = await request(url, { redirect: "error", signal: AbortSignal.timeout(30000), headers: { "x-web-key": connection.key } });
+  if (!response.ok) return { status: response.status, type: "", data: "" };
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > MAX_BYTES) throw new ProxyError("answer too large", 502);
+  return { status: response.status, type: response.headers.get("content-type") || "application/octet-stream", data: Buffer.from(bytes).toString("base64") };
 }
 
 export async function forward(connection, { resident = connection.resident, path, method = "GET", body }, request = fetch) {

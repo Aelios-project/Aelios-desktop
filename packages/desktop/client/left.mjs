@@ -4,13 +4,14 @@ import { createElement as h, useEffect } from "react";
 import { call, web } from "./api.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
+import { Icon } from "./icons.mjs";
 import { railThreads } from "./rail-rows.mjs";
 import { isWorking, loadThreads, when } from "./threads-api.mjs";
 
 const POLL_MS = 30000;
 const SHOWN = 6;
 
-export function Left() {
+export function Left({ onBack }) {
   const t = words();
   const { status, residents, threads } = useStore(store);
 
@@ -57,5 +58,6 @@ export function Left() {
     recent.length > 0 && h("p", { className: "ad-group-title" }, t.recent),
     recent.map(row),
     h("div", { className: "ad-rail-foot" },
-      h("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("disconnect") }) }, t.disconnect)));
+      h("button", { type: "button", className: "ad-btn quiet small", title: t.backToDsh, onClick: onBack }, t.backToDsh),
+      h("button", { type: "button", className: "ad-icon-btn sm", title: t.disconnect, "aria-label": t.disconnect, onClick: async () => store.set({ status: await call("disconnect") }) }, h(Icon, { name: "back" }))));
 }

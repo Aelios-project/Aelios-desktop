@@ -16,6 +16,18 @@ export async function web(path, { method = "GET", body, resident } = {}, request
   return data;
 }
 
+/** The resident's bytes (a picture, a handed-over file, a sticker) as an object URL, fetched once per path. */
+const blobs = new Map();
+export async function blobUrl(path, { resident } = {}, request = fetch) {
+  const key = `${resident || ""}${path}`;
+  if (blobs.has(key)) return blobs.get(key);
+  const { type, data } = await call("blob", { path, resident }, request);
+  if (!data) throw new Error("the resident has no such bytes");
+  const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type }));
+  blobs.set(key, url);
+  return url;
+}
+
 /**
  * Reads /web/messages. read() gives the lines when they changed, and null when they did not (the resident
  * answers { same } for the version we hold). Every FULL_MS it reads all of them again.
