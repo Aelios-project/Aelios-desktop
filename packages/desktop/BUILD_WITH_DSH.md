@@ -2,6 +2,8 @@
 
 You are DeepSeek Harness (DSH), in creator mode. You have no other context than this folder. Read this file first, then `.kiro/specs/desktop-shell/`. The spec is the authority; this file only says where things stand and how to work.
 
+**The plugin is `packages/desktop`. Do not create a new plugin folder, stub or "minimal plugin" anywhere.** Fix and install the code that is already there. A plugin that loads but is not `packages/desktop` does not count as done. If a step fails, report the error from the host log instead of replacing the code with something simpler.
+
 ## 1. What to build
 
 A DSH plugin, `@aelios/desktop`, that turns DSH into a three-column window for a cloud AI resident:
