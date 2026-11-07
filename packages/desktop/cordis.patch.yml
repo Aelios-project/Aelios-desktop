@@ -1,0 +1,5 @@
+# Mounts the desktop plugin; its browser half is found through the package's dsh.client manifest.
+- insert:
+    - id: aelios-desktop
+      name: '@aelios/desktop'
+      config: {}

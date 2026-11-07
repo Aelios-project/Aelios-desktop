@@ -1,0 +1,21 @@
+{
+  "name": "@aelios/desktop",
+  "version": "0.1.0",
+  "description": "The resident's desktop: a DeepSeek Harness plugin with its own columns, and the runner in the background.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22", "dsh": "0.2.2-rc.1" },
+  "main": "index.js",
+  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json" },
+  "files": ["index.js", "host/", "client.js", "cordis.patch.yml", "README.md"],
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+  },
+  "dsh": {
+    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-layout"] },
+    "bundle": { "patch": "./cordis.patch.yml" }
+  },
+  "devDependencies": { "esbuild": "0.28.2" }
+}
