@@ -5,7 +5,7 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
 Known result, no task needed: a page placed by a plugin fills only the middle of the window. The shell draws its own components.
 
 - [ ] 1. Small checks that block the design
-  - [ ] 1.1 In DSH 0.2.2-rc.1, shadow `sidebar.workspaces` and the conversation cells with an empty component of our own; find what of DSH still shows (Open question 1)
+  - [x] 1.1 In DSH 0.2.2-rc.1, shadow `sidebar.workspaces` and the conversation cells with an empty component of our own; find what of DSH still shows (Open question 1)
   - [ ] 1.2 Find out if the ACP session id of `dsh --profile acp` is a DSH session id and whether the owner's window can read that session (Open question 2)
   - [ ] 1.3 Find which session events hold changed files and run commands, and choose the read API (Open question 3)
   - [ ] 1.4 Write the answers into `design.md` and remove them from "Open questions"

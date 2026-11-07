@@ -14,7 +14,7 @@
     "test": "node --test --test-concurrency=1 test/*.test.mjs"
   },
   "dsh": {
-    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-layout"] },
+    "client": { "platform": "web", "immediately": true, "inject": ["./client.js"] },
     "bundle": { "patch": "./cordis.patch.yml" }
   },
   "devDependencies": { "esbuild": "0.28.2" }
