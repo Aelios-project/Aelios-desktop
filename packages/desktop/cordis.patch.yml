@@ -1,7 +1,7 @@
 # Mounts the desktop plugin; its browser half is found through the package's dsh.client manifest.
+# Do not add `source:` here: the plugin manager derives that row field from the package's
+# dependency spec in the profile manifest, and a value written here is resolved against a
+# cached bundle directory.
 - insert:
   - id: aelios-desktop
     name: '@aelios/desktop'
-    config:
-      enabled: true
-    source: ./index.js
