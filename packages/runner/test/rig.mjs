@@ -17,7 +17,7 @@ export async function rig(plugin, extra = {}) {
   writeFileSync(store, JSON.stringify({ sessions: {}, log: [], n: 0 }));
   const workspace = path.join(dir, "work");
   const config = { url: cloud.url, resident: "default", workspace, access: "edit", plugin, bin: AGENT, env: { FAKE_STORE: store },
-    pollMs: 20, heartbeatMs: 20, killAfterMs: 400, ...extra };
+    pollMs: 20, heartbeatMs: 20, backoffMaxMs: 100, killAfterMs: 400, ...extra };
   const state = new StateFile(path.join(dir, "state.json"));
   await state.update(s => { s.device = { runnerId: "run_1", token: cloud.deviceToken }; });
   const rig = { dir, cloud, state, config, workspace, store, stopped: false };

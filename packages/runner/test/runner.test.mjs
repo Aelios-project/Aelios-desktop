@@ -125,7 +125,7 @@ for (const plugin of ["kiro", "dsh"]) {
   t("the convention names the four ways to speak and the ladder, and no person", async r => {
     r.start();
     await final(r, r.cloud.push({ text: "plain" }));
-    for (const word of ["NOTE:", "BLOCKED:", "ASK:", "really different way", "way around", "Reply in the language of the job"]) assert.ok(r.prompts()[0].full.includes(word), word);
+    for (const word of ["NOTE:", "BLOCKED:", "ASK:", "really different way", "way around", "A denied permission or a limit the user set is never worked around", "Reply in the language of the job"]) assert.ok(r.prompts()[0].full.includes(word), word);
   });
 
   t("an ASK: line is needs_you with an ask, and the next finished turn resolves it", async r => {

@@ -38,7 +38,7 @@ export class Runner {
     this.cloud = cloud ?? null;
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
-    this.pollMs = config.pollMs ?? 5000; this.heartbeatMs = config.heartbeatMs ?? 30_000;
+    this.pollMs = config.pollMs ?? 5000; this.heartbeatMs = config.heartbeatMs ?? 30_000; this.backoffMaxMs = config.backoffMaxMs ?? 60_000;
   }
 
   async #cloud() {
@@ -248,7 +248,7 @@ export class Runner {
       await this.tick();
       await new Promise(resolve => {
         const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); resolve(); };
-        const timer = setTimeout(done, Math.min(this.pollMs * 2 ** Math.min(this.failures, 10), 60_000)); // backs off while the resident is unreachable
+        const timer = setTimeout(done, Math.min(this.pollMs * 2 ** Math.min(this.failures, 10), this.backoffMaxMs)); // backs off while the resident is unreachable
         signal.addEventListener("abort", done, { once: true });
       });
     }

@@ -87,7 +87,7 @@ Parsing order: collect `NOTE:` lines from all text of the turn; remove them; the
 
 The cloud stores a final receipt's `notice` in `res_machine_notes` and the list shows it as a `note`.
 
-The convention text is short and in English. It lists the four ways to speak and the ladder: try one really different way; look for a way around or do the part that is not stuck; `BLOCKED:` only for an outside wall, `ASK:` only for what only the owner can decide; do what can be undone and never ask whether to carry on. It is added to every message by the runner, not by a persona, so Kiro, DSH and any other helper get it the same way.
+The convention text is short and in English. It lists the four ways to speak and the ladder: try one really different way; look for a way around or do the part that is not stuck; `BLOCKED:` only for an outside wall, `ASK:` only for what only the owner can decide; do what can be undone and never ask whether to carry on. The ladder is only for technical stuckness: a denied permission or a limit the user set is never worked around. The convention says so in one sentence: stop and say BLOCKED, or ASK for the permission. It is added to every message by the runner, not by a persona, so Kiro, DSH and any other helper get it the same way.
 
 ## Stopped, and the cancel bug
 
