@@ -1,6 +1,6 @@
 // What the right panels know about threads and the waiting list: how a task stands, and the calls to the
 // resident's /web/ routes. No React here, so the tests can run it. The rules for stateOf, the pill colors and the
-// open/done split follow Aelios-resident, public/app.js (AGPL-3.0, same author; main at fb4593a, 2026-11-07).
+// open/done split follow Aelios-resident, public/app.js (AGPL-3.0, same author; main at b118dfb, 2026-11-07).
 import { web } from "./api.mjs";
 
 /** A task that waited for the person and was dealt with asks no more. */

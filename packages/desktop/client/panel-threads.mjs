@@ -1,5 +1,5 @@
 // The threads panel: the list of work the resident handed out, and one thread opened below it.
-// Rows follow the 线程 page of Aelios-resident, public/index.html (AGPL-3.0, same author; main at fb4593a).
+// Rows follow the 线程 page of Aelios-resident, public/index.html (AGPL-3.0, same author; main at b118dfb).
 import { createElement as h, useEffect, useState } from "react";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";

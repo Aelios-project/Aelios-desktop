@@ -68,7 +68,9 @@ var PATHS = {
   close: "M6 6l12 12M18 6 6 18",
   stop: "M7 7h10v10H7z",
   open: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
-  panel: "M4 5h16v14H4zM15 5v14"
+  panel: "M4 5h16v14H4zM15 5v14",
+  grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  wrench: "M14.5 6a4 4 0 1 0 3.8 6.2L21 15l-1.8 1.8-2.8-2.7A4 4 0 0 0 14.5 6z"
 };
 var Icon = ({ name }) => (0, import_react.createElement)(
   "svg",
@@ -365,9 +367,10 @@ var useStore = (store2) => (0, import_react3.useSyncExternalStore)(store2.subscr
 var store = createStore({
   status: null,
   residents: [],
+  threads: [],
   error: "",
   waiting: { items: [], open: 0 },
-  right: { open: true, panel: "waiting" },
+  right: { open: true, panel: "waiting", overlay: false },
   focus: ""
   // the thread the right panel should open
 });
@@ -392,7 +395,9 @@ var WORDS = {
     empty: "Nothing yet. Say hello.",
     sending: "Sending…",
     panels: { threads: "Threads", waiting: "Waiting", board: "Board", tools: "Tools" },
-    soon: "Nothing here yet",
+    soon: "Left open for the next slice",
+    openNow: "At work",
+    recent: "Recent",
     nothingWaiting: "Nothing is waiting for you.",
     collapse: "Collapse the side panel",
     expand: "Open the side panel",
@@ -435,7 +440,9 @@ var WORDS = {
     empty: "还没有消息，先打个招呼吧。",
     sending: "正在发送…",
     panels: { threads: "线程", waiting: "等你", board: "看板", tools: "小工具" },
-    soon: "这里还空着",
+    soon: "先留个位置",
+    openNow: "在做",
+    recent: "最近",
     nothingWaiting: "没有在等你的事。",
     collapse: "收起右栏",
     expand: "打开右栏",
@@ -522,17 +529,25 @@ function Chat() {
   };
   const runner = status?.runner;
   const state = runner && (t.runner[runner.state] || runner.state) + (runner.error ? ` · ${runner.error}` : "");
+  const down = runner && ["stopped", "crashed", "revoked"].includes(runner.state);
   return (0, import_react4.createElement)(
     "section",
     { className: "ad-main" },
     (0, import_react4.createElement)(
       "div",
       { className: "ad-top" },
-      (0, import_react4.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, name.slice(0, 1)),
-      (0, import_react4.createElement)("div", { className: "ad-who" }, (0, import_react4.createElement)("span", { className: "ad-name" }, name), state && (0, import_react4.createElement)("span", { className: "ad-status" }, state)),
-      runner && ["stopped", "crashed", "revoked"].includes(runner.state) && (0, import_react4.createElement)("button", { className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
-      (0, import_react4.createElement)("button", { className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("disconnect") }) }, t.disconnect),
-      !right.open && (0, import_react4.createElement)("button", { className: "ad-icon-btn", type: "button", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, (0, import_react4.createElement)(Icon, { name: "panel" }))
+      (0, import_react4.createElement)(
+        "div",
+        { className: "ad-ident" },
+        (0, import_react4.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, name.slice(0, 1)),
+        (0, import_react4.createElement)("div", { className: "ad-who" }, (0, import_react4.createElement)("span", { className: "ad-name" }, name), state && (0, import_react4.createElement)("span", { className: "ad-status" }, state))
+      ),
+      (0, import_react4.createElement)(
+        "div",
+        { className: "ad-act" },
+        down && (0, import_react4.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
+        !right.open && (0, import_react4.createElement)("button", { type: "button", className: "ad-icon-btn", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, (0, import_react4.createElement)(Icon, { name: "panel" }))
+      )
     ),
     (0, import_react4.createElement)(
       "div",
@@ -543,12 +558,12 @@ function Chat() {
         { key: line.id ?? i, className: `ad-row ${line.role === "user" ? "me" : "ai"}` },
         (0, import_react4.createElement)(
           "div",
-          { className: "ad-bubble" },
+          { className: "ad-bubble first" },
           line.role === "user" ? line.text : (0, import_react4.createElement)(Md, { text: line.text }),
           (0, import_react4.createElement)("span", { className: "ad-meta" }, clock(line.at))
         )
       )),
-      (0, import_react4.createElement)("div", { ref: end })
+      (0, import_react4.createElement)("div", { ref: end, className: "grow" })
     ),
     error && (0, import_react4.createElement)("div", { className: "ad-error", role: "alert", style: { padding: "0 16px" } }, error),
     (0, import_react4.createElement)("div", { className: "ad-compose" }, (0, import_react4.createElement)(
@@ -602,49 +617,6 @@ function ConnectForm({ defaultWorkspace = "" }) {
 
 // client/left.mjs
 var import_react6 = require("react");
-var POLL_MS2 = 3e4;
-function Left() {
-  const t = words();
-  const { status, residents } = useStore(store);
-  (0, import_react6.useEffect)(() => {
-    const load = async () => {
-      try {
-        store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] });
-      } catch {
-      }
-    };
-    void load();
-    const timer = setInterval(() => {
-      if (!document.hidden) void load();
-    }, POLL_MS2);
-    return () => clearInterval(timer);
-  }, []);
-  const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
-  const list = residents.length ? residents : [{ id: "default", name: t.title }];
-  return (0, import_react6.createElement)(
-    "nav",
-    { className: "ad-left", "aria-label": t.residents },
-    (0, import_react6.createElement)("h2", null, t.residents),
-    list.map((r) => (0, import_react6.createElement)(
-      "button",
-      { key: r.id, className: "ad-item", type: "button", "aria-current": (status?.resident || "default") === r.id, onClick: () => pick(r.id) },
-      (0, import_react6.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
-      (0, import_react6.createElement)("span", null, r.name || r.id)
-    ))
-  );
-}
-
-// client/right.mjs
-var import_react11 = require("react");
-
-// client/panels.mjs
-var import_react10 = require("react");
-
-// client/panel-ids.mjs
-var PANEL_IDS = ["waiting", "threads", "board", "tools"];
-
-// client/panel-waiting.mjs
-var import_react7 = require("react");
 
 // client/threads-api.mjs
 function stateOf(task) {
@@ -669,7 +641,107 @@ var choose = (resident, task, text, request) => post("/web/task/choose", residen
 var when = (at) => at ? new Date(at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 var safeLink = (url) => /^https?:\/\/[^\s<>"'`]+$/i.test(url || "");
 
+// client/rail-rows.mjs
+function railThreads(threads = [], limit = 6) {
+  const isOpen = (x) => isWorking(x) || Boolean(x.waiting);
+  const byTime = (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+  const all = [...threads].sort(byTime);
+  return { open: all.filter(isOpen).slice(0, limit), recent: all.filter((x) => !isOpen(x)).slice(0, limit) };
+}
+
+// client/left.mjs
+var POLL_MS2 = 3e4;
+var SHOWN = 6;
+function Left() {
+  const t = words();
+  const { status, residents, threads } = useStore(store);
+  (0, import_react6.useEffect)(() => {
+    const load = async () => {
+      try {
+        store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] });
+      } catch {
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS2);
+    return () => clearInterval(timer);
+  }, []);
+  (0, import_react6.useEffect)(() => {
+    const load = async () => {
+      try {
+        store.set({ threads: (await loadThreads(status?.resident || "default"))?.threads || [] });
+      } catch {
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS2);
+    return () => clearInterval(timer);
+  }, [status?.resident]);
+  const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
+  const list = residents.length ? residents : [{ id: "default", name: t.title }];
+  const current = list.find((r) => r.id === (status?.resident || "default")) || list[0];
+  const others = list.filter((r) => r.id !== current.id);
+  const { open, recent } = railThreads(threads, SHOWN);
+  const row = (item) => (0, import_react6.createElement)(
+    "button",
+    {
+      key: item.id,
+      type: "button",
+      className: "ad-thread",
+      title: item.title,
+      onClick: () => store.set({ focus: item.id, right: { open: true, panel: "threads" } })
+    },
+    (0, import_react6.createElement)("span", { className: "ad-t" }, item.title),
+    (0, import_react6.createElement)("span", { className: "ad-s" }, isWorking(item) && (0, import_react6.createElement)("span", { className: "ad-live", "aria-hidden": true }), when(item.updatedAt))
+  );
+  return (0, import_react6.createElement)(
+    "nav",
+    { className: "ad-rail", "aria-label": t.residents },
+    (0, import_react6.createElement)(
+      "div",
+      { className: "ad-rail-head" },
+      (0, import_react6.createElement)("span", { className: "ad-rail-brand" }, (0, import_react6.createElement)("span", { className: "ad-rail-mark", "aria-hidden": true }, "✦"), t.residents)
+    ),
+    (0, import_react6.createElement)(
+      "button",
+      { type: "button", className: "ad-current on", title: current.name, onClick: () => pick(current.id) },
+      (0, import_react6.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (current.name || current.id).slice(0, 1)),
+      (0, import_react6.createElement)("span", { className: "ad-name" }, current.name || current.id),
+      (0, import_react6.createElement)("span", { className: "ad-tag" }, status?.runner?.state ? t.runner[status.runner.state] || status.runner.state : t.title)
+    ),
+    others.map((r) => (0, import_react6.createElement)(
+      "button",
+      { key: r.id, type: "button", className: "ad-rail-item", title: r.name, onClick: () => pick(r.id) },
+      (0, import_react6.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
+      (0, import_react6.createElement)("span", { className: "ad-txt" }, (0, import_react6.createElement)("span", { className: "ad-label" }, r.name || r.id))
+    )),
+    open.length > 0 && (0, import_react6.createElement)("p", { className: "ad-group-title" }, t.openNow, (0, import_react6.createElement)("span", null, open.length)),
+    open.map(row),
+    recent.length > 0 && (0, import_react6.createElement)("p", { className: "ad-group-title" }, t.recent),
+    recent.map(row),
+    (0, import_react6.createElement)(
+      "div",
+      { className: "ad-rail-foot" },
+      (0, import_react6.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("disconnect") }) }, t.disconnect)
+    )
+  );
+}
+
+// client/right.mjs
+var import_react11 = require("react");
+
+// client/panels.mjs
+var import_react10 = require("react");
+
+// client/panel-ids.mjs
+var PANEL_IDS = ["waiting", "threads", "board", "tools"];
+
 // client/panel-waiting.mjs
+var import_react7 = require("react");
 function WaitingPanel() {
   const t = words();
   const { status, waiting, right } = useStore(store);
@@ -880,9 +952,21 @@ function ThreadsPanel() {
 }
 
 // client/panels.mjs
-var Empty = () => (0, import_react10.createElement)("div", { className: "ad-panel" }, (0, import_react10.createElement)("div", { className: "ad-slot" }, words().soon));
+var MARK = { board: "grid", tools: "wrench" };
+function Empty({ id }) {
+  return (0, import_react10.createElement)(
+    "div",
+    { className: "ad-panel" },
+    (0, import_react10.createElement)(
+      "div",
+      { className: "ad-slot" },
+      (0, import_react10.createElement)("span", { className: "ad-slot-mark", "aria-hidden": true }, (0, import_react10.createElement)(Icon, { name: MARK[id] || "grid" })),
+      (0, import_react10.createElement)("span", null, words().soon)
+    )
+  );
+}
 var DRAW = { waiting: WaitingPanel, threads: ThreadsPanel };
-var PANELS = PANEL_IDS.map((id) => ({ id, render: DRAW[id] || Empty }));
+var PANELS = PANEL_IDS.map((id) => ({ id, render: () => DRAW[id] ? (0, import_react10.createElement)(DRAW[id]) : (0, import_react10.createElement)(Empty, { id }) }));
 
 // client/right.mjs
 var POLL_MS5 = 1e4;
@@ -905,19 +989,25 @@ function Right() {
   }, [resident]);
   if (!right.open) return null;
   const panel = PANELS.find((p) => p.id === right.panel) || PANELS[0];
+  const pick = (id) => store.set({ right: { ...right, panel: id } });
   return (0, import_react11.createElement)(
     "aside",
-    { className: "ad-right", "aria-label": t.panels[panel.id] },
+    { className: `ad-right${right.overlay ? " overlay" : ""}`, "aria-label": t.panels[panel.id] },
     (0, import_react11.createElement)(
       "div",
-      { className: "ad-right-top" },
+      { className: "ad-right-head" },
+      (0, import_react11.createElement)(
+        "div",
+        { className: "ad-right-line" },
+        (0, import_react11.createElement)("h2", { className: "ad-right-title" }, t.panels[panel.id]),
+        (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.collapse, "aria-label": t.collapse, onClick: () => store.set({ right: { ...right, open: false } }) }, (0, import_react11.createElement)(Icon, { name: "close" }))
+      ),
       (0, import_react11.createElement)("div", { className: "ad-tabs", role: "tablist" }, PANELS.map((p) => (0, import_react11.createElement)(
         "button",
-        { key: p.id, type: "button", role: "tab", className: "ad-tab", "aria-selected": p.id === panel.id, onClick: () => store.set({ right: { ...right, panel: p.id } }) },
+        { key: p.id, type: "button", role: "tab", className: "ad-tab", "aria-selected": p.id === panel.id, onClick: () => pick(p.id) },
         t.panels[p.id],
         p.id === "waiting" && waiting.open > 0 && (0, import_react11.createElement)("span", { className: "ad-badge" }, waiting.open)
-      ))),
-      (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn", title: t.collapse, "aria-label": t.collapse, onClick: () => store.set({ right: { ...right, open: false } }) }, (0, import_react11.createElement)(Icon, { name: "close" }))
+      )))
     ),
     (0, import_react11.createElement)(panel.render)
   );
@@ -925,35 +1015,59 @@ function Right() {
 
 // client/style-base.mjs
 var BASE = `
-.ad-root { display: flex; height: 100%; min-height: 0; color: var(--text-1); background: var(--bg); font-family: var(--font); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.ad-root { position: relative; display: flex; height: 100%; min-height: 0; overflow: hidden; color: var(--text-1); background: var(--bg); font-family: var(--font); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.ad-root > * { position: relative; z-index: 1; }
 .ad-root *, .ad-root *::before, .ad-root *::after { box-sizing: border-box; }
 .ad-root button, .ad-root input, .ad-root textarea, .ad-root select { font: inherit; color: inherit; }
 .ad-root button { cursor: pointer; }
 .ad-root a { color: var(--accent-text); }
 .ad-root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.ad-icon-btn { flex: none; width: 36px; height: 36px; border: 0; border-radius: 12px; display: grid; place-items: center; background: transparent; color: var(--text-2); position: relative; }
+.ad-root svg { flex: none; }
+.ad-root ::-webkit-scrollbar { width: 8px; height: 8px; }
+.ad-root ::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--line-dash); }
+.ad-root ::-webkit-scrollbar-track { background: transparent; }
+
+/* The sky: a nebula and fixed stars, never moving. Behind every column. */
+.ad-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: var(--bg); }
+.ad-sky::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(58% 42% at 78% 8%, var(--nebula-a), transparent 72%), radial-gradient(52% 42% at 8% 86%, var(--nebula-b), transparent 72%),
+    radial-gradient(40% 30% at 96% 62%, var(--nebula-c), transparent 70%); }
+.ad-sky::after { content: ""; position: absolute; inset: 0; opacity: var(--stars-opacity); background-size: 420px 420px;
+  background-image: radial-gradient(1px 1px at 24px 36px, var(--star-1), transparent), radial-gradient(1px 1px at 128px 96px, var(--star-2), transparent),
+    radial-gradient(1.5px 1.5px at 212px 180px, var(--star-1), transparent), radial-gradient(1px 1px at 320px 64px, var(--star-2), transparent),
+    radial-gradient(1px 1px at 392px 240px, var(--star-3), transparent), radial-gradient(1px 1px at 72px 300px, var(--star-2), transparent),
+    radial-gradient(1.5px 1.5px at 268px 356px, var(--star-1), transparent); }
+
+.ad-icon-btn { flex: none; width: 40px; height: 40px; border: 0; border-radius: 13px; display: grid; place-items: center; background: transparent; color: var(--text-2); position: relative; }
 .ad-icon-btn:hover { color: var(--text-1); background: var(--line-soft); }
-.ad-icon-btn svg { width: 18px; height: 18px; }
-.ad-icon-btn.sm { width: 32px; height: 32px; }
-.ad-avatar { position: relative; flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--avatar-bg); box-shadow: 0 0 0 1px var(--avatar-ring), 0 0 18px rgba(139, 124, 246, .22); color: var(--text-2); font-family: var(--serif); }
+.ad-icon-btn svg { width: 19px; height: 19px; }
+.ad-icon-btn.sm { width: 32px; height: 32px; border-radius: 9px; }
+.ad-icon-btn.sm svg { width: 16px; height: 16px; }
+.ad-icon-btn.primary { background: var(--accent); color: var(--on-accent); }
+.ad-icon-btn.primary:hover { filter: brightness(1.05); }
+.ad-avatar { position: relative; flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--avatar-bg); box-shadow: 0 0 0 1px var(--avatar-ring), 0 0 18px rgba(139, 124, 246, .22); color: var(--text-1); font-family: var(--serif); font-size: 17px; }
 .ad-avatar.mini { width: 24px; height: 24px; font-size: 12px; }
-.ad-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 12px; border: 0; background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.ad-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ad-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 15px; border-radius: 12px; border: 0; background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 600; white-space: nowrap; }
 .ad-btn:hover { filter: brightness(1.05); }
 .ad-btn.quiet { border: 1px solid var(--line); background: transparent; color: var(--text-1); font-weight: 400; }
 .ad-btn.quiet:hover { border-color: var(--accent); }
-.ad-btn.small { height: 32px; padding: 0 12px; border-radius: 10px; font-size: 13px; }
+.ad-btn.small { height: 30px; padding: 0 11px; border-radius: 10px; font-size: 13px; }
 .ad-btn:disabled { opacity: .45; cursor: default; }
-.ad-pill { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--line); font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.ad-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--line); font-size: 11px; line-height: 1; color: var(--text-3); white-space: nowrap; }
 .ad-pill.ok { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: var(--ok-soft); }
 .ad-pill.warn { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 .ad-pill.hot { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .ad-pill.bad { color: var(--err-text); border-color: color-mix(in srgb, var(--err) 50%, transparent); }
 .ad-hint { margin: 0; font-size: 13px; color: var(--text-3); }
-.ad-note { color: var(--text-3); font-size: 13px; text-align: center; margin: auto; padding: 0 16px; }
+.ad-note { color: var(--text-4); font-size: 13px; text-align: center; margin: auto; padding: 24px 16px; max-width: 34ch; line-height: 1.7; }
 .ad-error { color: var(--err-text); font-size: 13px; }
-.ad-form { margin: auto; width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; padding: 24px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
+.ad-divider { align-self: center; display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--panel); font-size: 11px; line-height: 1.7; color: var(--text-3); }
+.ad-form { margin: auto; width: min(420px, 90%); display: flex; flex-direction: column; gap: 12px; padding: 26px 24px; border-radius: 20px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
+.ad-form h2 { margin: 0; font-family: var(--serif); font-size: 20px; font-weight: 700; letter-spacing: .04em; }
 .ad-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); }
-.ad-form input, .ad-form select { min-width: 0; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--input-bg); }
+.ad-form input, .ad-form select { min-width: 0; padding: 10px 12px; border-radius: 13px; border: 1px solid var(--line); background: var(--input-bg); outline: 0; }
+.ad-form input:focus, .ad-form select:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-md { overflow-wrap: anywhere; }
 .ad-md p, .ad-md ul, .ad-md ol, .ad-md pre, .ad-md blockquote, .ad-md .md-table, .ad-md h3, .ad-md h4, .ad-md hr { margin: 0 0 .55em; }
 .ad-md > :last-child { margin-bottom: 0; }
@@ -974,57 +1088,108 @@ var BASE = `
 
 // client/style-chat.mjs
 var CHAT = `
-.ad-left { flex: none; width: 260px; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-right: 1px solid var(--line); background: var(--glass); overflow: auto; }
-.ad-side .ad-left { width: 100%; border: 0; background: transparent; }
-.ad-left h2 { margin: 4px 6px 6px; font-size: 12px; font-weight: 500; letter-spacing: .12em; color: var(--text-3); }
-.ad-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px; border: 0; border-radius: 14px; background: transparent; text-align: left; }
-.ad-item:hover { background: var(--line-soft); }
-.ad-item[aria-current="true"] { background: var(--accent-soft); }
-.ad-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ad-top { display: flex; align-items: center; gap: 10px; padding: 10px 8px 8px 16px; background: var(--glass); border-bottom: 1px solid var(--line-soft); backdrop-filter: blur(14px); }
-.ad-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.ad-name { font-family: var(--serif); font-size: 18px; font-weight: 700; line-height: 1.3; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ad-status { font-size: 12px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ad-stream { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 12px; }
-.ad-row { display: flex; flex-direction: column; gap: 4px; max-width: 82%; }
+.ad-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.ad-top, .ad-stream, .ad-compose { width: 100%; }
+.ad-stream { padding-inline: max(18px, calc((100% - 768px) / 2)); }
+.ad-compose { padding-inline: max(18px, calc((100% - 780px) / 2)); }
+.ad-top { position: relative; display: flex; align-items: center; justify-content: center; min-height: 64px; padding: 8px 56px 4px 16px; }
+.ad-ident { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: min(460px, 100%); padding: 4px 14px 4px 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-strong); box-shadow: var(--shadow); }
+.ad-ident .ad-avatar { width: 30px; height: 30px; font-size: 13px; }
+.ad-who { min-width: 0; display: flex; flex-direction: column; }
+.ad-name { font-size: 15px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-status { font-size: 11px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-top .ad-act { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 2px; }
+.ad-stream { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
+.ad-stream > .grow { flex: 1; }
+.ad-row { display: flex; flex-direction: column; gap: 4px; max-width: 78%; }
 .ad-row.ai { align-self: flex-start; align-items: flex-start; }
 .ad-row.me { align-self: flex-end; align-items: flex-end; }
 .ad-bubble { position: relative; max-width: 100%; padding: 9px 13px; border-radius: 6px 18px 18px 18px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow-wrap: anywhere; user-select: text; }
+.ad-row.ai .ad-bubble.first { border-radius: 18px 18px 18px 6px; }
 .ad-row.me .ad-bubble { background: var(--mine); border-color: var(--mine-line); box-shadow: none; border-radius: 18px 18px 6px 18px; white-space: pre-wrap; }
+.ad-row.me .ad-bubble .ad-md { white-space: pre-wrap; }
+.ad-bubble .ad-md { display: block; }
+.ad-bubble .ad-md > p:last-child { display: inline; }
+.ad-bubble .ad-md > p { margin: 0; }
+.ad-bubble .ad-md > p + p { margin-top: .55em; }
 .ad-meta { float: right; margin: 9px -3px -6px 12px; font-size: 11px; line-height: 1; color: var(--text-4); white-space: nowrap; }
 .ad-row.me .ad-meta { color: var(--text-3); }
-.ad-compose { background: var(--glass); border-top: 1px solid var(--line-soft); backdrop-filter: blur(14px); }
-.ad-bar { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px 10px; }
-.ad-field { flex: 1; min-width: 0; display: flex; align-items: flex-end; min-height: 44px; padding: 0 4px 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--panel-strong); }
-.ad-field:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
-.ad-field textarea { flex: 1; min-width: 0; max-height: 38vh; padding: 10px 0; border: 0; outline: 0; background: transparent; resize: none; font-size: 15px; line-height: 1.5; }
+.ad-compose { padding: 4px 18px 18px; }
+.ad-bar { display: flex; align-items: flex-end; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 26px; background: var(--panel-strong); box-shadow: var(--shadow); transition: border-color .15s; }
+.ad-bar:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ad-field { flex: 1; min-width: 0; display: flex; align-items: flex-end; min-height: 40px; padding-left: 8px; }
+.ad-field textarea { flex: 1; min-width: 0; max-height: 38vh; padding: 8px 0; border: 0; outline: 0; background: transparent; resize: none; font-size: 15px; line-height: 1.5; }
 .ad-field textarea::placeholder { color: var(--text-4); }
-.ad-round { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 0; background: var(--accent); color: var(--on-accent); }
-.ad-round svg { width: 20px; height: 20px; }
+.ad-round { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 0; background: var(--accent); color: var(--on-accent); }
+.ad-round svg { width: 19px; height: 19px; }
 .ad-round:disabled { opacity: .5; cursor: default; }
+.ad-round.quiet { background: var(--line-soft); color: var(--text-2); }
+.ad-typing { display: inline-flex; gap: 4px; padding: 3px 2px; }
+.ad-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); animation: ad-bounce 1.2s infinite ease-in-out; }
+.ad-typing span:nth-child(2) { animation-delay: .15s; } .ad-typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes ad-bounce { 0%, 60%, 100% { opacity: .35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+`;
+
+// client/style-rail.mjs
+var RAIL = `
+.ad-rail { flex: none; width: var(--rail-w); display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 10px; overflow-y: auto; background: var(--glass); border-right: 1px solid var(--line-soft); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.ad-rail-head { display: flex; align-items: center; gap: 2px; padding: 0 0 10px 6px; }
+.ad-rail-brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-family: var(--serif); font-size: 17px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; overflow: hidden; }
+.ad-rail-mark { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--avatar-bg); box-shadow: 0 0 0 1px var(--avatar-ring); color: var(--moon); font-size: 13px; }
+.ad-current { display: flex; flex-direction: column; align-items: center; gap: 2px; align-self: center; width: 132px; margin: 4px 0 12px; padding: 12px 8px 10px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); color: var(--text-1); }
+.ad-current:hover { border-color: var(--line-dash); }
+.ad-current.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.ad-current .ad-avatar { width: 64px; height: 64px; margin-bottom: 6px; font-size: 26px; }
+.ad-current .ad-name { max-width: 100%; font-size: 14px; font-weight: 600; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-current .ad-tag { max-width: 100%; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 11px; line-height: 18px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-current .ad-tag.live { color: var(--violet-text); }
+.ad-rail-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 12px; background: transparent; text-align: left; color: var(--text-2); }
+.ad-rail-item:hover { background: var(--line-soft); }
+.ad-rail-item.on { background: var(--accent-soft); color: var(--text-1); }
+.ad-rail-item.on .ad-avatar { box-shadow: 0 0 0 2px var(--accent); }
+.ad-rail-item .ad-avatar { width: 38px; height: 38px; font-size: 16px; }
+.ad-rail-item .ad-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ad-rail-item .ad-label { font-size: 14px; line-height: 1.45; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-rail-item .ad-sub { font-size: 12px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-rail-item .ad-dot { position: absolute; top: 6px; left: 38px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--bg); }
+.ad-rail-item { position: relative; }
+.ad-group-title { display: flex; align-items: baseline; gap: 6px; margin: 12px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-4); }
+.ad-group-title span { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.ad-thread { display: flex; flex-direction: column; gap: 1px; width: 100%; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; color: var(--text-2); }
+.ad-thread:hover { background: var(--line-soft); }
+.ad-thread .ad-t { font-size: 13px; line-height: 1.45; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
+.ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
+@keyframes ad-pulse { 50% { opacity: .3; } }
+.ad-rail-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; padding-top: 10px; }
+.ad-side .ad-rail { width: 100%; height: 100%; border-right: 0; border-radius: 0; }
 `;
 
 // client/style-right.mjs
 var RIGHT = `
-.ad-right { flex: none; width: 340px; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--line); background: var(--glass); }
-.ad-right-top { display: flex; align-items: center; gap: 4px; padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--line-soft); }
-.ad-tabs { flex: 1; min-width: 0; display: flex; gap: 4px; overflow-x: auto; }
-.ad-tab { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); font-size: 13px; white-space: nowrap; }
-.ad-tab:hover { background: var(--line-soft); }
-.ad-tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.ad-right { flex: none; width: var(--panel-w); display: flex; flex-direction: column; min-height: 0; background: var(--glass); border-left: 1px solid var(--line-soft); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.ad-right-head { display: flex; flex-direction: column; gap: 8px; padding: 14px 12px 10px 18px; border-bottom: 1px solid var(--line-soft); }
+.ad-right-line { display: flex; align-items: center; gap: 6px; }
+.ad-right-title { flex: 1; min-width: 0; margin: 0; font-family: var(--serif); font-size: 16px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-tabs { display: flex; gap: 2px; padding: 2px; border-radius: 12px; background: var(--line-soft); }
+.ad-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 28px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
+.ad-tab:hover { color: var(--text-1); }
+.ad-tab[aria-selected="true"] { background: var(--panel-strong); color: var(--accent-text); font-weight: 600; box-shadow: var(--shadow); }
+.ad-tab:disabled { opacity: .45; cursor: default; }
 .ad-badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
-.ad-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.ad-right.overlay { position: absolute; top: 0; right: 0; bottom: 0; z-index: 3; width: min(var(--panel-w), 86%); box-shadow: -18px 0 50px rgba(2, 5, 18, .35); }
+.ad-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 12px; overscroll-behavior: contain; }
 .ad-panel > * { flex-shrink: 0; }
-.ad-group { margin: 6px 0 -6px; padding: 0 6px; font-size: 12px; font-weight: 500; letter-spacing: .12em; color: var(--text-3); }
-.ad-trow { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel); color: inherit; text-align: left; width: 100%; }
-button.ad-trow:hover { border-color: var(--accent); }
+.ad-group { margin: 8px 0 -4px; padding: 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-4); }
+.ad-trow { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); color: inherit; text-align: left; }
+button.ad-trow:hover { border-color: var(--line-dash); background: var(--panel-strong); }
 .ad-trow.working { border-style: dashed; border-color: var(--line-dash); }
 .ad-trow.ask { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-soft); }
 .ad-trow.dim { opacity: .55; }
 .ad-trow .top-line { display: flex; align-items: center; gap: 8px; }
-.ad-trow .t { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.ad-trow .sub { display: flex; gap: 8px; font-size: 12px; color: var(--text-3); }
-.ad-trow .sub span:first-child { flex: 1; min-width: 0; }
+.ad-trow .t { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.ad-trow .sub { display: flex; gap: 8px; font-size: 12px; line-height: 1.5; color: var(--text-3); }
+.ad-trow .sub span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ad-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ad-track { position: relative; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .ad-track span { position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; border-radius: 2px; background: var(--accent); animation: ad-slide 1.6s infinite ease-in-out; }
@@ -1032,20 +1197,27 @@ button.ad-trow:hover { border-color: var(--accent); }
 .ad-tline { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); }
 .ad-tline.r-user { background: var(--mine); border-color: var(--mine-line); }
 .ad-tline.r-result { border-style: dashed; border-color: var(--line-dash); }
-.ad-tline .who-l { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+.ad-tline .who-l { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .04em; color: var(--text-4); }
 .ad-tline .step-l { font-size: 12px; color: var(--text-4); overflow-wrap: anywhere; }
 .ad-tline .text { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ad-tline .text.ad-md { white-space: normal; }
-.ad-say { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: flex-end; padding-top: 8px; background: var(--glass); }
-.ad-say textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 30vh; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
+.ad-say { position: sticky; bottom: -12px; display: flex; gap: 6px; align-items: flex-end; margin: 0 -12px -12px; padding: 10px 12px 12px; background: var(--glass); backdrop-filter: blur(14px); }
+.ad-say textarea { flex: 1; min-width: 0; min-height: 40px; max-height: 30vh; padding: 9px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
+.ad-say textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-say .ad-round { width: 40px; height: 40px; }
-.ad-slot { margin: auto; text-align: center; color: var(--text-4); font-size: 13px; }
+.ad-slot { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 16px; text-align: center; color: var(--text-4); font-size: 13px; line-height: 1.7; }
+.ad-slot .ad-slot-mark { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; border: 1px dashed var(--line-dash); color: var(--text-3); }
+.ad-slot .ad-slot-mark svg { width: 18px; height: 18px; }
 `;
 
 // client/theme.mjs
 var TOKENS = `.ad-root {
   color-scheme: dark;
   --bg: #070a16;
+  --stars-opacity: .9;
+  --star-1: rgba(255, 255, 255, .85);
+  --star-2: rgba(190, 205, 255, .7);
+  --star-3: rgba(244, 160, 124, .55);
   --glass: rgba(7, 10, 22, .6);
   --panel: rgba(21, 27, 54, .62);
   --panel-strong: rgba(23, 29, 58, .94);
@@ -1072,6 +1244,9 @@ var TOKENS = `.ad-root {
   --avatar-bg: radial-gradient(circle at 35% 30%, #2d2b66, #11142e 72%);
   --avatar-ring: rgba(246, 221, 174, .35);
   --input-bg: #0b0f22;
+  --scrim: rgba(4, 6, 16, .62);
+  --rail-w: 272px;
+  --panel-w: 352px;
   --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
   --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1080,6 +1255,10 @@ var TOKENS = `.ad-root {
   .ad-root {
     color-scheme: light;
     --bg: #F8F5EF;
+    --stars-opacity: .7;
+    --star-1: rgba(201, 150, 46, .6);
+    --star-2: rgba(139, 124, 246, .45);
+    --star-3: rgba(201, 150, 46, .5);
     --glass: rgba(248, 245, 239, .74);
     --panel: rgba(255, 255, 255, .82);
     --panel-strong: rgba(255, 255, 255, .97);
@@ -1131,12 +1310,29 @@ function useStatus() {
   }, []);
   return status;
 }
+var NARROW = 980;
 function Main() {
   const status = useStatus();
   const t = words();
+  const root = (0, import_react12.useRef)(null);
+  (0, import_react12.useEffect)(() => {
+    const el = root.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const fit = () => {
+      const narrow = el.clientWidth < NARROW;
+      const right = store.get().right;
+      if (narrow === right.overlay) return;
+      store.set({ right: narrow ? { ...right, overlay: true, open: false } : { ...right, overlay: false } });
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    fit();
+    return () => observer.disconnect();
+  }, []);
   return (0, import_react12.createElement)(
     "div",
-    { className: "ad-root" },
+    { className: "ad-root", ref: root },
+    (0, import_react12.createElement)("div", { className: "ad-sky", "aria-hidden": true }),
     !status ? (0, import_react12.createElement)("div", { className: "ad-note" }, t.connecting) : status.connected ? [(0, import_react12.createElement)(Chat, { key: "chat" }), (0, import_react12.createElement)(Right, { key: "right" })] : (0, import_react12.createElement)(ConnectForm, { defaultWorkspace: status.defaultWorkspace })
   );
 }
@@ -1150,7 +1346,7 @@ function apply(ctx) {
   const t = words();
   ctx.effect(() => {
     const style = document.createElement("style");
-    style.textContent = [TOKENS, BASE, CHAT, RIGHT].join("\n");
+    style.textContent = [TOKENS, BASE, RAIL, CHAT, RIGHT].join("\n");
     document.head.append(style);
     return () => style.remove();
   });

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aelios desktop — panels preview</title>
+<style>
+  html, body { margin: 0; min-height: 100%; }
+  body { background: #070a16; }
+  .frame { min-height: 100vh; display: flex; flex-direction: column; font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #c9cdea; }
+  .frame-bar { display: flex; gap: 8px; align-items: center; padding: 8px 14px; font-size: 12px; color: #7f85b0; border-bottom: 1px solid rgba(148,163,255,.12); }
+  .frame-bar b { color: #eef0ff; font-weight: 600; }
+  .frame-bar a { margin-left: auto; color: #9aa0c8; text-decoration: none; border: 1px solid rgba(148,163,255,.16); border-radius: 8px; padding: 2px 8px; }
+  .stage { flex: 1; display: flex; gap: 18px; padding: 18px; align-items: stretch; }
+  .stage > .ad-right { flex: none; width: 352px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+  .stage > .ad-root { position: relative; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-bar"><b>Aelios desktop</b><span>panels preview · fake data</span><a href="?theme=light">light</a><a href="?theme=dark">dark</a></div>
+  <div class="stage" id="stage"></div>
+</div>
+<script type="module">
+  // The three right-column panels side by side: the threads list, one thread opened, and a place kept for the board.
+  // Markup mirrors client/panel-*.mjs and client/thread-view.mjs; data is fake.
+  import { BASE } from "../client/style-base.mjs";
+  import { CHAT } from "../client/style-chat.mjs";
+  import { RAIL } from "../client/style-rail.mjs";
+  import { RIGHT } from "../client/style-right.mjs";
+  import { TOKENS } from "../client/theme.mjs";
+
+  const wanted = new URLSearchParams(location.search).get("theme");
+  const MARK = "@media (prefers-color-scheme: light) {";
+  const night = TOKENS.slice(0, TOKENS.indexOf(MARK));
+  const day = TOKENS.slice(TOKENS.indexOf(MARK)).replace(MARK, "").replace(/\}\s*$/, "");
+  const style = document.createElement("style");
+  style.textContent = [(wanted === "light" ? night + day : wanted === "dark" ? night : TOKENS), BASE, RAIL, CHAT, RIGHT].join("\n");
+  document.head.append(style);
+  const paper = wanted === "light" ? "#F8F5EF" : "#070a16";
+  document.documentElement.style.background = paper;
+  document.body.style.background = paper;
+
+  const head = (title, badge) => `
+    <div class="ad-right-head">
+      <div class="ad-right-line"><h2 class="ad-right-title">${title}</h2>
+        <button type="button" class="ad-icon-btn sm" aria-label="Collapse the side panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="ad-tabs" role="tablist">
+        <button type="button" role="tab" class="ad-tab" ${title === "Waiting" ? 'aria-selected="true"' : ""}>Waiting ${badge ? '<span class="ad-badge">2</span>' : ""}</button>
+        <button type="button" role="tab" class="ad-tab" ${title === "Threads" ? 'aria-selected="true"' : ""}>Threads</button>
+        <button type="button" role="tab" class="ad-tab" ${title === "Board" ? 'aria-selected="true"' : ""}>Board</button>
+        <button type="button" role="tab" class="ad-tab">Tools</button>
+      </div>
+    </div>`;
+
+  const drive = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM15 5v14"/></svg>`;
+  const gear = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>`;
+  const wrench = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6a4 4 0 1 0 3.8 6.2L21 15l-1.8 1.8-2.8-2.7A4 4 0 0 0 14.5 6z"/></svg>`;
+  const back = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>`;
+  const send = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg>`;
+
+  const threads = `
+    <div class="ad-panel">
+      <button type="button" class="ad-trow working"><span class="top-line"><span class="t">Sort the morning mail</span><span class="ad-pill warn">Working</span></span>
+        <span class="ad-track" aria-hidden="true"><span></span></span>
+        <span class="sub"><span>Runs at the resident · 4 tasks</span><span>10:24</span></span></button>
+      <button type="button" class="ad-trow ask"><span class="top-line"><span class="t">Draft the weekly note</span><span class="ad-pill hot">Needs you</span></span>
+        <span class="sub"><span>Runs on a machine · 2 tasks</span><span>09:58</span></span></button>
+      <p class="ad-group">Done</p>
+      <button type="button" class="ad-trow"><span class="top-line"><span class="t">Check the build numbers</span><span class="ad-pill ok">Done</span></span>
+        <span class="sub"><span>Runs at the resident · 3 tasks</span><span>Yesterday 18:40</span></span></button>
+      <button type="button" class="ad-trow"><span class="top-line"><span class="t">Read the new spec</span><span class="ad-pill bad">Failed</span></span>
+        <span class="sub"><span>Runs at the resident · 1 task</span><span>Yesterday 15:02</span></span></button>
+    </div>`;
+
+  const thread = `
+    <div class="ad-panel">
+      <div class="ad-links">
+        <button type="button" class="ad-icon-btn sm" aria-label="Back">${back}</button>
+        <strong style="flex:1;min-width:0;overflow-wrap:anywhere">Draft the weekly note</strong>
+        <button type="button" class="ad-icon-btn sm" aria-label="Stop it"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg></button>
+      </div>
+      <span class="ad-hint">Runs on a machine</span>
+      <div class="ad-tline r-user"><div class="who-l"><span>You said</span></div><div class="text">Write the weekly note from the July ledger.</div></div>
+      <div class="ad-tline"><div class="who-l"><span>Thread</span></div><div class="step-l">read ledger/july.csv</div><div class="text">Forty-one entries, three of them are duplicates.</div></div>
+      <div class="ad-tline r-result"><div class="who-l"><span>Handed back</span><span class="ad-pill hot">Needs you</span></div>
+        <div class="text">The note is drafted. Which title do you want?</div>
+        <div class="ad-links"><button type="button" class="ad-btn small">Keep it plain</button><button type="button" class="ad-btn quiet small">Make it a number</button></div></div>
+      <div class="ad-tline"><div class="who-l"><span>Border</span></div><div class="step-l">weekly-note.md</div><div class="text">Saved beside the ledger.</div></div>
+      <div class="ad-say"><textarea rows="2" placeholder="Talk to it directly, not through the resident" aria-label="Talk to the thread"></textarea>
+        <button type="button" class="ad-round" aria-label="Send to it">${send}</button></div>
+    </div>`;
+
+  const board = `
+    <div class="ad-panel">
+      <div class="ad-slot"><span class="ad-slot-mark">${gear}</span><span>Left open for the next slice</span></div>
+    </div>`;
+  const tools = `
+    <div class="ad-panel">
+      <div class="ad-slot"><span class="ad-slot-mark">${wrench}</span><span>Left open for the next slice</span></div>
+    </div>`;
+
+  const stage = document.getElementById("stage");
+  const panel = (title, body, badge) => `<aside class="ad-right" aria-label="${title}">${head(title, badge)}${body}</aside>`;
+  stage.innerHTML = [panel("Threads", threads), panel("Threads", thread), panel("Board", board)].join("") + `<aside class="ad-right" aria-label="Tools">${head("Tools")}${tools}</aside>`;
+
+  const bar = document.querySelector(".frame-bar");
+  const dark = wanted !== "light";
+  bar.style.color = dark ? "#7f85b0" : "#5a5d82";
+</script>
+</body>
+</html>

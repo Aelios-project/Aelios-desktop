@@ -1,5 +1,5 @@
 // The waiting list: what needs the person, or has news, in the resident's fixed format (GET /web/waiting).
-// Layout follows the 线程 page of Aelios-resident, public/index.html (AGPL-3.0, same author; main at fb4593a).
+// Layout follows the 线程 page of Aelios-resident, public/index.html (AGPL-3.0, same author; main at b118dfb).
 import { createElement as h, useState } from "react";
 import { Icon } from "./icons.mjs";
 import { store, useStore } from "./store.mjs";

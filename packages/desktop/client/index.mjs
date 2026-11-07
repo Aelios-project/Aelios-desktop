@@ -1,6 +1,6 @@
 // The browser half. It takes over DSH's left column and the middle area (the way DS Bot shadows slots)
 // and draws the resident's columns itself. The right column holds the panels.
-import { createElement as h, useEffect } from "react";
+import { createElement as h, useEffect, useRef } from "react";
 import { call } from "./api.mjs";
 import { Chat } from "./chat.mjs";
 import { ConnectForm } from "./connect-form.mjs";
@@ -10,6 +10,7 @@ import { words } from "./strings.mjs";
 import { Right } from "./right.mjs";
 import { BASE } from "./style-base.mjs";
 import { CHAT } from "./style-chat.mjs";
+import { RAIL } from "./style-rail.mjs";
 import { RIGHT } from "./style-right.mjs";
 import { TOKENS } from "./theme.mjs";
 
@@ -30,10 +31,29 @@ function useStatus() {
   return status;
 }
 
+// A panel narrower than this cannot hold two columns beside each other, so the right column overlays instead.
+const NARROW = 980;
+
 function Main() {
   const status = useStatus();
   const t = words();
-  return h("div", { className: "ad-root" },
+  const root = useRef(null);
+  useEffect(() => {
+    const el = root.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const fit = () => {
+      const narrow = el.clientWidth < NARROW;
+      const right = store.get().right;
+      if (narrow === right.overlay) return;
+      store.set({ right: narrow ? { ...right, overlay: true, open: false } : { ...right, overlay: false } });
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    fit();
+    return () => observer.disconnect();
+  }, []);
+  return h("div", { className: "ad-root", ref: root },
+    h("div", { className: "ad-sky", "aria-hidden": true }),
     !status ? h("div", { className: "ad-note" }, t.connecting)
       : status.connected ? [h(Chat, { key: "chat" }), h(Right, { key: "right" })] : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
 }
@@ -47,7 +67,7 @@ export function apply(ctx) {
   const t = words();
   ctx.effect(() => {
     const style = document.createElement("style");
-    style.textContent = [TOKENS, BASE, CHAT, RIGHT].join("\n");
+    style.textContent = [TOKENS, BASE, RAIL, CHAT, RIGHT].join("\n");
     document.head.append(style);
     return () => style.remove();
   });

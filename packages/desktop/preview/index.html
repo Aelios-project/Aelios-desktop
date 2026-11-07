@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aelios desktop — preview</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { background: #070a16; }
+  .frame { height: 100%; display: flex; flex-direction: column; font: 13px/1.5 system-ui, -apple-system, sans-serif; color: #c9cdea; }
+  .frame-bar { display: flex; gap: 8px; align-items: center; padding: 8px 14px; font-size: 12px; color: #7f85b0; border-bottom: 1px solid rgba(148,163,255,.12); }
+  .frame-bar b { color: #eef0ff; font-weight: 600; letter-spacing: .02em; }
+  .frame-bar a { margin-left: auto; color: #9aa0c8; text-decoration: none; border: 1px solid rgba(148,163,255,.16); border-radius: 8px; padding: 2px 8px; }
+  .stage { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-bar"><b>Aelios desktop</b><span>preview · fake data, no DSH, no resident</span><a href="?theme=light">light</a><a href="?theme=dark">dark</a></div>
+  <div class="stage">
+    <!-- Mirrors the DOM the client half draws. Fake data only. -->
+    <div class="ad-root" id="root">
+      <div class="ad-sky" aria-hidden="true"></div>
+
+      <nav class="ad-rail" aria-label="Residents">
+        <div class="ad-rail-head"><span class="ad-rail-brand"><span class="ad-rail-mark" aria-hidden="true">✦</span>Residents</span></div>
+        <button type="button" class="ad-current on">
+          <span class="ad-avatar" aria-hidden="true">A</span>
+          <span class="ad-name">Aster</span>
+          <span class="ad-tag">runner running</span>
+        </button>
+        <button type="button" class="ad-rail-item">
+          <span class="ad-avatar" aria-hidden="true">M</span>
+          <span class="ad-txt"><span class="ad-label">Morrow</span><span class="ad-sub">last seen 2 h ago</span></span>
+        </button>
+        <button type="button" class="ad-rail-item">
+          <span class="ad-avatar" aria-hidden="true">H</span>
+          <span class="ad-txt"><span class="ad-label">Hollow</span><span class="ad-sub">quiet</span></span>
+        </button>
+        <p class="ad-group-title">At work <span>2</span></p>
+        <button type="button" class="ad-thread">
+          <span class="ad-t">Sort the morning mail</span>
+          <span class="ad-s"><span class="ad-live" aria-hidden="true"></span>10:24</span>
+        </button>
+        <button type="button" class="ad-thread">
+          <span class="ad-t">Draft the weekly note</span>
+          <span class="ad-s">09:58</span>
+        </button>
+        <p class="ad-group-title">Recent</p>
+        <button type="button" class="ad-thread">
+          <span class="ad-t">Check the build numbers</span>
+          <span class="ad-s">Yesterday 18:40</span>
+        </button>
+        <button type="button" class="ad-thread">
+          <span class="ad-t">Read the new spec</span>
+          <span class="ad-s">Yesterday 15:02</span>
+        </button>
+        <div class="ad-rail-foot"><button type="button" class="ad-btn quiet small">Disconnect</button></div>
+      </nav>
+
+      <section class="ad-main">
+        <div class="ad-top">
+          <div class="ad-ident">
+            <span class="ad-avatar" aria-hidden="true">A</span>
+            <div class="ad-who"><span class="ad-name">Aster</span><span class="ad-status">runner running</span></div>
+          </div>
+          <div class="ad-act">
+            <button type="button" class="ad-icon-btn" aria-label="Open the side panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4zM15 5v14"/></svg></button>
+          </div>
+        </div>
+        <div class="ad-stream">
+          <div class="grow"></div>
+          <div class="ad-row ai">
+            <div class="ad-bubble">
+              <div class="ad-md"><p>Morning. The mail sorted itself into three piles; the one about the lease needs a look before noon.</p></div>
+              <span class="ad-meta">09:12</span>
+            </div>
+          </div>
+          <div class="ad-row me">
+            <div class="ad-bubble">Thanks — put the lease on top and leave the rest.<span class="ad-meta">09:13</span></div>
+          </div>
+          <div class="ad-row ai">
+            <div class="ad-bubble">
+              <div class="ad-md"><p>Done. I also opened a thread for the weekly note; it is at <code>docs/weekly.md</code> and wants the numbers by four.</p></div>
+              <span class="ad-meta">09:14</span>
+            </div>
+          </div>
+          <div class="ad-row me">
+            <div class="ad-bubble">What is it waiting on?<span class="ad-meta">09:20</span></div>
+          </div>
+          <div class="ad-row ai">
+            <div class="ad-bubble">
+              <div class="ad-md"><p>Two things:</p><ul><li>the July count, from the ledger</li><li>your call on the title</li></ul><p>Ask it in the Waiting panel.</p></div>
+              <span class="ad-meta">09:21</span>
+            </div>
+          </div>
+          <div class="grow"></div>
+        </div>
+        <div class="ad-compose">
+          <div class="ad-bar">
+            <div class="ad-field"><textarea rows="1" placeholder="Write to the resident" aria-label="Write to the resident"></textarea></div>
+            <button type="button" class="ad-round" aria-label="Send" title="Send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="ad-right" aria-label="Waiting">
+        <div class="ad-right-head">
+          <div class="ad-right-line">
+            <h2 class="ad-right-title">Waiting</h2>
+            <button type="button" class="ad-icon-btn sm" aria-label="Collapse the side panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          </div>
+          <div class="ad-tabs" role="tablist">
+            <button type="button" role="tab" class="ad-tab" aria-selected="true">Waiting <span class="ad-badge">2</span></button>
+            <button type="button" role="tab" class="ad-tab">Threads</button>
+            <button type="button" role="tab" class="ad-tab">Board</button>
+            <button type="button" role="tab" class="ad-tab">Tools</button>
+          </div>
+        </div>
+        <div class="ad-panel">
+          <div class="ad-trow ask">
+            <span class="top-line"><span class="t">Weekly note: the title</span><span class="ad-pill hot">Waiting for you</span></span>
+            <span class="sub"><span>Pick one and the thread carries on.</span><span>09:21</span></span>
+            <span class="ad-links">
+              <button type="button" class="ad-btn small">Keep it plain</button>
+              <button type="button" class="ad-btn quiet small">Make it a number</button>
+              <button type="button" class="ad-icon-btn sm" aria-label="Open thread"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></button>
+            </span>
+          </div>
+          <div class="ad-trow ask">
+            <span class="top-line"><span class="t">Mail: two bills look the same</span><span class="ad-pill hot">Waiting for you</span></span>
+            <span class="sub"><span>It holds both until you say which one is real.</span><span>08:47</span></span>
+            <span class="ad-links">
+              <button type="button" class="ad-btn small">The second one</button>
+              <button type="button" class="ad-btn quiet small">The first one</button>
+            </span>
+          </div>
+          <div class="ad-trow">
+            <span class="top-line"><span class="t">Build numbers checked</span><span class="ad-pill ok">Done</span></span>
+            <span class="sub"><span>Three of four agree; the fourth is old.</span><span>Yesterday</span></span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+<script type="module" src="./preview.mjs"></script>
+</body>
+</html>

@@ -15,8 +15,8 @@ export function createStore(initial) {
 export const useStore = (store) => useSyncExternalStore(store.subscribe, store.get);
 
 export const store = createStore({
-  status: null, residents: [], error: "",
+  status: null, residents: [], threads: [], error: "",
   waiting: { items: [], open: 0 },
-  right: { open: true, panel: "waiting" },
+  right: { open: true, panel: "waiting", overlay: false },
   focus: "", // the thread the right panel should open
 });

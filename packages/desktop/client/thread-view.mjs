@@ -1,6 +1,6 @@
 // One thread opened in the right panel: its lines, a choice on a waiting report, a stop button while it works on
 // a machine, and a box that talks to the thread directly (POST /web/thread/say), not through the resident.
-// Lines follow the thread page of Aelios-resident, public/index.html (AGPL-3.0, same author; main at fb4593a).
+// Lines follow the thread page of Aelios-resident, public/index.html (AGPL-3.0, same author; main at b118dfb).
 import { createElement as h, useEffect, useState } from "react";
 import { Icon } from "./icons.mjs";
 import { Md } from "./md.mjs";

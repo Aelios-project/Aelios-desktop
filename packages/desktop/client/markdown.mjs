@@ -1,4 +1,4 @@
-// Copied from Aelios-resident, public/markdown.js (AGPL-3.0, same author; main at fb4593a, 2026-11-07).
+// Copied from Aelios-resident, public/markdown.js (AGPL-3.0, same author; main at b118dfb, 2026-11-07).
 // Changed: exports added; the Alpine directive at the end removed. The parser is unchanged.
 // Markdown as the resident writes it, drawn without HTML: the text is parsed into a small tree of nodes (parseMarkdown),
 // and each node is made with createElement, its words with textContent (renderMarkdown). Nothing in the text is ever

@@ -1,11 +1,15 @@
 // All colors, radii and shadows are CSS variables on .ad-root, with plain defaults. A skin is a separate
 // package that only sets these variables, so nothing outside this file holds a color.
 // The default values are copied from Aelios-resident, public/app.css, the night :root block and the
-// light block (AGPL-3.0, same author; main at fb4593a, 2026-11-07). Changed: scoped to .ad-root; the light set
+// light block (AGPL-3.0, same author; main at b118dfb, 2026-11-07). Changed: scoped to .ad-root; the light set
 // follows the system setting. Only the tokens this shell uses are kept.
 export const TOKENS = `.ad-root {
   color-scheme: dark;
   --bg: #070a16;
+  --stars-opacity: .9;
+  --star-1: rgba(255, 255, 255, .85);
+  --star-2: rgba(190, 205, 255, .7);
+  --star-3: rgba(244, 160, 124, .55);
   --glass: rgba(7, 10, 22, .6);
   --panel: rgba(21, 27, 54, .62);
   --panel-strong: rgba(23, 29, 58, .94);
@@ -32,6 +36,9 @@ export const TOKENS = `.ad-root {
   --avatar-bg: radial-gradient(circle at 35% 30%, #2d2b66, #11142e 72%);
   --avatar-ring: rgba(246, 221, 174, .35);
   --input-bg: #0b0f22;
+  --scrim: rgba(4, 6, 16, .62);
+  --rail-w: 272px;
+  --panel-w: 352px;
   --font: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
   --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -40,6 +47,10 @@ export const TOKENS = `.ad-root {
   .ad-root {
     color-scheme: light;
     --bg: #F8F5EF;
+    --stars-opacity: .7;
+    --star-1: rgba(201, 150, 46, .6);
+    --star-2: rgba(139, 124, 246, .45);
+    --star-3: rgba(201, 150, 46, .5);
     --glass: rgba(248, 245, 239, .74);
     --panel: rgba(255, 255, 255, .82);
     --panel-strong: rgba(255, 255, 255, .97);
