@@ -1,7 +1,7 @@
 {
   "name": "aelios-desktop",
   "private": true,
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "engines": { "node": ">=22" },
   "workspaces": ["packages/runner"],

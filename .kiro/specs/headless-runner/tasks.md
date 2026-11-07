@@ -5,7 +5,7 @@ Honest note: this list was written after the first version of the code. It recor
 ## Done
 
 - [x] 1. Project setup
-  - [x] 1.1 Package `aelios-runner` with `bin`, `files`, `engines` (Node 22+), MIT license
+  - [x] 1.1 Package `aelios-runner` with `bin`, `files`, `engines` (Node 22+), AGPL-3.0-only license
   - [x] 1.2 Root workspace so `npm test` at the root runs the runner tests
 - [x] 2. ACP client (`src/acp.mjs`): JSON-RPC over stdio, requests, notifications, close
 - [x] 3. Helper turn (`src/helper.mjs`)

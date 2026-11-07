@@ -2,7 +2,7 @@
   "name": "aelios-runner",
   "version": "0.1.0",
   "description": "Runs a resident's jobs on this machine through an ACP helper (Kiro, DSH, or any ACP command).",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "engines": { "node": ">=22" },
   "bin": { "aelios-runner": "bin/aelios-runner.mjs" },

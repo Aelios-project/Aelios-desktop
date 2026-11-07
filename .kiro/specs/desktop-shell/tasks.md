@@ -48,7 +48,7 @@ Known result, no task needed: a page placed by a plugin fills only the middle of
   - [ ] 7.1 `client/left.mjs`: residents, pinned and recent threads
   - [ ] 7.2 `client/chat.mjs`: messages and input
   - [ ] 7.3 `client/panels.mjs`: the panel registry and switcher, with places for Board and Tools
-  - [ ] 7.4 Read the resident's page design for layout and mood only; copy no code or style
+  - [ ] 7.4 Copy only the small styles and components that are used from Aelios-resident, with the source in each file header
   - _Requirements: 1.1, 1.4, 6.1, 11.6_
 
 - [ ] 8. Right panels

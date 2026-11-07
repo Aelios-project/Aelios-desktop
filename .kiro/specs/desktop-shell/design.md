@@ -68,7 +68,7 @@ Panel registry: `{ id, title, icon, component }`. The shell registers `threads` 
 
 Polling. The conversation and the lists are fetched with the `since` version the resident returns; an unchanged answer is `{ same }` and costs nothing to read. No server push is used. shortcut: polling, not a stream; move to a stream if the resident offers one.
 
-The look follows the resident's page in layout and mood. Its front end is AGPL-3.0 and this repository is MIT, so no code or style is copied (requirement 11.6).
+The look follows the resident's page. Its front end is AGPL-3.0 with the same author, and this repository is AGPL-3.0-only, so small parts of its styles and components may be copied; each file header names the source (requirement 11.6).
 
 ## Where a thread's record lives
 
@@ -187,7 +187,7 @@ DSH is MIT: its license text and copyright line must travel with any copy or sub
 | A commit adds DSH code, a DSH package, a DSH asset (icon, font, CSS) or a copied DSH type file | Yes, in the same commit: the full MIT text and the copyright line. |
 | A release file includes DSH | Yes, in the file as well. |
 | A commit copies code from DS Bot (Apache-2.0) | Yes, in the same commit: the Apache-2.0 text, DS Bot's `NOTICE` lines for that file, a changed-file note in the file, the original copyright line kept. DS Bot's own `NOTICE` says some of its files follow DSH files, so those bring the DSH notice too. |
-| The resident's front end (AGPL-3.0) | Copy nothing. Design only. |
+| The resident's front end (AGPL-3.0, same author) | Copy only small used parts; the file header names the source. |
 
 By default nothing is copied from DS Bot; its ideas (shadowing slots, spawn and stop) are used with a citation here. A check in `npm test` can fail the build when a file under `packages/desktop` imports a vendored DSH path and `THIRD_PARTY_NOTICES.md` has no "MIT License" block.
 
@@ -231,4 +231,3 @@ Not settled. Do not treat any of these as fact.
 11. How does the shell get the runner? It is not on npm and is not published without the owner's say-so. Choices: publish it, or vendor it into the plugin package.
 12. The runner has no machine-readable status. Add `aelios-runner status --json`? (A small change in `packages/runner`.)
 13. Real DSH has not been connected to the runner yet (the runner README says so). The default helper is untested against the real thing.
-14. May the resident's design be followed closely while its front end is AGPL-3.0 and this repository is MIT? The owner of both should say.
