@@ -1,0 +1,12 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "test-runner-on-save",
+      "trigger": "PostFileSave",
+      "matcher": "^packages/runner/(src|bin|test)/.*\\.mjs$",
+      "action": { "type": "command", "command": "npm test --workspace aelios-runner --silent" },
+      "enabled": true
+    }
+  ]
+}
