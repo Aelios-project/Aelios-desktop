@@ -32,6 +32,14 @@ export const RAIL = `
 .ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
 .ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
 @keyframes ad-pulse { 50% { opacity: .3; } }
+.ad-usage { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 4px 0 10px; }
+.ad-urow { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 8px; border-radius: 10px; }
+.ad-urow:hover { background: var(--line-soft); }
+.ad-urow .l { font-size: 12px; color: var(--text-3); }
+.ad-urow .c { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.ad-urow .d { grid-column: 1; font-size: 11px; line-height: 1.4; color: var(--text-4); }
+.ad-urow .d .hit { color: var(--text-3); }
+.ad-urow .t { grid-column: 2; text-align: right; font-size: 11px; line-height: 1.4; color: var(--text-4); }
 .ad-rail-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; padding-top: 10px; }
 .ad-side .ad-rail { width: 100%; height: 100%; border-right: 0; border-radius: 0; }
 `;

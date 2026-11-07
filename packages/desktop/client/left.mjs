@@ -1,19 +1,18 @@
-// The left column: the residents, then the threads that are at work or waiting, newest first.
-// Drawn like Aelios-resident's wide-screen rail (styles in style-rail.mjs); the thread rows follow its 线程 page.
+// The left column: the residents, then what the resident spent. The threads live in the right column, so they are
+// not repeated here; this side answers "who" and "how much", the panel answers "which work".
+// Drawn like Aelios-resident's wide-screen rail (styles in style-rail.mjs).
 import { createElement as h, useEffect } from "react";
 import { call, web } from "./api.mjs";
+import { Icon } from "./icons.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
-import { Icon } from "./icons.mjs";
-import { railThreads } from "./rail-rows.mjs";
-import { isWorking, loadThreads, when } from "./threads-api.mjs";
+import { usageRows } from "./usage.mjs";
 
 const POLL_MS = 30000;
-const SHOWN = 6;
 
 export function Left({ onBack }) {
   const t = words();
-  const { status, residents, threads } = useStore(store);
+  const { status, residents, usage } = useStore(store);
 
   useEffect(() => {
     const load = async () => {
@@ -26,7 +25,7 @@ export function Left({ onBack }) {
 
   useEffect(() => {
     const load = async () => {
-      try { store.set({ threads: (await loadThreads(status?.resident || "default"))?.threads || [] }); } catch { /* keep the last list */ }
+      try { store.set({ usage: (await web("/web/usage", { resident: status?.resident || "default" }))?.totals || {} }); } catch { /* keep the last numbers */ }
     };
     void load();
     const timer = setInterval(() => { if (!document.hidden) void load(); }, POLL_MS);
@@ -37,11 +36,7 @@ export function Left({ onBack }) {
   const list = residents.length ? residents : [{ id: "default", name: t.title }];
   const current = list.find((r) => r.id === (status?.resident || "default")) || list[0];
   const others = list.filter((r) => r.id !== current.id);
-  const { open, recent } = railThreads(threads, SHOWN);
-  const row = (item) => h("button", { key: item.id, type: "button", className: "ad-thread", title: item.title,
-    onClick: () => store.set({ focus: item.id, right: { open: true, panel: "threads" } }) },
-    h("span", { className: "ad-t" }, item.title),
-    h("span", { className: "ad-s" }, isWorking(item) && h("span", { className: "ad-live", "aria-hidden": true }), when(item.updatedAt)));
+  const rows = usageRows(usage);
 
   return h("nav", { className: "ad-rail", "aria-label": t.residents },
     h("div", { className: "ad-rail-head" },
@@ -53,10 +48,13 @@ export function Left({ onBack }) {
     others.map((r) => h("button", { key: r.id, type: "button", className: "ad-rail-item", title: r.name, onClick: () => pick(r.id) },
       h("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
       h("span", { className: "ad-txt" }, h("span", { className: "ad-label" }, r.name || r.id)))),
-    open.length > 0 && h("p", { className: "ad-group-title" }, t.openNow, h("span", null, open.length)),
-    open.map(row),
-    recent.length > 0 && h("p", { className: "ad-group-title" }, t.recent),
-    recent.map(row),
+    rows.length > 0 && h("div", { className: "ad-usage" },
+      h("p", { className: "ad-group-title" }, t.usage),
+      rows.map((row) => h("div", { key: row.key, className: "ad-urow" },
+        h("span", { className: "l" }, row.label),
+        h("span", { className: "c" }, row.cost),
+        h("span", { className: "d" }, row.calls, h("span", { className: "hit" }, ` · ${row.hit}`)),
+        h("span", { className: "t" }, row.tokens)))),
     h("div", { className: "ad-rail-foot" },
       h("button", { type: "button", className: "ad-btn quiet small", title: t.backToDsh, onClick: onBack }, t.backToDsh),
       h("button", { type: "button", className: "ad-icon-btn sm", title: t.disconnect, "aria-label": t.disconnect, onClick: async () => store.set({ status: await call("disconnect") }) }, h(Icon, { name: "back" }))));

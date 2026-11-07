@@ -100,10 +100,24 @@ export function apply(ctx) {
 
   // The whole left column is shadowed while connected and while the reader wants our rail; the foot button hands
   // it back to DSH, which is also how DSH's own navigation comes back.
-  const back = () => { store.set({ rail: false }); ctx.layout.selectPanel(null); };
+  const back = () => ctx.layout.selectPanel(null);
+
+  // DSH unmounts our panel when another one is selected, so its presence is the honest signal: while it is drawn the
+  // rail covers the left column, and the moment it is not the column goes back to DSH. This is what makes "Back to
+  // DSH" and coming back from it work without a second click.
+  ctx.effect(() => {
+    const tick = () => {
+      const shown = Boolean(document.querySelector(".ad-main"));
+      if (shown === store.get().shown) return;
+      store.set({ shown, rail: shown });
+    };
+    const timer = setInterval(tick, 600);
+    tick();
+    return () => clearInterval(timer);
+  });
   let release = null;
   const sync = () => {
-    const on = Boolean(store.get().status?.connected) && store.get().rail;
+    const on = Boolean(store.get().status?.connected) && store.get().rail && store.get().shown;
     if (on && !release) release = ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar", priority: SHADOW_PRIORITY }, () => h(Side, { onBack: back })));
     if (!on && release) { release(); release = null; }
   };

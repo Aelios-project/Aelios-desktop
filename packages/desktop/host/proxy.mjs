@@ -3,7 +3,7 @@
 // supervisor and never from the page.
 const ALLOWED = [
   "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
-  "waiting", "waiting/seen", "task/choose", "pin",
+  "waiting", "waiting/seen", "task/choose", "pin", "usage",
 ];
 // Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.
 const BYTES = ["picture", "file", "media"];

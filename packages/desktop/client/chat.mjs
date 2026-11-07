@@ -12,7 +12,7 @@ const POLL_MS = 5000;
 
 export function Chat() {
   const t = words();
-  const { status, residents, right, rail } = useStore(store);
+  const { status, residents, right } = useStore(store);
   const resident = status?.resident || "default";
   const name = residents.find((r) => r.id === resident)?.name || t.title;
   const [lines, setLines] = useState([]);
@@ -81,7 +81,6 @@ export function Chat() {
         h("span", { className: "ad-avatar", "aria-hidden": true }, name.slice(0, 1)),
         h("div", { className: "ad-who" }, h("span", { className: "ad-name" }, name), state && h("span", { className: "ad-status" }, state))),
       h("div", { className: "ad-act" },
-        !rail && h("button", { type: "button", className: "ad-btn quiet small", title: t.showRail, onClick: () => store.set({ rail: true }) }, t.residents),
         down && h("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
         !right.open && h("button", { type: "button", className: "ad-icon-btn", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, h(Icon, { name: "panel" })))),
     h("div", { className: "ad-stream", "aria-live": "polite" },

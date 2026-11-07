@@ -513,6 +513,7 @@ var WORDS = {
     openNow: "At work",
     backToDsh: "Back to DSH",
     showRail: "Residents",
+    usage: "Usage",
     attach: "Send pictures",
     remove: "Remove",
     tooBig: "That picture could not be read",
@@ -565,6 +566,7 @@ var WORDS = {
     openNow: "在做",
     backToDsh: "回到 DSH",
     showRail: "住户",
+    usage: "用量",
     attach: "发图",
     remove: "拿掉",
     tooBig: "这张图读不了",
@@ -728,8 +730,11 @@ var store = createStore({
   residents: [],
   threads: [],
   error: "",
+  usage: {},
   rail: true,
   // ours covers DSH's whole left column; false hands it back to DSH
+  shown: false,
+  // whether our own panel is the one DSH is drawing
   waiting: { items: [], open: 0 },
   right: { open: true, panel: "waiting", overlay: false },
   focus: ""
@@ -740,7 +745,7 @@ var store = createStore({
 var POLL_MS = 5e3;
 function Chat() {
   const t = words();
-  const { status, residents, right, rail } = useStore(store);
+  const { status, residents, right } = useStore(store);
   const resident = status?.resident || "default";
   const name = residents.find((r) => r.id === resident)?.name || t.title;
   const [lines, setLines] = (0, import_react5.useState)([]);
@@ -830,7 +835,6 @@ function Chat() {
       (0, import_react5.createElement)(
         "div",
         { className: "ad-act" },
-        !rail && (0, import_react5.createElement)("button", { type: "button", className: "ad-btn quiet small", title: t.showRail, onClick: () => store.set({ rail: true }) }, t.residents),
         down && (0, import_react5.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
         !right.open && (0, import_react5.createElement)("button", { type: "button", className: "ad-icon-btn", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, (0, import_react5.createElement)(Icon, { name: "panel" }))
       )
@@ -907,6 +911,133 @@ function ConnectForm({ defaultWorkspace = "" }) {
 // client/left.mjs
 var import_react7 = require("react");
 
+// client/usage.mjs
+function money(cost) {
+  if (!cost) return "$0";
+  return "$" + (cost >= 1 ? cost.toFixed(2) : cost >= 0.01 ? cost.toFixed(3) : cost.toFixed(4));
+}
+function compact(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k";
+  return String(n || 0);
+}
+function hitText(t) {
+  const all = t ? t.input + t.cacheRead + t.cacheWrite : 0;
+  return all ? `${Math.round(t.cacheRead / all * 100)}%` : "—";
+}
+function tokensText(t) {
+  if (!t) return "";
+  return `in ${compact(t.input + t.cacheRead + t.cacheWrite)} · out ${compact(t.output)}`;
+}
+function costText(t) {
+  if (!t) return "…";
+  if (t.calls && t.unpriced === t.calls) return "unpriced";
+  return money(t.cost);
+}
+var SPANS = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "7 days" },
+  { key: "month", label: "30 days" }
+];
+function usageRows(totals = {}) {
+  return SPANS.map(({ key, label }) => {
+    const t = totals?.[key];
+    if (!t) return null;
+    return { key, label, cost: costText(t), calls: `${t.calls} ${t.calls === 1 ? "call" : "calls"}`, tokens: tokensText(t), hit: hitText(t) };
+  }).filter(Boolean);
+}
+
+// client/left.mjs
+var POLL_MS2 = 3e4;
+function Left({ onBack }) {
+  const t = words();
+  const { status, residents, usage } = useStore(store);
+  (0, import_react7.useEffect)(() => {
+    const load = async () => {
+      try {
+        store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] });
+      } catch {
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS2);
+    return () => clearInterval(timer);
+  }, []);
+  (0, import_react7.useEffect)(() => {
+    const load = async () => {
+      try {
+        store.set({ usage: (await web("/web/usage", { resident: status?.resident || "default" }))?.totals || {} });
+      } catch {
+      }
+    };
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS2);
+    return () => clearInterval(timer);
+  }, [status?.resident]);
+  const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
+  const list = residents.length ? residents : [{ id: "default", name: t.title }];
+  const current = list.find((r) => r.id === (status?.resident || "default")) || list[0];
+  const others = list.filter((r) => r.id !== current.id);
+  const rows = usageRows(usage);
+  return (0, import_react7.createElement)(
+    "nav",
+    { className: "ad-rail", "aria-label": t.residents },
+    (0, import_react7.createElement)(
+      "div",
+      { className: "ad-rail-head" },
+      (0, import_react7.createElement)("span", { className: "ad-rail-brand" }, (0, import_react7.createElement)("span", { className: "ad-rail-mark", "aria-hidden": true }, "✦"), t.residents)
+    ),
+    (0, import_react7.createElement)(
+      "button",
+      { type: "button", className: "ad-current on", title: current.name, onClick: () => pick(current.id) },
+      (0, import_react7.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (current.name || current.id).slice(0, 1)),
+      (0, import_react7.createElement)("span", { className: "ad-name" }, current.name || current.id),
+      (0, import_react7.createElement)("span", { className: "ad-tag" }, status?.runner?.state ? t.runner[status.runner.state] || status.runner.state : t.title)
+    ),
+    others.map((r) => (0, import_react7.createElement)(
+      "button",
+      { key: r.id, type: "button", className: "ad-rail-item", title: r.name, onClick: () => pick(r.id) },
+      (0, import_react7.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
+      (0, import_react7.createElement)("span", { className: "ad-txt" }, (0, import_react7.createElement)("span", { className: "ad-label" }, r.name || r.id))
+    )),
+    rows.length > 0 && (0, import_react7.createElement)(
+      "div",
+      { className: "ad-usage" },
+      (0, import_react7.createElement)("p", { className: "ad-group-title" }, t.usage),
+      rows.map((row) => (0, import_react7.createElement)(
+        "div",
+        { key: row.key, className: "ad-urow" },
+        (0, import_react7.createElement)("span", { className: "l" }, row.label),
+        (0, import_react7.createElement)("span", { className: "c" }, row.cost),
+        (0, import_react7.createElement)("span", { className: "d" }, row.calls, (0, import_react7.createElement)("span", { className: "hit" }, ` · ${row.hit}`)),
+        (0, import_react7.createElement)("span", { className: "t" }, row.tokens)
+      ))
+    ),
+    (0, import_react7.createElement)(
+      "div",
+      { className: "ad-rail-foot" },
+      (0, import_react7.createElement)("button", { type: "button", className: "ad-btn quiet small", title: t.backToDsh, onClick: onBack }, t.backToDsh),
+      (0, import_react7.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.disconnect, "aria-label": t.disconnect, onClick: async () => store.set({ status: await call("disconnect") }) }, (0, import_react7.createElement)(Icon, { name: "back" }))
+    )
+  );
+}
+
+// client/right.mjs
+var import_react12 = require("react");
+
+// client/panels.mjs
+var import_react11 = require("react");
+
+// client/panel-ids.mjs
+var PANEL_IDS = ["waiting", "threads", "board", "tools"];
+
+// client/panel-waiting.mjs
+var import_react8 = require("react");
+
 // client/threads-api.mjs
 function stateOf(task) {
   if (!task) return "";
@@ -930,108 +1061,7 @@ var choose = (resident, task, text, request) => post("/web/task/choose", residen
 var when = (at) => at ? new Date(at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 var safeLink = (url) => /^https?:\/\/[^\s<>"'`]+$/i.test(url || "");
 
-// client/rail-rows.mjs
-function railThreads(threads = [], limit = 6) {
-  const isOpen = (x) => isWorking(x) || Boolean(x.waiting);
-  const byTime = (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-  const all = [...threads].sort(byTime);
-  return { open: all.filter(isOpen).slice(0, limit), recent: all.filter((x) => !isOpen(x)).slice(0, limit) };
-}
-
-// client/left.mjs
-var POLL_MS2 = 3e4;
-var SHOWN = 6;
-function Left({ onBack }) {
-  const t = words();
-  const { status, residents, threads } = useStore(store);
-  (0, import_react7.useEffect)(() => {
-    const load = async () => {
-      try {
-        store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] });
-      } catch {
-      }
-    };
-    void load();
-    const timer = setInterval(() => {
-      if (!document.hidden) void load();
-    }, POLL_MS2);
-    return () => clearInterval(timer);
-  }, []);
-  (0, import_react7.useEffect)(() => {
-    const load = async () => {
-      try {
-        store.set({ threads: (await loadThreads(status?.resident || "default"))?.threads || [] });
-      } catch {
-      }
-    };
-    void load();
-    const timer = setInterval(() => {
-      if (!document.hidden) void load();
-    }, POLL_MS2);
-    return () => clearInterval(timer);
-  }, [status?.resident]);
-  const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
-  const list = residents.length ? residents : [{ id: "default", name: t.title }];
-  const current = list.find((r) => r.id === (status?.resident || "default")) || list[0];
-  const others = list.filter((r) => r.id !== current.id);
-  const { open, recent } = railThreads(threads, SHOWN);
-  const row = (item) => (0, import_react7.createElement)(
-    "button",
-    {
-      key: item.id,
-      type: "button",
-      className: "ad-thread",
-      title: item.title,
-      onClick: () => store.set({ focus: item.id, right: { open: true, panel: "threads" } })
-    },
-    (0, import_react7.createElement)("span", { className: "ad-t" }, item.title),
-    (0, import_react7.createElement)("span", { className: "ad-s" }, isWorking(item) && (0, import_react7.createElement)("span", { className: "ad-live", "aria-hidden": true }), when(item.updatedAt))
-  );
-  return (0, import_react7.createElement)(
-    "nav",
-    { className: "ad-rail", "aria-label": t.residents },
-    (0, import_react7.createElement)(
-      "div",
-      { className: "ad-rail-head" },
-      (0, import_react7.createElement)("span", { className: "ad-rail-brand" }, (0, import_react7.createElement)("span", { className: "ad-rail-mark", "aria-hidden": true }, "✦"), t.residents)
-    ),
-    (0, import_react7.createElement)(
-      "button",
-      { type: "button", className: "ad-current on", title: current.name, onClick: () => pick(current.id) },
-      (0, import_react7.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (current.name || current.id).slice(0, 1)),
-      (0, import_react7.createElement)("span", { className: "ad-name" }, current.name || current.id),
-      (0, import_react7.createElement)("span", { className: "ad-tag" }, status?.runner?.state ? t.runner[status.runner.state] || status.runner.state : t.title)
-    ),
-    others.map((r) => (0, import_react7.createElement)(
-      "button",
-      { key: r.id, type: "button", className: "ad-rail-item", title: r.name, onClick: () => pick(r.id) },
-      (0, import_react7.createElement)("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
-      (0, import_react7.createElement)("span", { className: "ad-txt" }, (0, import_react7.createElement)("span", { className: "ad-label" }, r.name || r.id))
-    )),
-    open.length > 0 && (0, import_react7.createElement)("p", { className: "ad-group-title" }, t.openNow, (0, import_react7.createElement)("span", null, open.length)),
-    open.map(row),
-    recent.length > 0 && (0, import_react7.createElement)("p", { className: "ad-group-title" }, t.recent),
-    recent.map(row),
-    (0, import_react7.createElement)(
-      "div",
-      { className: "ad-rail-foot" },
-      (0, import_react7.createElement)("button", { type: "button", className: "ad-btn quiet small", title: t.backToDsh, onClick: onBack }, t.backToDsh),
-      (0, import_react7.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.disconnect, "aria-label": t.disconnect, onClick: async () => store.set({ status: await call("disconnect") }) }, (0, import_react7.createElement)(Icon, { name: "back" }))
-    )
-  );
-}
-
-// client/right.mjs
-var import_react12 = require("react");
-
-// client/panels.mjs
-var import_react11 = require("react");
-
-// client/panel-ids.mjs
-var PANEL_IDS = ["waiting", "threads", "board", "tools"];
-
 // client/panel-waiting.mjs
-var import_react8 = require("react");
 function WaitingPanel() {
   const t = words();
   const { status, waiting, right } = useStore(store);
@@ -1483,6 +1513,14 @@ var RAIL = `
 .ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
 .ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
 @keyframes ad-pulse { 50% { opacity: .3; } }
+.ad-usage { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 4px 0 10px; }
+.ad-urow { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 8px; border-radius: 10px; }
+.ad-urow:hover { background: var(--line-soft); }
+.ad-urow .l { font-size: 12px; color: var(--text-3); }
+.ad-urow .c { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.ad-urow .d { grid-column: 1; font-size: 11px; line-height: 1.4; color: var(--text-4); }
+.ad-urow .d .hit { color: var(--text-3); }
+.ad-urow .t { grid-column: 2; text-align: right; font-size: 11px; line-height: 1.4; color: var(--text-4); }
 .ad-rail-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; padding-top: 10px; }
 .ad-side .ad-rail { width: 100%; height: 100%; border-right: 0; border-radius: 0; }
 `;
@@ -1692,13 +1730,20 @@ function apply(ctx) {
   });
   ctx.slots.inject("main", () => ctx.slots.register({ name: "main", key: PANEL }, Main));
   ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({ name: "sidebar.panellist", id: PANEL, order: 5, label: () => t.title }, Nav));
-  const back = () => {
-    store.set({ rail: false });
-    ctx.layout.selectPanel(null);
-  };
+  const back = () => ctx.layout.selectPanel(null);
+  ctx.effect(() => {
+    const tick = () => {
+      const shown = Boolean(document.querySelector(".ad-main"));
+      if (shown === store.get().shown) return;
+      store.set({ shown, rail: shown });
+    };
+    const timer = setInterval(tick, 600);
+    tick();
+    return () => clearInterval(timer);
+  });
   let release = null;
   const sync = () => {
-    const on = Boolean(store.get().status?.connected) && store.get().rail;
+    const on = Boolean(store.get().status?.connected) && store.get().rail && store.get().shown;
     if (on && !release) release = ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar", priority: SHADOW_PRIORITY }, () => (0, import_react13.createElement)(Side, { onBack: back })));
     if (!on && release) {
       release();
