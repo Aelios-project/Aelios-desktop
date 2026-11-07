@@ -20,7 +20,7 @@ An item, defined once in `src/waiting.ts`:
 ```ts
 type WaitingItem = {
   id: string;            // `${thread}:${kind}:${key}`
-  kind: "ask" | "done" | "stuck";
+  kind: "ask" | "note" | "done" | "stuck";
   thread: string;
   title: string;
   line: string;          // one sentence, at most 120 characters
@@ -37,10 +37,11 @@ Sources:
 |---|---|---|
 | `ask` on a machine thread | `res_machine_asks` rows (thread, key, question, options, recommend, at) | the ask's key |
 | `ask` on a cloud task | the task card where `waiting` is true, with its `choices` | the task id |
+| `note` | the `notice` of a final receipt, stored in `res_machine_notes` (thread, work id, task id, text, at) | the work id |
 | `done` | the newest task of a thread with status `done` | the task id |
 | `stuck` | the newest task of a thread with status `failed`, or one closed by an expired lease | the task id |
 
-`stopped` tasks give no item. A thread whose newest task is `needs_you` gives an `ask`, never a `done` or `stuck`.
+A `failed` result whose summary starts with "Blocked:" is a `stuck` item like any other failure. `stopped` tasks give no item. A thread whose newest task is `needs_you` gives an `ask`, never a `done` or `stuck`.
 
 New table:
 
@@ -48,7 +49,7 @@ New table:
 CREATE TABLE IF NOT EXISTS res_waiting_seen (id TEXT PRIMARY KEY, at INTEGER NOT NULL)
 ```
 
-It holds the ids of `done` and `stuck` items the owner has read, and the ids of asks already pushed (with the prefix `push:`). Rows older than 14 days are deleted when the list is read.
+It holds the ids of `note`, `done` and `stuck` items the owner has read, and the ids of asks already pushed (with the prefix `push:`). Rows older than 14 days are deleted when the list is read.
 
 ## Build
 
@@ -70,6 +71,23 @@ An option button calls the existing answer route of the thread (`/web/thread/say
 ## Push
 
 When an ask is stored (`machine.ts`, the receipt path) or a cloud task enters `needs_you`, the resident calls `pushAsk(item)` from a new file `src/waiting-push.ts`. It checks `res_waiting_seen` for `push:<id>`, sends through the existing `sendPush`, and records the id. It follows the existing push setting: no push set up, no push. The push body is the title and the question, and its link opens the list.
+
+## The helper's four ways to speak
+
+All of this is in the runner (`packages/runner/src/helper.mjs`, a new `src/markers.mjs` for the parsing, and the convention text). The protocol does not change: `notice` and `failed` already exist.
+
+| Marker | Runner result |
+|---|---|
+| none | `done`, summary is the reply |
+| `NOTE: ...` (any line, any time in the turn) | removed from the reply; all notes go in the final receipt's `notice` (`fyi: true`, at most 1000 characters) |
+| `BLOCKED: ...` (last line) | `failed`, summary `Blocked: <reason>` then the rest of the reply, no ask |
+| `ASK: ...` (last line) | `needs_you` with an ask, as before |
+
+Parsing order: collect `NOTE:` lines from all text of the turn; remove them; then look at the last line for `ASK:` or `BLOCKED:`. Markers are case-sensitive and must start the line. A `NOTE:` is not live: it arrives with the final receipt, because the protocol has no mid-turn receipt that carries a notice. Live progress stays a task of its own.
+
+The cloud stores a final receipt's `notice` in `res_machine_notes` and the list shows it as a `note`.
+
+The convention text is short and in English. It lists the four ways to speak and the ladder: try one really different way; look for a way around or do the part that is not stuck; `BLOCKED:` only for an outside wall, `ASK:` only for what only the owner can decide; do what can be undone and never ask whether to carry on. It is added to every message by the runner, not by a persona, so Kiro, DSH and any other helper get it the same way.
 
 ## Stopped, and the cancel bug
 

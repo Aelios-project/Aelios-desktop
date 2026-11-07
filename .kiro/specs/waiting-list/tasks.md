@@ -50,6 +50,20 @@ Written before any code. Nothing is done yet. All work is in the Aelios-resident
   - [ ] 7.3 Page check: after pairing, the settings page shows the machine online without a reload
   - _Requirements: 7.1, 7.2_
 
+- [ ] 9. The helper's four ways to speak (Aelios-desktop, `packages/runner`)
+  - [ ] 9.1 Create `src/markers.mjs`: take out `NOTE:` lines, read `ASK:` / `BLOCKED:` from the last line
+  - [ ] 9.2 Map `BLOCKED:` to `failed` with a "Blocked:" summary; send notes as the final receipt's `notice`
+  - [ ] 9.3 Write the convention with the four-step ladder in the runner (`helper.mjs`)
+  - [ ] 9.4 Tests: each marker, notes anywhere, no marker with a question mark, blocked has no ask
+  - [ ] 9.5 Update `PROTOCOL.md`, `README.md` and the headless-runner spec
+  - _Requirements: 9_
+
+- [ ] 10. Notes in the list (Aelios-resident)
+  - [ ] 10.1 Add `res_machine_notes`; store a final receipt's `notice` there
+  - [ ] 10.2 Give `build` the `note` kind; read, replace and expire like `done`
+  - [ ] 10.3 Test: a note shows, is not pushed, and goes away when read
+  - _Requirements: 1.6, 2.2, 3.4, 3.5, 5.3_
+
 - [ ] 8. Close out
   - [ ] 8.1 Check file sizes (new files under 300 lines) and that `resident.ts` and `app.js` only gained wiring
   - [ ] 8.2 Grep for names and personal details in code, docs and tests
