@@ -98,8 +98,10 @@ Facts about DSH that this spec relies on, and the ones it could not confirm, are
 1. WHEN a commit first adds DSH code, a DSH package, a DSH asset or a DSH binary to this repository or to a release file THEN the same commit SHALL put DSH's full MIT LICENSE text and copyright line in `THIRD_PARTY_NOTICES.md`.
 2. WHILE the shell only runs inside a DSH the owner installed and ships none of DSH's files, `THIRD_PARTY_NOTICES.md` SHALL say so, as it does now.
 3. A release file that contains DSH SHALL carry the same notice inside it.
-4. Code, docs, tests and fixtures SHALL contain no person's name, personal detail, private address or secret, and SHALL be in English.
-5. Each source file SHALL stay small and do one job.
+4. WHEN a commit copies code from DS Bot (Apache-2.0) THEN the same commit SHALL add the Apache-2.0 text and DS Bot's `NOTICE` lines for that file to `THIRD_PARTY_NOTICES.md`, mark the file as changed, and keep the original copyright line. IF a license is unclear THEN only the idea SHALL be used, not the code.
+5. The shell SHALL NOT copy DS Bot's icons, text or graphics.
+6. Code, docs, tests and fixtures SHALL contain no person's name, personal detail, private address or secret, and SHALL be in English. (A copyright line that a copied file must keep is the one exception.)
+7. Each source file SHALL stay small and do one job.
 
 ### 10. Tests
 

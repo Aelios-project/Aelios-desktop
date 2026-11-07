@@ -3,7 +3,7 @@
 Written before any code. Nothing is done yet. Keep every file small and do one job. Write no person's name or private detail anywhere. Text in the repository is English.
 
 - [ ] 1. Settle the open questions that block the design
-  - [ ] 1.1 Install a plugin skeleton in DSH and check: main area vs sidebar tab, `<webview>` login kept after restart, child process allowed, where plugins live
+  - [ ] 1.1 Install a plugin skeleton in DSH 0.2.2-rc.1 and find which shipped slot lets a full-width webview replace the conversation area (shadow with `priority: -100`, as DS Bot does); check the webview bridge, whether login is kept after restart, which Node runs host code, where plugins live
   - [ ] 1.2 Check the resident's response headers for framing
   - [ ] 1.3 Write the answers into `design.md` and remove them from "Open questions"
   - _Requirements: 1.1, 1.3, 2.1_
@@ -15,7 +15,7 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
   - _Requirements: 2.3, 2.5_
 
 - [ ] 3. Plugin skeleton
-  - [ ] 3.1 `packages/desktop/package.json` with `dsh.client`, `dsh.bundle.patch` and a pinned `engines.dsh`
+  - [ ] 3.1 `packages/desktop/package.json` with `dsh.client`, `dsh.bundle.patch` and `engines.dsh` pinned to 0.2.2-rc.1
   - [ ] 3.2 `cordis.patch.yml`
   - [ ] 3.3 `host/index.mjs` and `client/index.mjs` that only register
   - _Requirements: 9.5_
@@ -61,3 +61,10 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
   - [ ] 10.1 `AELIOS_REAL_DSH=1` test: plugin loads, panel registers, no model request
   - [ ] 10.2 Update `packages/desktop/README.md`, `README.md` and `.kiro/steering/structure.md` to match
   - _Requirements: 10.3_
+
+- [ ] 11. Optional, after 1 to 10 work: our own Electron app (path b)
+  - [ ] 11.1 Measure installer size and the signing and notarization steps; write the numbers in `design.md`
+  - [ ] 11.2 Decide go or no-go with the owner; do not start before that
+  - [ ] 11.3 If go: a shell that boots a pinned DSH profile in its own data folder, never in the owner's DSH data, and bundles the plugin
+  - [ ] 11.4 Put DSH's MIT notice inside the release file (task 9.2 applies)
+  - _Requirements: 8.1, 9.1, 9.3_

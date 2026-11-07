@@ -20,7 +20,9 @@ The shell has two halves, as DSH plugins do: a host half (Node) and a client hal
 
 ## What a DSH plugin can and cannot do
 
-Read from the DSH repository (`deepseek-ai/deepseek-harness`, branch `master`) on 2026-11-07, and from the earlier plugin for the older protocol. "Unverified" means no document or code was read that settles it. DSH on this machine is 0.2.2-rc.1.
+Read from the DSH repository (`deepseek-ai/deepseek-harness`, branch `master`) on 2026-11-07, from the earlier plugin for the older protocol, and from DS Bot (below). "Unverified" means no document or code was read that settles it. DSH on this machine is 0.2.2-rc.1.
+
+**DS Bot, the reference.** DS Bot is a DSH plugin that replaces DSH's main interface with a multi-bot chat (bot list on the left, conversation in the middle). The original repository is `Fei2411/DS-Bot` (Apache-2.0; `Fei2411/DeepSeek-Bot` is the same repository under an older name). `QingJ01/DS-Bot-App` and `Simon202410/deepseek-bot` are GitHub forks of it with the same license; the Electron app (`app/`) is already in the original. Paths below are in `Fei2411/DS-Bot` on `main`, read on 2026-11-07. A fork's `app/README.md` still says DSH 0.2.0-rc.2 or 0.2.1-rc.2; the original's `README.md` badge and `app/package.json` say 0.2.2-rc.1, so the forks are stale.
 
 ### Can
 
@@ -32,14 +34,71 @@ Read from the DSH repository (`deepseek-ai/deepseek-harness`, branch `master`) o
 6. Register its own locale strings (`ctx.locale.register`) and a layout panel (`ctx.layout.selectPanel`). Source: the earlier plugin's `client.js`.
 7. Be installed from the Plugins page, and be listed in a plugin index: one JSON file that names an npm package or a Git repository (url, commit, path) with an `engines.dsh` range. Source: `docs/user/guide/plugin-market.md`. The "Custom plugin indexes" bundle is experimental and off by default.
 8. Run inside the owner's signed DSH. The plugin adds no new signature step, because it is not part of the signed app bundle. Basis: the packaging guide treats signing as a property of the DSH installer (`apps/desktop/packaging/README.md`). Where plugins are stored on disk is unverified.
+9. Take over the main area by shadowing shipped slots. DS Bot does not replace `root`. It registers its own components into the shipped slots with `priority: -100` (lower renders first), through `ctx.slots.inject(name, () => ctx.slots.register(...))`: `ds-bot/src/client/index.js` lines 954 to 957 (`BOT_PRIORITY`, `shadow`), line 1042 (`sidebar.workspaces`, the bot list), lines 1043 to 1049 (brand mark, brand name, footer, settings), lines 1063 to 1104 (`conversation.chat.node`, `conversation.composer`, `conversation.input.*`). This is the proof that a plugin can own the whole window.
+10. Draw its own Electron webviews inside DSH Desktop. DS Bot keeps them in a body-level layer (`ds-bot/src/client/browser-pane.js` lines 4 to 5) and notes that this needs "a webview bridge: DSH Desktop's, or the desktop app's" (`index.js` line 304). The bridge name and API are not documented in the DSH files read.
+11. Start child processes from host code. `ds-bot/src/host/local-agents/acp.js` line 4 imports `spawn` from `node:child_process` and starts one child per ACP route (line 31), with `SIGTERM` then `SIGKILL` after 5 seconds on stop (lines 177 to 178). `dsh-update.js`, `claude.js` and `codex.js` do the same. So spawning a runner is not new. It also shows a plugin that talks ACP to other agents.
 
 ### Cannot (or not as hoped)
 
-1. Rename the application, change its icon, window frame or installer. The packaging guide says native application and installer names are unchanged, and unsigned local builds even carry a "DSH Local Build" label. Source: `apps/desktop/packaging/README.md`. So "nothing of DSH's branding" holds only inside the shell's own panel.
+1. As a plugin alone, rename the application, change its icon, window frame or installer. The packaging guide says native application and installer names are unchanged, and unsigned local builds even carry a "DSH Local Build" label. Source: `apps/desktop/packaging/README.md`. So "nothing of DSH's branding" holds only inside the shell's own screens. Own name and icon need path (b) below.
 2. Give the embedded page a bridge to the host. The Browser tab is sandboxed and gets no Node or Electron access. The earlier plugin worked around this with a proxied document in an iframe and a message channel; that is the 3000-line path this design avoids. The shell does not need a bridge: the runner talks to the cloud itself.
 3. Embed a site that refuses framing in the Web build. The Browser README says to use the explicit external-browser action in that case. Whether the resident's page is allowed in the Desktop `<webview>` is unverified (Open questions 2 and 3).
 4. Rely on a stable plugin API. The earlier plugin pins `engines.dsh` to `>=0.2.1-rc.3 <0.3.0` and stopped working when the protocol changed; DSH is in release candidates. The shell must pin a range and test against it.
-5. Be sure of spawning a child process. Host code is Node, but no document read says whether it is sandboxed or which Node version runs it (Open question 4).
+5. Be sure which Node version runs host code. Spawning works (Can 11); the version is not documented in the files read.
+
+## Two paths
+
+(a) A plugin only, installed into the owner's own DSH. (b) Our own Electron app, as DS Bot's `app/` is: it installs a pinned DSH, boots its own profile through `@deepseek-ai/dsh/profile-boot`, keeps data in its own `DSH_HOME`, never writes to `~/.dsh`, and shows DSH's web front end plus the plugin in its window (`app/README.md`). The host is started as a child process in `app/src/host-process.mjs` (line 55). Bot pages are `WebContentsView`s with their own storage `partition` and `nodeIntegration: false` (`app/src/bot-views.mjs` lines 114 to 117).
+
+| | (a) Plugin in the owner's DSH | (b) Our own Electron app |
+|---|---|---|
+| App name and icon | DSH's | Ours |
+| Signing | None to do: it runs inside the owner's signed DSH (our reading of the packaging guide) | Ours to do: a certificate for each platform, and macOS notarization. DS Bot App ships macOS as a zip, because "macOS 26 calls a downloaded unsigned dmg damaged" (`app/electron-builder.yml` line 62) |
+| Size to download | A few small files | Electron, a pinned DSH and its runtime, in one installer. Not measured |
+| Following DSH | Breaks when DSH updates the plugin API (the earlier plugin did); the owner's DSH moves on its own | We pin one DSH and choose when to move. We carry the update and the security fixes |
+| Data | In the owner's DSH profile | Own `DSH_HOME`, nothing shared with the owner's DSH |
+| Judge's install | DSH must already be installed; then the Plugins page. A judge without DSH installs two things | One installer, if the OS lets it open (see signing) |
+| Steps to first message | 4 (below) | 4 as well: install the app, generate the code, paste address and code, first message arrives |
+| Needs the plugin to be reachable | Yes: npm or a Git spec for the Plugins page | Bundled in the installer |
+| Code to write | Plugin only | Plugin plus the shell: window, start, update, folders |
+| Licenses | None to add while no DSH file is copied | The release file contains DSH: DSH's MIT notice goes inside it. Any code taken from DS Bot brings its Apache-2.0 notice |
+
+Recommendation: (a) first, (b) later and optional. Reasons:
+
+1. Every path needs the same plugin. (b) adds a shell on top of it, so (a) is the smaller first piece and (b) reuses it.
+2. (a) needs no signing, no installer and no update channel. Those are the costs most likely to eat the time before the contest.
+3. The step count is 4 for both, so (b) buys a name and an icon, not a shorter path.
+4. The one thing (a) cannot do is a name and icon of its own. The panel can still carry the resident's look.
+5. A judge who has no DSH is the case where (b) wins. Say in the README that (a) needs DSH, and add (b) if time is left.
+
+## The main area
+
+The resident's page should fill the main area. Two ways, from DS Bot's precedent:
+
+1. Shadow the shipped cells that make the main area (Can 9), and put the resident's page in a webview of our own (Can 10). No copy of the resident's front end.
+2. If a webview cannot be placed there, open it in a Browser tab (Can 3) and keep the shell's panel as a small bot-list-free sidebar.
+
+DS Bot draws its own chat (`conversation.chat.node` and the rest). We must not: the resident's page already has that. So the shell shadows only what it needs to make room, and which slot that is stays Open question 1. The first task is a spike that finds it.
+
+## Running the runner
+
+Precedent exists (Can 11): spawn with `node:child_process`, stop with `SIGTERM`, then `SIGKILL` after 5 seconds if it has not exited. The supervisor below does the same for `aelios-runner start`.
+
+## Version to pin
+
+The newest DSH release is `dsh-v0.2.2-rc.1` (2026-11-04), a prerelease; there is no stable 0.2.x release. DS Bot's original repository pins exactly `0.2.2-rc.1` (README badge and install line, `app/package.json`). The DSH on this machine is also 0.2.2-rc.1. So: pin `engines.dsh` to 0.2.2-rc.1 and test only against it. Widen the range only after a test run on the next release. The earlier plugin's `>=0.2.1-rc.3 <0.3.0` is too wide for release candidates.
+
+## Docker and NAS
+
+DS Bot's `docker/` keeps a `dsh web` server with the plugin always on, on a NAS. Our headless mode is different: it is the runner alone, with no window. If an always-on box is wanted, the same idea is the runner in a container.
+
+## Borrowing from DS Bot
+
+DS Bot is Apache-2.0 (`LICENSE`, and a `NOTICE` that begins "Copyright 2026 Fei2411 and the DS Bot contributors"). Its own `NOTICE` says some of its files follow DSH files (`app/src/host-process.mjs`, `app/src/host.mjs`, `app/scripts/prepare-runtime.mjs` and others), so copying those also brings DSH's MIT notice.
+
+- Ideas and structure (shadow slots, spawn and stop, the profile boot): free to use. Cite them here.
+- Code: copy nothing by default. If a file is copied, it needs the Apache-2.0 text and DS Bot's `NOTICE` lines for that file in `THIRD_PARTY_NOTICES.md`, a note at the top of the file that it was changed, and the original copyright line kept.
+- DS Bot's own rule 3 (`AGENTS.md`) says its interface is original material. Do not copy its icons, text or graphics.
 
 ## Components
 
@@ -82,7 +141,7 @@ shortcut: the code is in the child's arguments for the moment the command runs, 
 
 ### The window
 
-The client half registers one panel. Before pairing it shows the form. After pairing it calls `ctx.sidebarRight.openTab('browser', { params: { url } })` with the resident's address, or, if the main area can be used (Open question 1), places the page there. The resident's page then shows conversation on the left and threads and the waiting list on the right, as it does in a normal browser. The shell adds a status line (runner state) and the stop and unpair buttons.
+The client half registers one panel. Before pairing it shows the form. After pairing it places the resident's page in the main area (see "The main area"), or, if that fails the spike, calls `ctx.sidebarRight.openTab('browser', { params: { url } })` with the resident's address. The resident's page then shows conversation on the left and threads and the waiting list on the right, as it does in a normal browser. The shell adds a status line (runner state) and the stop and unpair buttons.
 
 Login. The resident's page asks for its web key once, itself. Whether the web view keeps that login after a restart is Open question 2. The shell never reads or stores the web key.
 
@@ -138,20 +197,26 @@ A check in `npm test` can fail the build when a file under `packages/desktop` im
 
 `npm test` (Node's built-in runner) with the runner's fake cloud and fake helper: supervisor state changes (start, stop, crash, revoke, lock held), pairing arguments and address checks, and a count of the setup steps. A real-DSH test is opt-in with `AELIOS_REAL_DSH=1` and sends no model request.
 
+## Answered since the first draft
+
+- Can a plugin take the main area? Yes, by shadowing shipped slots (Can 9). Which slot holds a full-width page is still open (question 1).
+- Can host code spawn a child process? Yes (Can 11).
+- Which DSH to pin? 0.2.2-rc.1 (section "Version to pin").
+- Can a plugin draw its own webview in DSH Desktop? Yes (Can 10), through a bridge.
+
 ## Open questions
 
 Not settled. Do not treat any of these as fact.
 
-1. Can a plugin put the resident's page in the main area, or only in a sidebar tab? `docs/subsystems/slots.md` says `root` is the only built-in declaration and shows `root [AppFrame]`, but its cardinality and whether a plugin may take it over were not read.
-2. Does the Desktop `<webview>` of the Browser tab keep cookies and storage after a restart (so the resident's login survives)? Not read.
-3. Does the resident's site allow being framed or shown in a `<webview>`? Its response headers were not checked. The earlier plugin used a proxied document in an iframe instead; the reason is not written down.
-4. Can host code spawn a child process, and which Node runs it? The runner needs Node 22 or newer. The earlier plugin declares `node >=22` but spawns nothing that was read.
-5. Where are plugins installed on disk, and can they be added from a Git URL by hand on a normal release, or only through the experimental plugin index bundle?
+1. Which shipped slot lets a full-width page replace the conversation area? `docs/subsystems/slots.md` shows `root [AppFrame]` then `main[key=conversation]`. DS Bot shadows the `conversation.*` cells, not `main`. The spike (task 1) decides.
+2. What is the webview bridge DS Bot mentions (`index.js` line 304)? Is it a documented DSH API or an internal one? Does it keep cookies after a restart? DS Bot's app gives each bot its own storage `partition`, but that is its own shell.
+3. Does the resident's site allow being framed or shown in a webview? Its response headers were not checked.
+4. Which Node version runs plugin host code? The runner needs Node 22 or newer.
+5. Where are plugins installed on disk, and can they be added from a Git URL by hand on a normal release? DS Bot's README installs by npm name (`dsh plugin --profile web add ds-bot`) and mentions the Plugins page; a Git spec was not checked for DSH Desktop.
 6. How does the shell get the runner? It is not on npm and is not published without the owner's say-so. Choices: publish it, or vendor it into the plugin package.
 7. The runner has no machine-readable status. Add `aelios-runner status --json`? (A small change in `packages/runner`.)
 8. After pairing, who sends the resident's first message? That change would be in the resident repository, not here.
-9. Does the plugin API match across the DSH 0.2.x release candidates? Which range goes in `engines.dsh`?
-10. Real DSH has not been connected to the runner yet (the runner README says so). The default helper is untested against the real thing.
-11. A fully renamed app (own name, icon, installer) needs a repackaged DSH, own signing and notarization, and a notice in the release file. Do we want that? It is outside this spec.
-12. Which Kiroween categories does this entry go in? Confirm before the look is described as a costume entry.
-13. Is it acceptable that the pairing code is briefly in the child's arguments (see shortcut above)?
+9. Real DSH has not been connected to the runner yet (the runner README says so). The default helper is untested against the real thing.
+10. Path (b): sizes of the installer, the signing and notarization steps, and the update channel were not measured. Only decide after path (a) works.
+11. Which Kiroween categories does this entry go in? Confirm before the look is described as a costume entry.
+12. Is it acceptable that the pairing code is briefly in the child's arguments (see shortcut above)?
