@@ -40,36 +40,15 @@ Read from the DSH repository (`deepseek-ai/deepseek-harness`, branch `master`) o
 
 ### Cannot (or not as hoped)
 
-1. As a plugin alone, rename the application, change its icon, window frame or installer. The packaging guide says native application and installer names are unchanged, and unsigned local builds even carry a "DSH Local Build" label. Source: `apps/desktop/packaging/README.md`. So "nothing of DSH's branding" holds only inside the shell's own screens. Own name and icon need path (b) below.
+1. As a plugin alone, rename the application, change its icon, window frame or installer. The packaging guide says native application and installer names are unchanged, and unsigned local builds even carry a "DSH Local Build" label. Source: `apps/desktop/packaging/README.md`. So "nothing of DSH's branding" holds only inside the shell's own screens. A plugin cannot give the app its own name and icon; that is accepted.
 2. Give the embedded page a bridge to the host. The Browser tab is sandboxed and gets no Node or Electron access. The earlier plugin worked around this with a proxied document in an iframe and a message channel; that is the 3000-line path this design avoids. The shell does not need a bridge: the runner talks to the cloud itself.
 3. Embed a site that refuses framing in the Web build. The Browser README says to use the explicit external-browser action in that case. Whether the resident's page is allowed in the Desktop `<webview>` is unverified (Open questions 2 and 3).
 4. Rely on a stable plugin API. The earlier plugin pins `engines.dsh` to `>=0.2.1-rc.3 <0.3.0` and stopped working when the protocol changed; DSH is in release candidates. The shell must pin a range and test against it.
 5. Be sure which Node version runs host code. Spawning works (Can 11); the version is not documented in the files read.
 
-## Two paths
+## Decision: plugin only
 
-(a) A plugin only, installed into the owner's own DSH. (b) Our own Electron app, as DS Bot's `app/` is: it installs a pinned DSH, boots its own profile through `@deepseek-ai/dsh/profile-boot`, keeps data in its own `DSH_HOME`, never writes to `~/.dsh`, and shows DSH's web front end plus the plugin in its window (`app/README.md`). The host is started as a child process in `app/src/host-process.mjs` (line 55). Bot pages are `WebContentsView`s with their own storage `partition` and `nodeIntegration: false` (`app/src/bot-views.mjs` lines 114 to 117).
-
-| | (a) Plugin in the owner's DSH | (b) Our own Electron app |
-|---|---|---|
-| App name and icon | DSH's | Ours |
-| Signing | None to do: it runs inside the owner's signed DSH (our reading of the packaging guide) | Ours to do: a certificate for each platform, and macOS notarization. DS Bot App ships macOS as a zip, because "macOS 26 calls a downloaded unsigned dmg damaged" (`app/electron-builder.yml` line 62) |
-| Size to download | A few small files | Electron, a pinned DSH and its runtime, in one installer. Not measured |
-| Following DSH | Breaks when DSH updates the plugin API (the earlier plugin did); the owner's DSH moves on its own | We pin one DSH and choose when to move. We carry the update and the security fixes |
-| Data | In the owner's DSH profile | Own `DSH_HOME`, nothing shared with the owner's DSH |
-| Judge's install | DSH must already be installed; then the Plugins page. A judge without DSH installs two things | One installer, if the OS lets it open (see signing) |
-| Steps to first message | 4 (below) | 4 as well: install the app, generate the code, paste address and code, first message arrives |
-| Needs the plugin to be reachable | Yes: npm or a Git spec for the Plugins page | Bundled in the installer |
-| Code to write | Plugin only | Plugin plus the shell: window, start, update, folders |
-| Licenses | None to add while no DSH file is copied | The release file contains DSH: DSH's MIT notice goes inside it. Any code taken from DS Bot brings its Apache-2.0 notice |
-
-Recommendation: (a) first, (b) later and optional. Reasons:
-
-1. Every path needs the same plugin. (b) adds a shell on top of it, so (a) is the smaller first piece and (b) reuses it.
-2. (a) needs no signing, no installer and no update channel. Those are the costs most likely to eat the time before the contest.
-3. The step count is 4 for both, so (b) buys a name and an icon, not a shorter path.
-4. The one thing (a) cannot do is a name and icon of its own. The panel can still carry the resident's look.
-5. A judge who has no DSH is the case where (b) wins. Say in the README that (a) needs DSH, and add (b) if time is left.
+The desktop is a plugin installed into the owner's own DSH. DSH is signed and notarized, so install and use raise no system warning (confirmed by the owner with DSH and the DS Bot plugin). Not doing: our own Electron app like DS Bot's `app/`. DS Bot App and the DS Bot installer are unsigned (their READMEs say so), and an unsigned download is warned about or blocked by the system.
 
 ## The main area
 
@@ -217,6 +196,5 @@ Not settled. Do not treat any of these as fact.
 7. The runner has no machine-readable status. Add `aelios-runner status --json`? (A small change in `packages/runner`.)
 8. After pairing, who sends the resident's first message? That change would be in the resident repository, not here.
 9. Real DSH has not been connected to the runner yet (the runner README says so). The default helper is untested against the real thing.
-10. Path (b): sizes of the installer, the signing and notarization steps, and the update channel were not measured. Only decide after path (a) works.
-11. Which Kiroween categories does this entry go in? Confirm before the look is described as a costume entry.
-12. Is it acceptable that the pairing code is briefly in the child's arguments (see shortcut above)?
+10. Which Kiroween categories does this entry go in? Confirm before the look is described as a costume entry.
+11. Is it acceptable that the pairing code is briefly in the child's arguments (see shortcut above)?
