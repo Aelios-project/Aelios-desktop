@@ -108,8 +108,8 @@ for (const plugin of ["kiro", "dsh"]) {
     const asked = await final(r, r.cloud.push({ text: "ASKME which one" }));
     assert.equal(asked.status, "needs_you");
     assert.match(asked.ask.key, /^q:/);
-    assert.equal(asked.ask.question, "我先做哪一个？");
-    assert.equal(asked.summary, "我需要你定一下。");
+    assert.equal(asked.ask.question, "Which one first?");
+    assert.equal(asked.summary, "I need you to decide.");
     const next = await final(r, r.cloud.push({ kind: "say", text: "the first one" }));
     assert.equal(next.status, "done");
     assert.deepEqual(next.resolve, [asked.ask.key]);
@@ -120,7 +120,7 @@ for (const plugin of ["kiro", "dsh"]) {
   t("permissions, tier edit: an edit inside the folder is allowed, one outside is turned down and asked about", async r => {
     const inside = await perm(r, `PERM:edit:${path.join(os.tmpdir(), "not-yet")}`);
     assert.equal(inside.status, "needs_you", "outside the folder");
-    assert.match(inside.ask.question, /路径不在工作目录里/);
+    assert.match(inside.ask.question, /outside the workspace/);
     assert.match(inside.summary, /perm=reject/);
     const ok = await final(r, r.cloud.push({ text: `PERM:edit:${path.join(r.workspace, "a.txt")}` }));
     assert.equal(ok.status, "done");
@@ -180,7 +180,7 @@ for (const plugin of ["kiro", "dsh"]) {
     r.start();
     const done = await final(r, r.cloud.push({ text: "CRASH now" }));
     assert.equal(done.status, "needs_you");
-    assert.match(done.summary, /不会自动重做/);
+    assert.match(done.summary, /will not be redone automatically/);
     await new Promise(resolve => setTimeout(resolve, 200));
     assert.equal(r.prompts().length, 1);
   });

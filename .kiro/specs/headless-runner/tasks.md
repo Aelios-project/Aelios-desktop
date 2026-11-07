@@ -29,6 +29,7 @@ Honest note: this list was written after the first version of the code. It recor
 - [x] 11. Tests: fake cloud, fake helper, pairing, loop, permissions, lock, size limit, command line
 - [x] 12. Docs: `README.md` and `PROTOCOL.md` in English
 - [x] 13. Move into this repository with history (`git subtree split`)
+- [x] 19. Run-time messages in receipts, errors and the helper convention are in English; the helper is told to reply in the language of the job
 
 ## Not done
 
@@ -37,7 +38,6 @@ Honest note: this list was written after the first version of the code. It recor
 - [ ] 16. Check what real Kiro does with `session/request_permission` and `--trust-all-tools`
 - [ ] 17. Stop button on the resident's web page for a running thread (cloud side, in Aelios-resident)
 - [ ] 18. `progress` events while a turn runs
-- [ ] 19. Translate the run-time messages in receipts into English, or make the language a setting
 - [ ] 20. A local command to stop one thread (`Runner.cancel(thread)` exists)
 - [ ] 21. Claude Code through an ACP adapter, tested end to end (experimental)
 - [ ] 22. Publish to npm

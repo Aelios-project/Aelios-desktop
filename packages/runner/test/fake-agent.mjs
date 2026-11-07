@@ -54,9 +54,9 @@ async function prompt(id, params) {
     said = ` perm=${outcome.outcome?.optionId ?? outcome.outcome?.outcome}`;
   }
   const long = /LONG:(\d+)/.exec(text);
-  if (long) said += " " + "字".repeat(Number(long[1]));
+  if (long) said += " " + "x".repeat(Number(long[1]));
   if (text.includes("CWD")) said += ` cwd=${session?.cwd}`;
-  chunk(sessionId, text.includes("ASKME") ? "我需要你定一下。\nASK: 我先做哪一个？" : text.includes("QUESTION") ? "做完了，要我继续吗？" : `done: ${text}${said}`);
+  chunk(sessionId, text.includes("ASKME") ? "I need you to decide.\nASK: Which one first?" : text.includes("QUESTION") ? "Done. Shall I carry on?" : `done: ${text}${said}`);
   send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
 }
 

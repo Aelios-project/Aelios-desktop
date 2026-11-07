@@ -17,7 +17,7 @@ export function fit(receipt, max = RECEIPT_MAX_BYTES) {
   for (let round = 0; round < 60 && bytes(out) > max; round++) {
     const excess = bytes(out) - max, summary = out.summary?.length ?? 0, question = out.ask?.question?.length ?? 0;
     if (summary < 2 && question < 2) break;
-    const by = Math.ceil(excess / 3) + 4; // a Chinese character is 3 bytes
+    const by = Math.ceil(excess / 3) + 4; // a CJK character or a symbol like the euro sign is 3 bytes
     if (summary >= question) out.summary = cut(out.summary, by); else out.ask.question = cut(out.ask.question, by);
   }
   return out;

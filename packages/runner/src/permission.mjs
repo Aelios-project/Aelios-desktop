@@ -29,13 +29,13 @@ export function judge(tier, toolCall, cwd) {
   const kind = typeof toolCall?.kind === "string" ? toolCall.kind : "other";
   if (tier === "full") return { allow: true, why: "" };
   const files = (Array.isArray(toolCall?.locations) ? toolCall.locations : []).map(place => place?.path);
-  if (files.some(file => !inside(cwd, file))) return { allow: false, why: "请求里的路径不在工作目录里" };
+  if (files.some(file => !inside(cwd, file))) return { allow: false, why: "a path in the request is outside the workspace" };
   if (READ.has(kind)) return { allow: true, why: "" };
   if (tier === "edit" && EDIT.has(kind)) {
     if (kind !== "edit" || files.length) return { allow: true, why: "" };
-    return { allow: false, why: "编辑没有说明位置" };
+    return { allow: false, why: "the edit does not say where" };
   }
-  return { allow: false, why: `档位 ${tier} 不允许「${kind}」` };
+  return { allow: false, why: `tier ${tier} does not allow "${kind}"` };
 }
 
 /**
@@ -46,11 +46,11 @@ export function answer(tier, params, cwd) {
   const options = Array.isArray(params?.options) ? params.options : [];
   const pick = kind => options.find(option => option?.kind === kind && typeof option.optionId === "string");
   const { allow, why } = judge(tier, params?.toolCall, cwd);
-  const title = String(params?.toolCall?.title ?? params?.toolCall?.kind ?? "一个操作").replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 120);
+  const title = String(params?.toolCall?.title ?? params?.toolCall?.kind ?? "an action").replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 120);
   if (allow) {
     const choice = pick("allow_once");
     if (choice) return { response: { outcome: { outcome: "selected", optionId: choice.optionId } }, denied: null };
-    return { response: { outcome: { outcome: "cancelled" } }, denied: `${title}（帮手没有给出「只这一次」的选项）` };
+    return { response: { outcome: { outcome: "cancelled" } }, denied: `${title} (the helper offered no "allow once" option)` };
   }
   const choice = pick("reject_once");
   return { response: choice ? { outcome: { outcome: "selected", optionId: choice.optionId } } : { outcome: { outcome: "cancelled" } }, denied: `${title}（${why}）` };

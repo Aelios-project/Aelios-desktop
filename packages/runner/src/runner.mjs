@@ -73,7 +73,7 @@ export class Runner {
             try { await cloud.receipt(receipt); break; }
             catch (error) {
               if (!(error instanceof CloudError) || error.revoked) throw error;
-              if (error.retry) { this.error = "云端暂时连不上，回执留着，稍后重发。"; return; }
+              if (error.retry) { this.error = "The cloud is unreachable for now. Receipts are kept and will be resent."; return; }
               const smaller = error.status === 413 ? shrink(receipt) : null; // too big: send a shorter one, do not lose the result
               if (!smaller) { this.log("receipt dropped", id, error.code || error.status); break; } // it will never be accepted
               await this.state.update(state => { state.outbox = state.outbox.map(item => (item.receiptId === id ? smaller : item)); });
@@ -101,7 +101,7 @@ export class Runner {
     const identifiable = raw && typeof raw === "object" && ID.test(raw.workId ?? "") && typeof raw.token === "string" && raw.token.length <= 200;
     if (!this.#valid(raw)) {
       this.log("work refused", raw?.workId);
-      await this.#queueReceipts(identifiable ? [this.#receipt(raw, "final", { status: "failed", summary: "runner 看不懂这条消息（格式不对），没有执行。" })] : [], state => { state.claimKey = null; });
+      await this.#queueReceipts(identifiable ? [this.#receipt(raw, "final", { status: "failed", summary: "The runner could not read this message (bad format) and did not run it." })] : [], state => { state.claimKey = null; });
       return;
     }
     // Only what the protocol names is kept; anything else the cloud sent (a folder, a command, a helper) is dropped here.
@@ -114,9 +114,9 @@ export class Runner {
       if (work.kind === "cancel") {
         const dropped = state.queue.filter(item => item.thread === work.thread);
         state.queue = state.queue.filter(item => item.thread !== work.thread);
-        for (const item of dropped) receipts.push(this.#receipt(item, "final", { status: "cancelled", summary: "还没开始就被停下了。" }));
+        for (const item of dropped) receipts.push(this.#receipt(item, "final", { status: "cancelled", summary: "Stopped before it started." }));
         stop = Boolean(this.live && this.live.work.thread === work.thread);
-        receipts.push(this.#receipt(work, "final", { status: "done", summary: stop ? "已叫停正在跑的一轮。" : "这条线程没有在跑的轮次。" }));
+        receipts.push(this.#receipt(work, "final", { status: "done", summary: stop ? "Stopped the turn that was running." : "This thread has no turn running." }));
       } else if (work.kind === "say" && work.interrupt) {
         let at = 0;
         while (state.queue[at]?.kind === "say" && state.queue[at].interrupt) at++; // says keep their order
@@ -150,8 +150,8 @@ export class Runner {
       try { await this.#execute(work); }
       catch (error) {
         this.log("execute failed", work.workId, error?.message);
-        await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "runner 处理这条消息时出了错，不会自动重做。",
-          ask: { key: "runner:" + work.workId, question: "runner 处理这条消息时出了错，没有确认结果。要不要再试一次？" } })], state => remember(state, work.thread, "runner:" + work.workId));
+        await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "The runner hit an error handling this message. It will not be redone automatically.",
+          ask: { key: "runner:" + work.workId, question: "The runner hit an error handling this message and the result is not confirmed. Try again?" } })], state => remember(state, work.thread, "runner:" + work.workId));
       } finally {
         this.live = null;
         await this.state.update(state => { state.current = null; });
@@ -180,9 +180,9 @@ export class Runner {
     if (this.live.pendingCancel || this.shuttingDown) turn.cancel();
     let outcome = await turn.run();
     if (this.shuttingDown && outcome.status === "cancelled") {
-      outcome = { ...outcome, status: "needs_you", summary: "runner 被停止了，这一轮没有做完。不会自动重做。", ask: { key: "stopped:" + work.workId, question: "runner 被停止了，这一轮没有做完。要不要再做一次？" } };
+      outcome = { ...outcome, status: "needs_you", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically.", ask: { key: "stopped:" + work.workId, question: "The runner was stopped and this turn did not finish. Do it again?" } };
     }
-    const receipt = { status: outcome.status, summary: outcome.summary || "（没有内容）" };
+    const receipt = { status: outcome.status, summary: outcome.summary || "(no content)" };
     await this.state.update(s => {
       if (outcome.status === "needs_you" && outcome.ask) remember(s, work.thread, outcome.ask.key);
       const entry = s.threads[work.thread];
@@ -198,8 +198,8 @@ export class Runner {
     const state = await this.state.read();
     if (!state.current) return;
     const work = state.current;
-    await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "runner 重启过，这一轮的结果没有确认。不会自动重做，请看一下线程的状态。",
-      ask: { key: "restart:" + work.workId, question: "runner 重启过，这一轮的结果没有确认。要不要再做一次？" } })],
+    await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "The runner restarted and the result of this turn is not confirmed. It will not be redone automatically. Please check the thread.",
+      ask: { key: "restart:" + work.workId, question: "The runner restarted and the result of this turn is not confirmed. Do it again?" } })],
     s => { s.current = null; remember(s, work.thread, "restart:" + work.workId); });
   }
 
@@ -208,7 +208,7 @@ export class Runner {
     this.revoked = true;
     await this.state.update(s => { if (s.device) s.device.revoked = true; s.queue = []; s.claimKey = null; s.outbox = []; });
     this.#stopLive();
-    this.error = "配对已被撤销，runner 已停下，排着的活不再跑。";
+    this.error = "The pairing was revoked. The runner has stopped and queued work will not run.";
     this.log(this.error);
   }
 
@@ -234,7 +234,7 @@ export class Runner {
     } catch (error) {
       this.failures++;
       if (error.revoked) { await this.#revoke(); return; }
-      this.error = error.retry ? "云端暂时连不上。" : `云端拒绝了请求（${error.code || error.status || error.message}）。`;
+      this.error = error.retry ? "The cloud is unreachable for now." : `The cloud refused the request (${error.code || error.status || error.message}).`;
       this.log("tick", this.error);
     }
   }

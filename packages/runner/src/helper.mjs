@@ -7,7 +7,7 @@ import { answer } from "./permission.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
 /** Added to every prompt. The only way a reply asks the user for a decision; a question mark means nothing. */
-export const CONVENTION = "Only if you cannot go on without a decision from the user, end your reply with one last line that starts with `ASK:` followed by the question. Otherwise just finish, and do not end by asking whether to continue.";
+export const CONVENTION = "Only if you cannot go on without a decision from the user, end your reply with one last line that starts with `ASK:` followed by the question. Otherwise just finish, and do not end by asking whether to continue. Reply in the language of the job.";
 const marker = text => {
   const lines = text.trimEnd().split("\n"), last = lines.at(-1).trim();
   if (!last.startsWith("ASK:")) return null;
@@ -83,12 +83,12 @@ export class Turn {
       return this.#outcome(String(result.stopReason ?? "end_turn"), how);
     } catch (error) {
       if (this.cancelled && !this.timedOut) return this.#cancelled(how);
-      if (this.timedOut) return this.#stuck(how, "帮手超过时限没有做完，已叫停。");
+      if (this.timedOut) return this.#stuck(how, "The helper did not finish within the time limit and was stopped.");
       if (error instanceof AcpClosed) {
-        if (!this.opened) return { status: "failed", summary: this.redact(`帮手没能启动或没有连上：${error.message} ${stderrNote()}`), sessionId: null, how };
-        return this.#stuck(how, `帮手进程中途断了（${this.redact(error.message)}）。不会自动重做。 ${stderrNote()}`.trim());
+        if (!this.opened) return { status: "failed", summary: this.redact(`The helper could not start or connect: ${error.message} ${stderrNote()}`), sessionId: null, how };
+        return this.#stuck(how, `The helper process died in the middle of the turn (${this.redact(error.message)}). It will not be redone automatically. ${stderrNote()}`.trim());
       }
-      return { status: "failed", summary: this.redact(`帮手报错：${error.message}`), sessionId: this.opened, how };
+      return { status: "failed", summary: this.redact(`The helper reported an error: ${error.message}`), sessionId: this.opened, how };
     } finally {
       clearTimeout(this.timer); clearTimeout(this.killTimer);
       await this.conn.close();
@@ -99,31 +99,31 @@ export class Turn {
 
   #cancelled(how) {
     const last = this.#text();
-    return { status: "cancelled", summary: this.redact(last ? `已停止。停下前最后一段：${last}` : "已停止。"), sessionId: this.opened, how };
+    return { status: "cancelled", summary: this.redact(last ? `Stopped. The last part before stopping: ${last}` : "Stopped."), sessionId: this.opened, how };
   }
 
   #stuck(how, why) {
     const key = "stuck:" + short(why + (this.opened ?? ""));
-    return { status: "needs_you", summary: this.redact(why), sessionId: this.opened, how, ask: { key, question: this.redact(why + " 要不要接着做？") } };
+    return { status: "needs_you", summary: this.redact(why), sessionId: this.opened, how, ask: { key, question: this.redact(why + " Carry on?") } };
   }
 
   #outcome(stopReason, how) {
     const final = this.#text(), base = { sessionId: this.opened, how };
-    if (this.timedOut) return this.#stuck(how, "帮手超过时限没有做完，已叫停。");
+    if (this.timedOut) return this.#stuck(how, "The helper did not finish within the time limit and was stopped.");
     if (stopReason === "cancelled") return this.#cancelled(how);
     if (stopReason === "refusal" || stopReason === "max_tokens" || stopReason === "max_turn_requests") {
-      const why = `帮手中途停下了（${stopReason}）。${final ? "最后一段：" + final : ""}`;
+      const why = `The helper stopped in the middle (${stopReason}).${final ? " Last part: " + final : ""}`;
       return { ...base, status: "needs_you", summary: this.redact(why), ask: { key: "stop:" + short(stopReason + final), question: this.redact(why) } };
     }
     if (this.denied.length) {
-      const list = this.denied.map(item => "· " + item).join("\n");
-      const summary = this.redact(`${final || "（帮手没有留下文字）"}\n\n有操作被这台机器的权限档位（${this.tier}）拒绝了：\n${list}`);
-      return { ...base, status: "needs_you", summary, ask: { key: "perm:" + short(list), question: this.redact(`帮手想做下面这些，但这台机器的档位是 ${this.tier}，已拒绝：\n${list}`) } };
+      const list = this.denied.map(item => "- " + item).join("\n");
+      const summary = this.redact(`${final || "(the helper left no text)"}\n\nSome actions were refused by this machine's permission tier (${this.tier}):\n${list}`);
+      return { ...base, status: "needs_you", summary, ask: { key: "perm:" + short(list), question: this.redact(`The helper wanted to do the following, but this machine's tier is ${this.tier}, so it was refused:\n${list}`) } };
     }
-    if (!final) return { ...base, status: "needs_you", summary: "这一轮结束了，但帮手没有留下文字结果。", ask: { key: "silent:" + short(String(this.opened) + Date.now()), question: "这一轮结束了，但帮手没有留下文字结果，要不要再问一次？" } };
+    if (!final) return { ...base, status: "needs_you", summary: "The turn ended, but the helper left no text result.", ask: { key: "silent:" + short(String(this.opened) + Date.now()), question: "The turn ended, but the helper left no text result. Ask again?" } };
     const asked = marker(final);
     if (asked) {
-      const question = this.redact(asked.question || "（帮手要你拍板，但没写问题）");
+      const question = this.redact(asked.question || "(the helper wants you to decide, but wrote no question)");
       return { ...base, status: "needs_you", summary: this.redact(asked.body || question), ask: { key: "q:" + short(final), question } };
     }
     return { ...base, status: "done", summary: this.redact(final) };

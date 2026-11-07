@@ -86,4 +86,3 @@ AELIOS_REAL_KIRO=1 node --test test/kiro-real.test.mjs   # real kiro-cli, only u
 - Real DSH has not been connected. The DSH launch follows its ACP docs and `dsh --profile acp --help`, and was tested with a fake helper.
 - Real Kiro was checked only up to initialize. Whether it sends `session/request_permission`, and what `--trust-all-tools` does, are untested.
 - There is no local way to stop a thread yet. `Runner.cancel(thread)` is ready for one.
-- Some run-time messages (receipt summaries and questions) are still in Chinese. They are shown to the resident's user.

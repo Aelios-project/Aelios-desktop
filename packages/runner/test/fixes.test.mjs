@@ -17,9 +17,9 @@ const BIN = path.join(here, "..", "bin", "aelios-runner.mjs");
 const bytes = value => Buffer.byteLength(JSON.stringify(value));
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-test("fit: the worst receipts (long Chinese question, max_tokens with two 4000-character texts) stay under the limit", () => {
+test("fit: the worst receipts (long multibyte question, max_tokens with two 4000-character texts) stay under the limit", () => {
   const base = { receiptId: "w_1:final", workId: "w_1", token: "wt_x", type: "final", status: "needs_you" };
-  const long = "字".repeat(4000);
+  const long = "€".repeat(4000);
   const worst = fit({ ...base, summary: long, ask: { key: "stop:abc", question: long }, resolve: Array.from({ length: 80 }, (_, i) => "q:" + i) });
   assert.ok(bytes(worst) <= 15_000, `got ${bytes(worst)}`);
   assert.ok(worst.summary.length > 500 && worst.ask.question.length > 500, "both texts keep a useful part");
