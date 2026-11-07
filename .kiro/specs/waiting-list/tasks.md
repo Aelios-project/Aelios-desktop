@@ -50,12 +50,12 @@ Written before any code. Nothing is done yet. All work is in the Aelios-resident
   - [ ] 7.3 Page check: after pairing, the settings page shows the machine online without a reload
   - _Requirements: 7.1, 7.2_
 
-- [ ] 9. The helper's four ways to speak (Aelios-desktop, `packages/runner`)
-  - [ ] 9.1 Create `src/markers.mjs`: take out `NOTE:` lines, read `ASK:` / `BLOCKED:` from the last line
-  - [ ] 9.2 Map `BLOCKED:` to `failed` with a "Blocked:" summary; send notes as the final receipt's `notice`
-  - [ ] 9.3 Write the convention with the four-step ladder in the runner (`helper.mjs`)
-  - [ ] 9.4 Tests: each marker, notes anywhere, no marker with a question mark, blocked has no ask
-  - [ ] 9.5 Update `PROTOCOL.md`, `README.md` and the headless-runner spec
+- [x] 9. The helper's four ways to speak (Aelios-desktop, `packages/runner`)
+  - [x] 9.1 Create `src/markers.mjs`: take out `NOTE:` lines, read `ASK:` / `BLOCKED:` from the last line
+  - [x] 9.2 Map `BLOCKED:` to `failed` with a "Blocked:" summary; send notes as the final receipt's `notice`
+  - [x] 9.3 Write the convention with the four-step ladder in the runner (`helper.mjs`)
+  - [x] 9.4 Tests: each marker, notes anywhere, no marker with a question mark, blocked has no ask
+  - [x] 9.5 Update `PROTOCOL.md`, `README.md` and the headless-runner spec
   - _Requirements: 9_
 
 - [ ] 10. Notes in the list (Aelios-resident)
