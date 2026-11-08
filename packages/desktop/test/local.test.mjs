@@ -77,7 +77,7 @@ test("timeline: items and permission requests share one clock; the list counts w
   assert.deepEqual([row.status, row.commands, row.pending], ["needs_you", 1, 1]);
 });
 
-test("open: only a path inside the workspace is opened", async () => {
+test("open: only a path inside the workspace is opened; a file opens its folder, never itself", async () => {
   const dir = tmp();
   try {
     mkdirSync(path.join(dir, "sub"));
@@ -85,9 +85,11 @@ test("open: only a path inside the workspace is opened", async () => {
     const local = makeLocal({ entry: ENTRY, node: process.execPath, env: { FAKE_WORKSPACE: dir }, supervisor: {}, launch: (...args) => { opened.push(args[1][0]); return {}; } });
     await assert.rejects(local.open({ path: "../x" }), /outside the workspace|ENOENT/);
     await assert.rejects(local.open({ path: "/etc" }), /outside the workspace/);
+    writeFileSync(path.join(dir, "sub", "run.command"), "#!/bin/sh\necho hi\n", { mode: 0o755 });
     await local.open({ path: "sub" });
     await local.open({});
-    assert.deepEqual(opened, [path.join(realpathSync(dir), "sub"), realpathSync(dir)]);
+    await local.open({ path: "sub/run.command" });
+    assert.deepEqual(opened, [path.join(realpathSync(dir), "sub"), realpathSync(dir), path.join(realpathSync(dir), "sub")]);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

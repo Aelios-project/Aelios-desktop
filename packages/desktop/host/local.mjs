@@ -1,7 +1,7 @@
 // The local calls of client/local-api.mjs: machine, sessions, session, permit, open, present. They answer from the
 // runner (its own `overview` and `permit` commands), the supervisor, and the helpers' session files, read-only.
 import { spawn } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { makeOverview } from "./overview.mjs";
 import { ProxyError } from "./proxy.mjs";
@@ -19,13 +19,16 @@ export function makeLocal({ entry, node, supervisor, env = {}, read = READERS, l
 
   const sessionFor = (ov, thread) => sessionOf(ov, thread, ov.threads[thread]?.sessionId ? read[ov.threads[thread].plugin]?.(ov.threads[thread].sessionId) ?? [] : []);
 
-  /** The folder to show: the workspace itself, or a path that is really inside it. */
+  /**
+   * The folder to show: the workspace itself, or a folder that is really inside it. For a file, the folder it is in:
+   * the system opener would run a file it can run (a script, an app), and the workspace holds what the helper wrote.
+   */
   function inside(workspace, target) {
     const root = realpathSync(workspace);
     const real = realpathSync(target ? path.resolve(root, String(target)) : root);
     const rel = path.relative(root, real);
     if (rel.startsWith("..") || path.isAbsolute(rel)) throw new ProxyError("That path is outside the workspace", 403);
-    return real;
+    return statSync(real).isDirectory() ? real : path.dirname(real);
   }
 
   return {

@@ -319,6 +319,7 @@ var WORDS = {
     nothingWaiting: "Nothing needs you",
     open: "Open thread",
     settle: "Dismiss without answering",
+    putAside: "Put away (it comes back if the thread fails again)",
     task: { sent: "Sent", working: "Working", done: "Done", failed: "Failed", needs_you: "Ask", quiet: "Silent", stopped: "Stopped", chosen: "Chosen", settled: "Settled", cancelled: "Stopped" },
     runs: { local: "At the resident", linux: "GitHub Actions", machine: "On a machine", retired: "Retired route" },
     helpers: { dsh: "DSH", kiro: "Kiro", command: "ACP command", resident: "The resident", actions: "GitHub Actions", machine: "This machine" },
@@ -525,6 +526,7 @@ var WORDS = {
     nothingWaiting: "没有要你处理的",
     open: "打开线程",
     settle: "不回答，直接收起",
+    putAside: "收起（线程再出错时会回来）",
     task: { sent: "派出", working: "在干", done: "做完", failed: "失败", needs_you: "等你", quiet: "没回音", stopped: "停下", chosen: "拍板", settled: "处理过", cancelled: "停下" },
     runs: { local: "在住户这里", linux: "GitHub Actions", machine: "在机器上", retired: "旧线路" },
     helpers: { dsh: "DSH", kiro: "Kiro", command: "ACP 命令", resident: "住户自己", actions: "GitHub Actions", machine: "这台机器" },
@@ -3661,14 +3663,13 @@ function Row2({ item, t, local, unread = 0, onOpen }) {
       "span",
       { className: "ad-card-top" },
       (0, import_react29.createElement)("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, (0, import_react29.createElement)(Icon, { name: HELPER_ICON[helper] })),
-      (0, import_react29.createElement)("span", { className: "ad-card-title" }, item.title),
+      (0, import_react29.createElement)("span", { className: "ad-card-title" }, unread > 0 && (0, import_react29.createElement)("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
       (0, import_react29.createElement)("span", { className: "ad-card-time" }, when(item.updatedAt))
     ),
     (0, import_react29.createElement)(
       "span",
       { className: "ad-card-row" },
       (0, import_react29.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react29.createElement)("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
-      unread > 0 && (0, import_react29.createElement)("span", { className: "ad-pill hot", title: t.unread }, unread),
       pending > 0 && (0, import_react29.createElement)("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, (0, import_react29.createElement)(Icon, { name: "shield" }), pending),
       (0, import_react29.createElement)("span", { className: "sp" }),
       (0, import_react29.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react29.createElement)(Icon, { name: "stack" }), item.tasks)
@@ -3752,7 +3753,8 @@ function Card({ item, t, busy, open, onToggle, act }) {
       item.kind === "ask" && options.map((option, i) => (0, import_react30.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
       // One action on a stuck item (it never carries choices): the settings, or the thread where a permission is given.
       item.kind === "stuck" && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
-      item.kind === "ask" && (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, (0, import_react30.createElement)(Icon, { name: "close" }))
+      item.kind === "ask" && (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, (0, import_react30.createElement)(Icon, { name: "close" })),
+      item.kind === "stuck" && (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.putAside, "aria-label": t.putAside, disabled: Boolean(busy), onClick: act.putAside(item) }, (0, import_react30.createElement)(Icon, { name: "close" }))
     ),
     open && item.thread && (0, import_react30.createElement)(
       "div",
@@ -3789,6 +3791,10 @@ function WaitingPanel() {
     settle: (item) => run(item.task, async () => {
       await web("/web/task/settle", { method: "POST", body: { id: item.task }, resident });
       store.set({ waiting: await loadWaiting(resident) });
+    }),
+    // A stuck item put away: it comes back only when the thread fails again (/web/waiting/seen {item}).
+    putAside: (item) => run(item.id, async () => {
+      store.set({ waiting: await web("/web/waiting/seen", { method: "POST", body: { item: item.id }, resident }) });
     }),
     open: (item) => async () => store.set({ focus: item.thread, right: { ...right, panel: "threads" } }),
     fix: (item) => async () => item.action === "settings" ? store.set({ sheet: "resident" }) : act.open(item)()
@@ -4237,6 +4243,7 @@ button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-card.dim { opacity: .6; }
 .ad-card-top { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; color: inherit; }
 .ad-card-title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.ad-card-title .ad-new { width: 7px; height: 7px; margin-right: 6px; box-shadow: none; vertical-align: middle; position: relative; top: -1px; }
 .ad-card-time { flex: none; padding-top: 1px; font-size: 11.5px; color: var(--text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ad-card-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ad-card-row .sp { flex: 1; }
