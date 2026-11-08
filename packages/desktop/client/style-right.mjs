@@ -41,6 +41,9 @@ button.ad-trow:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-say textarea { flex: 1; min-width: 0; min-height: 40px; max-height: 30vh; padding: 9px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
 .ad-say textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-say .ad-round { width: 40px; height: 40px; }
+.ad-mcp { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.ad-mcp:first-of-type { border-top: 0; }
+.ad-mcp-name { flex: 1; min-width: 0; font-size: 13px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-set-row { display: flex; flex-direction: column; gap: 4px; }
 .ad-set-line { display: flex; align-items: center; gap: 6px; }
 .ad-set-line input, .ad-set-line select { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--input-bg); color: var(--text-1); font-size: 13px; outline: 0; }

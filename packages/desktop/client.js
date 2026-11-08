@@ -573,6 +573,15 @@ var WORDS = {
     usage: "Usage",
     alarms: "Alarms",
     search: "Search the conversation",
+    mcp: "MCP servers",
+    noMcp: "No MCP server is connected.",
+    addMcp: "Connect one",
+    mcpName: "Name",
+    mcpKey: "Key, if it needs one",
+    tools: "tools",
+    signIn: "Sign in",
+    retryIt: "Try again",
+    drop: "Remove",
     group: "Group",
     writeGroup: "Say something to the group",
     speaking: "someone is answering",
@@ -673,6 +682,15 @@ var WORDS = {
     usage: "用量",
     alarms: "闹钟",
     search: "搜聊天记录",
+    mcp: "MCP 工具",
+    noMcp: "没接 MCP。",
+    addMcp: "接一个",
+    mcpName: "名字",
+    mcpKey: "钥匙（要的话）",
+    tools: "个工具",
+    signIn: "去登录",
+    retryIt: "重试",
+    drop: "删掉",
     group: "群聊",
     writeGroup: "对群里说点什么",
     speaking: "有人在回",
@@ -1654,6 +1672,31 @@ function BoardPanel() {
 // client/panel-settings.mjs
 var import_react11 = require("react");
 
+// client/mcp.mjs
+function hostOf(url) {
+  try {
+    return new URL(String(url || "")).host || String(url || "");
+  } catch {
+    return String(url || "");
+  }
+}
+function mcpState(state) {
+  return { ready: "connected", authenticating: "waiting for you to sign in", "not-connected": "not connected", error: "not connected", failed: "not connected" }[state] || state || "";
+}
+function mcpRows(servers = []) {
+  return (servers || []).filter(Boolean).map((s) => ({
+    id: s.id,
+    name: s.name || hostOf(s.url),
+    host: hostOf(s.url),
+    state: s.state,
+    word: mcpState(s.state),
+    tools: Number(s.tools) || 0,
+    error: s.error || "",
+    authUrl: s.authUrl || "",
+    hasKey: Boolean(s.hasKey)
+  }));
+}
+
 // client/settings.mjs
 var LABELS = {
   RESIDENT_NAME: "Name",
@@ -1743,6 +1786,8 @@ function SettingsPanel() {
   const [savedModel, setSavedModel] = (0, import_react11.useState)("");
   const [rows, setRows] = (0, import_react11.useState)([]);
   const [letter, setLetter] = (0, import_react11.useState)(null);
+  const [mcp, setMcp] = (0, import_react11.useState)(null);
+  const [newMcp, setNewMcp] = (0, import_react11.useState)({ name: "", url: "", key: "" });
   const [persona, setPersona] = (0, import_react11.useState)("");
   const [draft, setDraft] = (0, import_react11.useState)("");
   const [open, setOpen] = (0, import_react11.useState)(false);
@@ -1759,6 +1804,10 @@ function SettingsPanel() {
       web("/web/letter", { resident })
     ]);
     if (lt.status === "fulfilled") setLetter(lt.value);
+    try {
+      setMcp(mcpRows((await web("/web/mcp", { resident }))?.servers));
+    } catch {
+    }
     if (c.status === "fulfilled") {
       const list = settingRows(c.value);
       setRows(list);
@@ -1861,6 +1910,61 @@ function SettingsPanel() {
     ),
     (0, import_react11.createElement)("button", { type: "button", className: "ad-set-fold", "aria-expanded": open, onClick: () => setOpen((v) => !v) }, `${t.moreSettings} · ${rows.length}`, (0, import_react11.createElement)("span", null, open ? "▾" : "▸")),
     open && rows.filter((row) => row.key !== "RESIDENT_NAME").map((row) => (0, import_react11.createElement)(Row, { key: row.key, row, resident })),
+    (0, import_react11.createElement)(
+      "div",
+      { className: "ad-me-block" },
+      (0, import_react11.createElement)("p", { className: "ad-me-label" }, t.mcp),
+      mcp === null ? (0, import_react11.createElement)("p", { className: "ad-hint" }, "…") : mcp.length === 0 ? (0, import_react11.createElement)("p", { className: "ad-hint" }, t.noMcp) : mcp.map((server) => (0, import_react11.createElement)(
+        "div",
+        { key: server.id, className: "ad-mcp" },
+        (0, import_react11.createElement)(
+          "div",
+          { className: "ad-set-line" },
+          (0, import_react11.createElement)("span", { className: "ad-mcp-name", title: server.host }, server.name),
+          (0, import_react11.createElement)("span", { className: `ad-pill${server.state === "ready" ? " ok" : server.error ? " bad" : ""}` }, server.state === "ready" ? `${server.tools} ${t.tools}` : server.word)
+        ),
+        server.error && (0, import_react11.createElement)("span", { className: "ad-hint" }, server.error),
+        (0, import_react11.createElement)(
+          "div",
+          { className: "ad-links" },
+          server.authUrl && (0, import_react11.createElement)("a", { className: "ad-btn quiet small", href: server.authUrl, target: "_blank", rel: "noopener noreferrer" }, t.signIn),
+          (0, import_react11.createElement)("button", {
+            type: "button",
+            className: "ad-btn quiet small",
+            disabled: Boolean(busy),
+            onClick: act(`mcp-${server.id}`, async () => setMcp(mcpRows((await web("/web/mcp/retry", { method: "POST", body: { id: server.id }, resident }))?.servers)))
+          }, t.retryIt),
+          (0, import_react11.createElement)("button", {
+            type: "button",
+            className: "ad-btn quiet small",
+            disabled: Boolean(busy),
+            onClick: act(`drop-${server.id}`, async () => setMcp(mcpRows((await web("/web/mcp/remove", { method: "POST", body: { id: server.id }, resident }))?.servers)))
+          }, t.drop)
+        )
+      )),
+      (0, import_react11.createElement)(
+        "div",
+        { className: "ad-set-row" },
+        (0, import_react11.createElement)("label", { className: "ad-me-label" }, t.addMcp),
+        (0, import_react11.createElement)("div", { className: "ad-set-line" }, (0, import_react11.createElement)("input", { type: "text", placeholder: t.mcpName, value: newMcp.name, onChange: (e) => setNewMcp({ ...newMcp, name: e.target.value }) })),
+        (0, import_react11.createElement)("div", { className: "ad-set-line" }, (0, import_react11.createElement)("input", { type: "text", placeholder: "https://…", value: newMcp.url, onChange: (e) => setNewMcp({ ...newMcp, url: e.target.value }) })),
+        (0, import_react11.createElement)(
+          "div",
+          { className: "ad-set-line" },
+          (0, import_react11.createElement)("input", { type: "password", placeholder: t.mcpKey, value: newMcp.key, onChange: (e) => setNewMcp({ ...newMcp, key: e.target.value }) }),
+          (0, import_react11.createElement)("button", {
+            type: "button",
+            className: "ad-btn quiet small",
+            disabled: Boolean(busy) || !newMcp.url,
+            onClick: act("add-mcp", async () => {
+              const saved = await web("/web/mcp", { method: "POST", body: { name: newMcp.name, url: newMcp.url, key: newMcp.key }, resident });
+              setMcp(mcpRows(saved?.servers));
+              setNewMcp({ name: "", url: "", key: "" });
+            })
+          }, t.save)
+        )
+      )
+    ),
     (0, import_react11.createElement)(
       "div",
       { className: "ad-me-block" },
@@ -2480,6 +2584,9 @@ button.ad-trow:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-say textarea { flex: 1; min-width: 0; min-height: 40px; max-height: 30vh; padding: 9px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
 .ad-say textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-say .ad-round { width: 40px; height: 40px; }
+.ad-mcp { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.ad-mcp:first-of-type { border-top: 0; }
+.ad-mcp-name { flex: 1; min-width: 0; font-size: 13px; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-set-row { display: flex; flex-direction: column; gap: 4px; }
 .ad-set-line { display: flex; align-items: center; gap: 6px; }
 .ad-set-line input, .ad-set-line select { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--input-bg); color: var(--text-1); font-size: 13px; outline: 0; }

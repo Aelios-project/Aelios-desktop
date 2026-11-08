@@ -4,6 +4,7 @@ import { createElement as h, useEffect, useRef, useState } from "react";
 import { call, upload, web } from "./api.mjs";
 import { readFace } from "./attach.mjs";
 import { Face } from "./face.mjs";
+import { mcpRows } from "./mcp.mjs";
 import { modelRows, settingRows } from "./settings.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -57,6 +58,8 @@ export function SettingsPanel() {
   const [savedModel, setSavedModel] = useState("");
   const [rows, setRows] = useState([]);
   const [letter, setLetter] = useState(null);
+  const [mcp, setMcp] = useState(null);
+  const [newMcp, setNewMcp] = useState({ name: "", url: "", key: "" });
   const [persona, setPersona] = useState("");
   const [draft, setDraft] = useState("");
   const [open, setOpen] = useState(false);
@@ -72,6 +75,7 @@ export function SettingsPanel() {
       web("/web/letter", { resident }),
     ]);
     if (lt.status === "fulfilled") setLetter(lt.value);
+    try { setMcp(mcpRows((await web("/web/mcp", { resident }))?.servers)); } catch { /* keep the last list */ }
     if (c.status === "fulfilled") {
       const list = settingRows(c.value);
       setRows(list);
@@ -131,6 +135,28 @@ export function SettingsPanel() {
       h("div", { className: "ad-links" }, h("button", { type: "button", className: "ad-btn small", disabled: Boolean(busy) || draft === persona, onClick: savePersona }, t.savePersona))),
     h("button", { type: "button", className: "ad-set-fold", "aria-expanded": open, onClick: () => setOpen((v) => !v) }, `${t.moreSettings} · ${rows.length}`, h("span", null, open ? "▾" : "▸")),
     open && rows.filter((row) => row.key !== "RESIDENT_NAME").map((row) => h(Row, { key: row.key, row, resident })),
+    h("div", { className: "ad-me-block" },
+      h("p", { className: "ad-me-label" }, t.mcp),
+      mcp === null ? h("p", { className: "ad-hint" }, "…")
+        : mcp.length === 0 ? h("p", { className: "ad-hint" }, t.noMcp)
+          : mcp.map((server) => h("div", { key: server.id, className: "ad-mcp" },
+            h("div", { className: "ad-set-line" },
+              h("span", { className: "ad-mcp-name", title: server.host }, server.name),
+              h("span", { className: `ad-pill${server.state === "ready" ? " ok" : server.error ? " bad" : ""}` }, server.state === "ready" ? `${server.tools} ${t.tools}` : server.word)),
+            server.error && h("span", { className: "ad-hint" }, server.error),
+            h("div", { className: "ad-links" },
+              server.authUrl && h("a", { className: "ad-btn quiet small", href: server.authUrl, target: "_blank", rel: "noopener noreferrer" }, t.signIn),
+              h("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy),
+                onClick: act(`mcp-${server.id}`, async () => setMcp(mcpRows((await web("/web/mcp/retry", { method: "POST", body: { id: server.id }, resident }))?.servers))) }, t.retryIt),
+              h("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy),
+                onClick: act(`drop-${server.id}`, async () => setMcp(mcpRows((await web("/web/mcp/remove", { method: "POST", body: { id: server.id }, resident }))?.servers))) }, t.drop)))),
+      h("div", { className: "ad-set-row" },
+        h("label", { className: "ad-me-label" }, t.addMcp),
+        h("div", { className: "ad-set-line" }, h("input", { type: "text", placeholder: t.mcpName, value: newMcp.name, onChange: (e) => setNewMcp({ ...newMcp, name: e.target.value }) })),
+        h("div", { className: "ad-set-line" }, h("input", { type: "text", placeholder: "https://…", value: newMcp.url, onChange: (e) => setNewMcp({ ...newMcp, url: e.target.value }) })),
+        h("div", { className: "ad-set-line" }, h("input", { type: "password", placeholder: t.mcpKey, value: newMcp.key, onChange: (e) => setNewMcp({ ...newMcp, key: e.target.value }) }),
+          h("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy) || !newMcp.url,
+            onClick: act("add-mcp", async () => { const saved = await web("/web/mcp", { method: "POST", body: { name: newMcp.name, url: newMcp.url, key: newMcp.key }, resident }); setMcp(mcpRows(saved?.servers)); setNewMcp({ name: "", url: "", key: "" }); }) }, t.save)))),
     h("div", { className: "ad-me-block" },
       h("p", { className: "ad-me-label" }, t.letter),
       h("p", { className: "ad-hint" }, letterNote(letter, t)),
