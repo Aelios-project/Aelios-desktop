@@ -1,7 +1,8 @@
 // Pictures and files sent to a thread, and the machine name sent on the heartbeat.
 // Run: node --test --test-concurrency=1 test/inbox.test.mjs
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { safeFileName } from "../src/inbox.mjs";
@@ -48,6 +49,21 @@ test("pictures and files are saved inside the thread's folder and handed to the 
     assert.equal(prompt.blocks[1].data, PNG.toString("base64"));
     assert.match(prompt.blocks[0].text, /2-escape\.pdf/);
     assert.match(prompt.blocks[0].text, /Could not be fetched: gone\.txt/);
+  } finally { await r.done(); }
+});
+
+test("in a git workspace the inbox is kept out of git, and the helper is told not to commit it", async () => {
+  const r = await rig("kiro");
+  try {
+    mkdirSync(r.workspace, { recursive: true });
+    execFileSync("git", ["init", "-q"], { cwd: r.workspace });
+    r.cloud.files = { [KEY(1)]: { name: "x", type: "application/pdf", bytes: Buffer.from("%PDF-1.4") } };
+    r.start();
+    const work = r.cloud.push({ kind: "say", text: "read it", attachments: [{ key: KEY(1), name: "a.pdf", type: "application/pdf" }] });
+    assert.equal((await final(r, work)).status, "done");
+    assert.ok(existsSync(path.join(r.workspace, ".aelios-inbox", work.workId, "1-a.pdf")));
+    assert.ok(!execFileSync("git", ["status", "--porcelain", "-uall"], { cwd: r.workspace }).toString().includes(".aelios-inbox"));
+    assert.match(r.prompts()[0].blocks[0].text, /never commit or push it/);
   } finally { await r.done(); }
 });
 

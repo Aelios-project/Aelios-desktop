@@ -77,6 +77,12 @@ function Files({ files, resident }) {
     h(Icon, { name: "file" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
 }
 
+/** Files the user attached to this message: name and size, no download (the page shows the same chips). */
+function Attached({ attached }) {
+  return h("div", { className: "ad-files" }, attached.map((file, i) => h("span", { key: i, className: "ad-file", title: file.name },
+    h(Icon, { name: "file" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
+}
+
 /** A voice note: hers, played straight from the resident's media store. */
 function Voice({ voice, resident }) {
   const t = words();
@@ -123,6 +129,7 @@ export function Message({ line, resident, last = false, onChanged = null, cards 
     bubbles.map((text, i) => h("div", { key: i, className: `ad-bubble${i === 0 ? " first" : ""}` },
       me ? text : h(Md, { text }),
       i === bubbles.length - 1 && h("span", { className: "ad-meta" }, clock(line.at)))),
+    me && (line.attached ?? []).length > 0 && h(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
     (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }),

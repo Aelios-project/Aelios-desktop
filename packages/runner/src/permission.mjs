@@ -2,6 +2,7 @@
 // or the job text says. Only one-time choices are ever picked, so nothing stays allowed after the turn.
 import { realpathSync } from "node:fs";
 import path from "node:path";
+import { describeInput } from "./detail.mjs";
 
 export const TIERS = ["read", "edit", "full"];
 export const tierOf = value => (TIERS.includes(value) ? value : null);
@@ -39,9 +40,12 @@ export function judge(tier, toolCall, cwd) {
   return { allow: false, why: `tier ${tier} does not allow "${kind}"`, hold: true };
 }
 
+/** What the request does, when the helper says: its command or arguments, shortened and with secrets hidden. */
+const detailOf = rawInput => { const detail = describeInput(rawInput); return detail ? { detail } : {}; };
+
 /**
  * The reply for the helper, and what to tell the person when a request was turned down.
- * @returns {{response: object, denied: string|null, hold: {title: string, kind: string, paths: string[]}|null}}
+ * @returns {{response: object, denied: string|null, hold: {title: string, kind: string, paths: string[], detail?: string}|null}}
  */
 export function answer(tier, params, cwd) {
   const options = Array.isArray(params?.options) ? params.options : [];
@@ -56,5 +60,5 @@ export function answer(tier, params, cwd) {
   const choice = pick("reject_once");
   const paths = (Array.isArray(params?.toolCall?.locations) ? params.toolCall.locations : []).map(place => place?.path).filter(file => typeof file === "string");
   return { response: choice ? { outcome: { outcome: "selected", optionId: choice.optionId } } : { outcome: { outcome: "cancelled" } }, denied: `${title} (${why})`,
-    hold: hold ? { title, kind: String(params?.toolCall?.kind ?? "other"), paths } : null };
+    hold: hold ? { title, kind: String(params?.toolCall?.kind ?? "other"), paths, ...detailOf(params?.toolCall?.rawInput) } : null };
 }

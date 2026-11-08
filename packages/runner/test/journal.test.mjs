@@ -18,6 +18,19 @@ test("only a refusal made by the tier is held; a path outside the folder is not"
   assert.equal(answer("full", ask, "/tmp").hold, null);
 });
 
+test("a held request shows the real command, shortened, with secrets hidden, and the journal keeps it", async () => {
+  const rawInput = { command: "curl", args: ["-H", "Authorization: Bearer abcdefgh12345678", "https://u:pw@x.example", "--token", "s3cret"], env: "API_KEY=zzz" };
+  const { hold } = answer("edit", { ...ask, toolCall: { ...ask.toolCall, title: "Read file", rawInput } }, "/tmp");
+  assert.match(hold.detail, /^curl -H Authorization: \[hidden\]/);
+  for (const secret of ["abcdefgh12345678", "pw@", "s3cret"]) assert.ok(!hold.detail.includes(secret), secret);
+  assert.ok(answer("edit", { ...ask, toolCall: { ...ask.toolCall, rawInput: "x".repeat(2000) } }, "/tmp").hold.detail.length <= 300);
+  const { journal, done } = make({ holdMs: 30 });
+  try {
+    await journal.hold("t1", hold);
+    assert.equal(journal.fold().perms[0].detail, hold.detail);
+  } finally { done(); }
+});
+
 test("a held request waits for the owner's answer, once", async () => {
   const { journal, done } = make();
   try {

@@ -1730,6 +1730,15 @@ function Files({ files, resident }) {
     file.size ? (0, import_react11.createElement)("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null
   )));
 }
+function Attached({ attached }) {
+  return (0, import_react11.createElement)("div", { className: "ad-files" }, attached.map((file, i) => (0, import_react11.createElement)(
+    "span",
+    { key: i, className: "ad-file", title: file.name },
+    (0, import_react11.createElement)(Icon, { name: "file" }),
+    (0, import_react11.createElement)("span", { className: "n" }, file.name || "file"),
+    file.size ? (0, import_react11.createElement)("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null
+  )));
+}
 function Voice({ voice, resident }) {
   const t = words();
   const [playing, setPlaying] = (0, import_react11.useState)(false);
@@ -1787,6 +1796,7 @@ function Message({ line, resident, last = false, onChanged = null, cards = [] })
       me ? text : (0, import_react11.createElement)(Md, { text }),
       i === bubbles.length - 1 && (0, import_react11.createElement)("span", { className: "ad-meta" }, clock(line.at))
     )),
+    me && (line.attached ?? []).length > 0 && (0, import_react11.createElement)(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && (0, import_react11.createElement)(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && (0, import_react11.createElement)(Voice, { voice: line.voice, resident }),
     (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers }),
@@ -3267,7 +3277,8 @@ var PANEL_ICONS = { waiting: "inbox", threads: "threads", alarms: "alarm" };
 function tabCounts({ waiting, threads, alarms } = {}) {
   const unread = Object.values(waiting?.unread || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
   return {
-    waiting: { n: Number(waiting?.open) || 0, hot: true },
+    waiting: { n: (waiting?.items || []).length, hot: true },
+    // one rule with the web page: everything on the list
     // News on a thread (accent badge) comes before the plain count of threads at work.
     threads: unread ? { n: unread, hot: true } : { n: Number(threads?.open) || 0, hot: false },
     alarms: { n: alarms?.on === false ? 0 : (alarms?.alarms || []).filter((a) => a?.next).length, hot: false }
@@ -3477,6 +3488,7 @@ function Permission({ item, t, busy, onPermit }) {
       (0, import_react27.createElement)("span", { className: "n" }, item.title || t.toolKind[item.kind] || item.kind),
       (0, import_react27.createElement)("span", { className: "ad-pill idle" }, t.toolKind[item.kind] || item.kind)
     ),
+    item.detail && (0, import_react27.createElement)("pre", { className: "detail", title: item.detail }, item.detail),
     (item.paths || []).length > 0 && (0, import_react27.createElement)("p", { className: "paths" }, item.paths.map(short).join(" · ")),
     waiting ? (0, import_react27.createElement)(
       "div",
@@ -3735,9 +3747,9 @@ function Card({ item, t, busy, open, onToggle, act }) {
       "div",
       { className: "ad-card-row" },
       (0, import_react30.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react30.createElement)("span", { className: `ad-dot ${tone}`, "aria-hidden": true }), t.kind[item.kind] || item.kind),
-      options.map((option, i) => (0, import_react30.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
-      // One action on a stuck item that has no choices: the settings, or the thread where a permission is given.
-      item.kind === "stuck" && !options.length && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
+      item.kind === "ask" && options.map((option, i) => (0, import_react30.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
+      // One action on a stuck item (it never carries choices): the settings, or the thread where a permission is given.
+      item.kind === "stuck" && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
       item.kind === "ask" && (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, (0, import_react30.createElement)(Icon, { name: "close" }))
     ),
     open && item.thread && (0, import_react30.createElement)(
@@ -4400,6 +4412,7 @@ var THREAD = `
 .ad-perm .top svg { width: 16px; height: 16px; color: var(--accent-text); }
 .ad-perm .top .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ad-perm .paths { margin: 0; font: 11.5px/1.5 var(--mono); color: var(--text-3); overflow-wrap: anywhere; }
+.ad-perm .detail { margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(127,127,127,.12); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
 .ad-perm .said { margin: 0; font-size: 12px; color: var(--text-3); }
 .ad-perm .said.allowed { color: var(--ok-text); } .ad-perm .said.denied { color: var(--err-text); }
 .ad-tl-result { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line-dash); }

@@ -64,4 +64,20 @@ export function groups(list) {
   return out;
 }
 
-export const readDsh = (sessionId) => { const file = findDir(sessionId); return file ? groups(events(file)) : null; };
+// Parsed sessions, kept while the file is unchanged (same mtime and size): the machine view asks every few seconds and a
+// session file can be tens of MB of zstd frames. At most CACHE_MAX files are kept, the longest unused dropped first.
+const CACHE_MAX = 20;
+const cache = new Map();
+
+export function readDsh(sessionId) {
+  const file = findDir(sessionId);
+  if (!file) return null;
+  const { mtimeMs, size } = statSync(file);
+  const hit = cache.get(file);
+  if (hit && hit.mtimeMs === mtimeMs && hit.size === size) { cache.delete(file); cache.set(file, hit); return hit.groups; }
+  const parsed = groups(events(file));
+  cache.delete(file);
+  cache.set(file, { mtimeMs, size, groups: parsed });
+  if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
+  return parsed;
+}

@@ -15,7 +15,7 @@ export function sessionOf(ov, thread, groups) {
   const turns = base.map((turn, i) => {
     const next = base[i + 1]?.at ?? Infinity;
     const items = (journal.length ? itemsFor(groups, base.length, i) : groups[i] ?? []).map((x) => ({ ...x, at: x.at ?? turn.at }));
-    for (const p of perms) if (p.at >= turn.at && p.at < next) items.push({ type: "perm", id: p.id, at: p.at, title: p.title, kind: p.kind, paths: p.paths, decided: p.decided, by: p.by });
+    for (const p of perms) if (p.at >= turn.at && p.at < next) items.push({ type: "perm", id: p.id, at: p.at, title: p.title, kind: p.kind, paths: p.paths, detail: p.detail, decided: p.decided, by: p.by });
     items.sort((a, b) => a.at - b.at);
     return { kind: turn.kind, at: turn.at, text: turn.text, end: turn.end, items };
   });

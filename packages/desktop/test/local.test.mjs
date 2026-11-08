@@ -9,7 +9,7 @@ import { ensurePaired } from "../host/connect.mjs";
 import { makeLocal } from "../host/local.mjs";
 import { Supervisor } from "../host/supervisor.mjs";
 import { sessionOf, summaryOf } from "../host/timeline.mjs";
-import { events, findDir, groups } from "../host/transcript-dsh.mjs";
+import { events, findDir, groups, readDsh } from "../host/transcript-dsh.mjs";
 import { groups as kiroGroups } from "../host/transcript-kiro.mjs";
 
 const ENTRY = path.join(path.dirname(fileURLToPath(import.meta.url)), "fake-runner.mjs");
@@ -32,6 +32,22 @@ test("DSH: frames written one after another are all read, and tool calls pair wi
     assert.deepEqual(turn.map((x) => x.type), ["tool", "say", "thought", "plan"]);
     assert.deepEqual([turn[0].kind, turn[0].status, turn[0].output], ["execute", "completed", "3 passing"]);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("DSH: a session file is parsed once while it is unchanged, and again when it grows", () => {
+  const dir = tmp();
+  const before = process.env.AELIOS_DSH_SESSIONS;
+  try {
+    process.env.AELIOS_DSH_SESSIONS = dir;
+    const file = path.join(dir, "ws", "session-cache", "session.v4.jsonl.zstd");
+    mkdirSync(path.dirname(file), { recursive: true });
+    const frame = (text) => zstdCompressSync(ev("assistant/message", 1, { turn: 1, message: { role: "assistant", content: [{ type: "text", text }] } }) + "\n");
+    writeFileSync(file, frame("one"));
+    const first = readDsh("cache");
+    assert.equal(readDsh("cache"), first, "same file: the parsed result is reused");
+    writeFileSync(file, Buffer.concat([frame("one"), frame("two")]));
+    assert.equal(readDsh("cache")[0].length, 2, "a changed file is read again");
+  } finally { if (before === undefined) delete process.env.AELIOS_DSH_SESSIONS; else process.env.AELIOS_DSH_SESSIONS = before; rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("Kiro: prompts split the turns; tool uses take their results", () => {
@@ -99,7 +115,7 @@ test("start with a saved connection pairs an unpaired runner, then starts it; th
 });
 
 test("a pairing error becomes the runner's one-line error and the runner is not started", async () => {
-  const env = { FAKE_PAIRED: "0", FAKE_PAIR_FAIL: "1" };
+  const env = { FAKE_PAIRED: "0", FAKE_PAIR_FAIL: "1", FAKE_NOISE: "1" };
   const store = { get: async () => ({ url: "https://res.example", key: "k", workspace: "/tmp/w", access: "edit", plugin: "dsh" }) };
   const supervisor = new Supervisor({ entry: ENTRY, node: process.execPath, env });
   await ensurePaired({ entry: ENTRY, node: process.execPath, env, store, supervisor });

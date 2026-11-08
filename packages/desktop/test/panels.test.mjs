@@ -70,9 +70,9 @@ test("words: every panel has a name, both languages have the same keys, and Engl
 });
 
 test("tabs: the waiting count is the accent badge; threads and alarms count plainly; zero is no badge", () => {
-  const counts = tabCounts({ waiting: { open: 2 }, threads: { open: 1 }, alarms: { on: true, alarms: [{ next: "x" }, { next: null }, { next: "y" }] } });
+  const counts = tabCounts({ waiting: { items: [{ kind: "ask" }, { kind: "stuck" }] }, threads: { open: 1 }, alarms: { on: true, alarms: [{ next: "x" }, { next: null }, { next: "y" }] } });
   assert.deepEqual(counts, { waiting: { n: 2, hot: true }, threads: { n: 1, hot: false }, alarms: { n: 2, hot: false } });
-  assert.deepEqual(tabCounts({ waiting: { open: 0, unread: { a: 2, b: 1 } }, threads: { open: 1 } }).threads, { n: 3, hot: true }, "unread news comes before the plain count");
+  assert.deepEqual(tabCounts({ waiting: { items: [], unread: { a: 2, b: 1 } }, threads: { open: 1 } }).threads, { n: 3, hot: true }, "unread news comes before the plain count");
   assert.equal(tabCounts({ alarms: { on: false, alarms: [{ next: "x" }] } }).alarms.n, 0);
   assert.equal(tabCounts().waiting.n, 0);
   assert.deepEqual(PANEL_IDS, ["waiting", "threads", "alarms"]);

@@ -20,9 +20,9 @@ function Card({ item, t, busy, open, onToggle, act }) {
     h("p", { className: "ad-card-more" }, item.line),
     h("div", { className: "ad-card-row" },
       h("span", { className: `ad-pill ${tone}` }, h("span", { className: `ad-dot ${tone}`, "aria-hidden": true }), t.kind[item.kind] || item.kind),
-      options.map((option, i) => h("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
-      // One action on a stuck item that has no choices: the settings, or the thread where a permission is given.
-      item.kind === "stuck" && !options.length && h("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
+      item.kind === "ask" && options.map((option, i) => h("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
+      // One action on a stuck item (it never carries choices): the settings, or the thread where a permission is given.
+      item.kind === "stuck" && h("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
       item.kind === "ask" && h("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, h(Icon, { name: "close" }))),
     open && item.thread && h("div", { className: "ad-card-row" },
       h("button", { type: "button", className: "ad-btn quiet small", onClick: act.open(item) }, h(Icon, { name: "open" }), t.open)));

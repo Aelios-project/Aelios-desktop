@@ -5,6 +5,7 @@
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { excludeFromGit } from "./git-exclude.mjs";
 
 export const ATTACHMENTS_MAX = 4;
 export const FILE_MAX_BYTES = 4 * 1024 * 1024;
@@ -40,6 +41,7 @@ export async function saveAttachments({ cloud, work, cwd }) {
   const dir = path.join(root, ".aelios-inbox", work.workId.replace(/[^A-Za-z0-9_.-]/g, "_"));
   await mkdir(dir, { recursive: true, mode: 0o700 });
   if (!(await realpath(dir)).startsWith(root + path.sep)) throw new Error("the inbox is outside the workspace");
+  await excludeFromGit(root, ".aelios-inbox/"); // the user's uploads must not end up in a commit
   for (const [n, item] of work.attachments.entries()) {
     const name = safeFileName(item.name);
     try {
@@ -60,7 +62,7 @@ export async function promptBlocks(text, tail, files, imageOk) {
   if (!files) return [{ type: "text", text: `${text}\n\n${tail}` }];
   const lines = files.saved.map(file => `- ${file.path} (${file.image ? "picture" : "file"}, ${file.size} bytes)`);
   if (files.failed.length) lines.push(`(Could not be fetched: ${files.failed.join(", ")})`);
-  const list = lines.length ? `\n\nThe user attached these; they are saved in the workspace:\n${lines.join("\n")}` : "";
+  const list = lines.length ? `\n\nThe user attached these; they are saved in the workspace (the .aelios-inbox folder is the user's uploads: never commit or push it):\n${lines.join("\n")}` : "";
   const blocks = [{ type: "text", text: `${text}${list}\n\n${tail}` }];
   for (const file of files.saved) {
     if (file.image && imageOk) blocks.push({ type: "image", mimeType: file.type, data: (await readFile(file.path)).toString("base64") });

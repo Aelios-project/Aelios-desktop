@@ -25,9 +25,12 @@ test("helper: re-pairs with the saved settings and the new helper, then starts t
   try {
     const kiro = path.join(s.dir, "kiro-cli");
     writeFileSync(kiro, "");
+    s.store.value.resident = "ada";
     await switchHelper({ helper: "kiro" }, { ...s.deps, dirs: [s.dir] });
     const pair = s.calls().find((c) => c.command === "pair");
     assert.deepEqual(pair.args.slice(-2), ["--plugin", "kiro"]);
+    assert.equal(pair.args[pair.args.indexOf("--resident") + 1], "ada", "the selected resident is paired again");
+    assert.equal(s.store.value.resident, "ada");
     assert.ok(pair.args.includes("/tmp/work") && !JSON.stringify(pair.args).includes("secret-key"));
     assert.equal(s.store.value.plugin, "kiro");
     assert.ok(["starting", "running"].includes(s.supervisor.state));
