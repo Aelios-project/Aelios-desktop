@@ -34,7 +34,7 @@ const LABELS = {
  */
 const SECTIONS = [
   ["channels", /^(TG_|WECOM_|WEB_PUSH$)/],
-  ["model", /^(CUSTOM_|CLAUDE_|AI_GATEWAY)/],
+  ["model", /^(CLAUDE_|AI_GATEWAY)/],
   ["memory", /^AELIOS_/],
   ["time", /^(TIME_ZONE|CHECKIN_SCHEDULE|HEARTBEAT|QUIET_HOURS|ALARMS)$/],
   ["web", /^(WEB_|TAVILY_|BRAVE_|PERPLEXITY_)/],

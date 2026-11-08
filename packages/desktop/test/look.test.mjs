@@ -31,7 +31,7 @@ test("unread: a resident met for the first time starts seen; one who spoke since
 
 test("settings: each key has one section by its prefix, and an unknown key stays with the resident", () => {
   const cases = { TG_BOT_TOKEN: "channels", WEB_PUSH: "channels", WECOM_SECRET: "channels", WEB_SEARCH: "web", TAVILY_API_KEY: "web",
-    CUSTOM_BASE_URL: "model", CLAUDE_BOX_URL: "model", AELIOS_URL: "memory", TIME_ZONE: "time", ALARMS: "time",
+    CLAUDE_BOX_URL: "model", AELIOS_URL: "memory", TIME_ZONE: "time", ALARMS: "time",
     VOICE_ID: "voice", STICKERS: "voice", CLOUD_TASKS: "work", CLOUD_TASK_MODEL: "work", PERSONA_EDIT: "resident", SOMETHING_NEW: "resident" };
   for (const [key, section] of Object.entries(cases)) assert.equal(sectionOf(key), section, key);
 });

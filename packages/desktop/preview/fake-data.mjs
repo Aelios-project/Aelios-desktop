@@ -96,7 +96,7 @@ export const alarms = { on: true, alarms: [
 const field = (key, kind = "text", value = "", choices = []) => ({ key, kind, value, choices, saved: kind === "secret" && Boolean(value) });
 export const config = { fields: [
   field("RESIDENT_NAME", "text", "Aster"), field("THINKING_EFFORT", "choice", "medium", ["low", "medium", "high"]), field("PERSONA_EDIT", "choice", "on", ["on", "off"]),
-  field("LETTER_IDLE_MINUTES", "text", "90"), field("CUSTOM_BASE_URL"), field("CUSTOM_API_KEY", "secret", "x"), field("AELIOS_URL", "text", "https://memory.example"),
+  field("LETTER_IDLE_MINUTES", "text", "90"), field("AELIOS_URL", "text", "https://memory.example"),
   field("TIME_ZONE", "text", "Europe/Lisbon"), field("QUIET_HOURS", "text", "23:00-07:30"), field("ALARMS", "choice", "on", ["on", "off"]),
   field("TG_BOT_TOKEN", "secret", "x"), field("TG_ALLOWED", "text", "1 person"), field("WEB_PUSH", "choice", "replies", ["replies", "all", "off"]),
   field("WEB_SEARCH", "choice", "tavily", ["off", "tavily", "brave"]), field("TAVILY_API_KEY", "secret", "x"), field("VOICE_PROVIDER", "choice", "cartesia", ["off", "cartesia"]),
