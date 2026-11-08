@@ -10,6 +10,7 @@ import { Md } from "./md.mjs";
 import { Message } from "./message.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
+import { cardsByLine } from "./threads-api.mjs";
 
 const POLL_MS = 5000;
 
@@ -57,12 +58,13 @@ export function Chat() {
     setNotice(d?.text || "");
   };
 
+  const cards = cardsByLine(around ? around.lines : lines);
   return h("section", { className: "ad-main", "aria-label": me.name || me.id },
     h(ChatHead, { face: h(Face, { resident: me, base: status?.url }), name: me.name || me.id, resident, searchable: true }),
     h("div", { className: "ad-stream", "aria-live": "polite" },
       h("div", { className: "grow" }),
       !around && lines.length === 0 && h("div", { className: "ad-note" }, t.empty),
-      (around ? around.lines : lines).map((line, i, all) => h(Message, { key: line.id ?? i, line, resident, last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => { restart(); await refresh(); } })),
+      (around ? around.lines : lines).map((line, i, all) => h(Message, { key: line.id ?? i, line, resident, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => { restart(); await refresh(); } })),
       h("div", { ref: end })),
     error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 18px 4px", textAlign: "center" } }, error),
     notice && h("div", { className: "ad-notice", role: "status" }, h("div", { className: "ad-md" }, h(Md, { text: notice })),

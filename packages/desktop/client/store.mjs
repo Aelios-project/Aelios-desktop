@@ -22,7 +22,7 @@ export const store = createStore({
   group: "", // the group open in the middle column, instead of the resident chat
   rail: true, // ours covers DSH's whole left column; false hands it back to DSH
   shown: false, // whether our own panel is the one DSH is drawing
-  waiting: { items: [], open: 0 },
+  waiting: { items: [], open: 0, unread: {} },
   threads: { open: 0 }, // how many threads are at work or wait for the person: the Threads tab's number
   right: { open: true, panel: "waiting", overlay: false, width: 0 }, // width 0: the default; dragged or widened, a number
   view: "chat", // what the middle column shows: "chat" (the resident or a group) or "machine" (this machine)

@@ -55,6 +55,7 @@ function Permission({ item, t, busy, onPermit }) {
   return h("div", { className: `ad-perm${waiting ? " waiting" : ""}` },
     h("div", { className: "top" }, h(Icon, { name: "shield" }), h("span", { className: "n" }, item.title || t.toolKind[item.kind] || item.kind),
       h("span", { className: "ad-pill idle" }, t.toolKind[item.kind] || item.kind)),
+    item.detail && h("pre", { className: "detail", title: item.detail }, item.detail),
     (item.paths || []).length > 0 && h("p", { className: "paths" }, item.paths.map(short).join(" · ")),
     waiting ? h("div", { className: "ad-card-row" },
       h("button", { type: "button", className: "ad-btn small", disabled: busy, onClick: () => onPermit(item, true) }, h(Icon, { name: "check" }), t.allow),

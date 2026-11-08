@@ -2,7 +2,7 @@
 // message and resolves when the conversation has it; a group's box is the plain one (`rich` off).
 import { createElement as h, useRef, useState } from "react";
 import { web } from "./api.mjs";
-import { MAX_PICTURES, readPicture, roomFor } from "./attach.mjs";
+import { Chips, ACCEPT, useAttachments } from "./attachments-state.mjs";
 import { Icon } from "./icons.mjs";
 import { pickerPacks, stickerSrc } from "./media.mjs";
 import { words } from "./strings.mjs";
@@ -19,11 +19,11 @@ export const COMMANDS = ["status", "letter", "handoff"];
 export function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null }) {
   const t = words();
   const [text, setText] = useState("");
-  const [pics, setPics] = useState([]);
   const [packs, setPacks] = useState(null);
   const [picker, setPicker] = useState(false);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
+  const a = useAttachments(onError);
   const files = useRef(null);
   const recorder = useRef(null);
 
@@ -33,15 +33,18 @@ export function Composer({ resident, base, placeholder, say, onError, rich = tru
   const send = async () => {
     const body = text.trim();
     if (onCommand && COMMANDS.includes(body.slice(1)) && body.startsWith("/")) { await command(body.slice(1)); return; }
-    if ((!body && !pics.length) || busy) return;
+    if ((!body && !a.any) || busy) return;
     setBusy(true);
-    await run(async () => {
-      const payload = { text: body };
-      if (pics.length) payload.pictures = pics.map((pic) => ({ data: pic.data }));
-      await say(payload);
-      setText("");
-      setPics([]);
-    });
+    const payload = { text: body, ...a.fields() };
+    const kept = a.snapshot();
+    // The box empties at once; what was written comes back only if the send failed and nothing new was typed.
+    setText("");
+    a.clear();
+    try { await say(payload); } catch (e) {
+      setText((now) => now || body);
+      a.restore(kept);
+      onError(e.message);
+    }
     setBusy(false);
   };
   const openStickers = async () => {
@@ -66,24 +69,11 @@ export function Composer({ resident, base, placeholder, say, onError, rich = tru
     recorder.current = tap;
     setRecording(true);
   });
-  const attach = async (event) => {
-    const chosen = Array.from(event.target.files || []);
-    event.target.value = "";
-    const room = roomFor(pics.length, chosen.length, MAX_PICTURES);
-    if (chosen.length > room) onError(t.upTo);
-    const read = [];
-    for (const file of chosen.slice(0, room)) {
-      try { read.push(await readPicture(file)); } catch { onError(t.tooBig); }
-    }
-    if (read.length) setPics((was) => [...was, ...read].slice(0, MAX_PICTURES));
-  };
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); void send(); } };
   const tool = (name, label, onClick, extra = {}) => h("button", { type: "button", className: "ad-plain", title: label, "aria-label": label, onClick, ...extra }, h(Icon, { name }));
 
   return h("div", { className: "ad-compose" },
-    pics.length > 0 && h("div", { className: "ad-thumbs" }, pics.map((pic, i) => h("div", { key: i },
-      h("img", { src: pic.url, alt: "" }),
-      h("button", { type: "button", className: "ad-x", "aria-label": t.remove, title: t.remove, onClick: () => setPics((was) => was.filter((_, at) => at !== i)) }, h(Icon, { name: "close" }))))),
+    a.any && h(Chips, { a }),
     asked.length > 0 && h("div", { className: "ad-cmds", role: "listbox", "aria-label": t.commands }, asked.map((c) => h("button", { key: c, type: "button", role: "option", onClick: () => command(c) },
       h(Icon, { name: "slash" }), h("code", null, `/${c}`), h("span", null, t.cmd[c])))),
     picker && h("div", { className: "ad-picker" },
@@ -96,11 +86,11 @@ export function Composer({ resident, base, placeholder, say, onError, rich = tru
                 ? h("video", { src: stickerSrc(base, resident, sticker.key), autoPlay: true, loop: true, muted: true, playsInline: true })
                 : h("img", { src: stickerSrc(base, resident, sticker.key), alt: "" }))))))),
     h("div", { className: "ad-bar" },
-      rich && h("input", { ref: files, type: "file", accept: "image/*", multiple: true, hidden: true, onChange: attach }),
+      rich && h("input", { ref: files, type: "file", accept: ACCEPT, multiple: true, hidden: true, onChange: a.add }),
       rich && tool("plus", t.attach, () => files.current?.click()),
       h("div", { className: "ad-field" },
         h("textarea", { rows: 1, value: text, placeholder, "aria-label": placeholder, onChange: (e) => setText(e.target.value), onKeyDown: onKey })),
       rich && tool("sticker", t.stickers, openStickers, { "aria-expanded": picker }),
       rich && tool("mic", recording ? t.recording : t.voice, record, { className: `ad-plain${recording ? " rec" : ""}`, "aria-pressed": recording }),
-      h("button", { className: "ad-round", type: "button", disabled: busy || (!text.trim() && !pics.length), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" }))));
+      h("button", { className: "ad-round", type: "button", disabled: busy || (!text.trim() && !a.any), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" }))));
 }

@@ -18,7 +18,7 @@ import { runnerDown, runnerTone, taskTone } from "./tones.mjs";
 
 const ago = (at) => { const s = Math.max(0, Math.round((Date.now() - Number(at)) / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`; };
 
-function Live({ runner, info, t, act }) {
+function Live({ runner, info, t, act, pick, switching }) {
   const tone = runnerTone(runner.state);
   const helper = info?.plugin || "";
   return h("div", { className: "ad-mv-card live" },
@@ -26,11 +26,14 @@ function Live({ runner, info, t, act }) {
     h("div", { className: "ad-mv-state" },
       h("span", { className: `ad-dot big ${tone}${runner.state === "starting" || runner.state === "running" ? " live" : ""}`, "aria-hidden": true }),
       h("b", null, t.runner[runner.state] || runner.state),
+      info?.name && h("span", { className: "ad-mi", title: t.machineName }, info.name),
       runner.since && h("span", { className: "ad-mi" }, `${t.since} ${new Date(runner.since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`),
       runner.pid && h("span", { className: "ad-mi", title: "PID" }, `#${runner.pid}`)),
     runner.error && h("p", { className: "ad-error" }, runner.error),
     h("div", { className: "ad-card-row" },
-      helper && h("span", { className: "ad-pill idle", title: t.helper }, h("span", { className: "ad-helper", "aria-hidden": true }, h(Icon, { name: HELPER_ICON[helper] || "plug" })), t.helpers[helper] || helper),
+      helper && h("span", { className: "ad-seg", role: "group", "aria-label": t.helper, title: t.helper }, ["dsh", "kiro"].map((id) =>
+        h("button", { key: id, type: "button", "aria-pressed": helper === id, disabled: switching, onClick: () => helper !== id && pick(id) },
+          h(Icon, { name: HELPER_ICON[id] }), t.helpers[id]))),
       info?.access && h("span", { className: `ad-pill ${info.access === "full" ? "bad" : info.access === "edit" ? "warn" : "idle"}`, title: t.access }, h(Icon, { name: "shield" }), t.tier[info.access] || info.access),
       h("span", { className: "sp" }),
       runnerDown(runner.state) || runner.state === "unpaired"
@@ -66,6 +69,11 @@ export function MachineView() {
   usePoll(loadLocal, 2000, []);
   usePoll(async () => { try { setTitles(Object.fromEntries(((await loadThreads(resident))?.threads || []).map((x) => [x.id, x.title]))); } catch { /* titles stay ids */ } }, 15000, [resident]);
 
+  const [switching, setSwitching] = useState(false);
+  const pick = async (helper) => {
+    setSwitching(true);
+    try { store.set({ status: await call("helper", { helper }) }); setError(""); await loadLocal(); } catch (e) { setError(e.message); } finally { setSwitching(false); }
+  };
   const act = (action) => async () => { try { store.set({ status: await call(action) }); setError(""); } catch (e) { setError(e.message); } };
   const runner = { ...(status?.runner || { state: "unpaired" }), ...(local.machine?.runner || {}) };
   const info = local.machine?.info || null;
@@ -79,7 +87,7 @@ export function MachineView() {
     h("div", { className: "ad-mv" },
       error && h("div", { className: "ad-error", role: "alert" }, error),
       local.wired === false && h("p", { className: "ad-info-text ad-mv-wide" }, t.notWired),
-      h(Live, { runner, info, t, act }),
+      h(Live, { runner, info, t, act, pick, switching }),
       h("div", { className: "ad-mv-card" },
         h("span", { className: "ad-label" }, t.workspace),
         h("div", { className: "ad-mv-folder" }, h(Icon, { name: "folder" }), h("code", { title: info?.workspace || "" }, info?.workspace || "—")),

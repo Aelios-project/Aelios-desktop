@@ -3,13 +3,14 @@
 // its local session, with a way to its folder and Allow/Deny on a request the helper is waiting on; any thread
 // shows the cloud's lines. The box at the foot talks to the thread directly (POST /web/thread/say).
 import { createElement as h, useEffect, useRef, useState } from "react";
+import { ACCEPT, Chips, useAttachments } from "./attachments-state.mjs";
 import { Icon } from "./icons.mjs";
 import { loadSession, openInFiles, permit } from "./local-api.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
 import { Item } from "./thread-items.mjs";
 import { HELPER_ICON, countsOf, helperOf, timeline } from "./thread-model.mjs";
-import { choose, loadThread, loadWaiting, sayToThread, stateOf, stopThread } from "./threads-api.mjs";
+import { choose, loadThread, loadWaiting, markSeen, sayToThread, stateOf, stopThread } from "./threads-api.mjs";
 import { taskTone } from "./tones.mjs";
 
 const POLL_MS = 4000;
@@ -29,6 +30,8 @@ export function ThreadView({ resident, id, onBack }) {
     if (local.wired !== false) setSession(await loadSession(id));
   };
   useEffect(() => {
+    // Opening a thread reads its news.
+    if (store.get().waiting?.unread?.[id]) markSeen(resident, id).then((waiting) => store.set({ waiting })).catch(() => {});
     setThread(null);
     setSession(null);
     void reload();
@@ -36,6 +39,8 @@ export function ThreadView({ resident, id, onBack }) {
     return () => clearInterval(timer);
   }, [resident, id]);
 
+  const a = useAttachments((message) => setError(message));
+  const picker = useRef(null);
   const act = async (job) => {
     if (busy) return;
     setBusy(true);
@@ -43,9 +48,10 @@ export function ThreadView({ resident, id, onBack }) {
   };
   const say = () => act(async () => {
     const text = draft.trim();
-    if (!text) return;
-    setThread(await sayToThread(resident, id, text));
+    if (!text && !a.any) return;
+    setThread(await sayToThread(resident, id, text, a.fields()));
     setDraft("");
+    a.clear();
   });
   const onChoose = (task, text) => act(async () => {
     await choose(resident, task, text);
@@ -81,7 +87,10 @@ export function ThreadView({ resident, id, onBack }) {
       thread.files.map((f) => h("span", { key: f.path, className: "ad-pathbtn", title: f.path }, h(Icon, { name: "file" }), h("span", null, f.path)))),
     error && h("div", { className: "ad-error", role: "alert" }, error),
     h("div", { ref: end }),
+    thread?.canSay && a.any && h(Chips, { a }),
     thread?.canSay && h("div", { className: "ad-say" },
+      thread.runs === "machine" && h("input", { ref: picker, type: "file", accept: ACCEPT, multiple: true, hidden: true, onChange: a.add }),
+      thread.runs === "machine" && h("button", { type: "button", className: "ad-plain", title: t.attach, "aria-label": t.attach, onClick: () => picker.current?.click() }, h(Icon, { name: "plus" })),
       h("textarea", { rows: 1, value: draft, placeholder: t.sayTo, "aria-label": t.sayTo, onChange: (e) => setDraft(e.target.value), onKeyDown: onKey }),
-      h("button", { type: "button", className: "ad-round", disabled: busy || !draft.trim(), title: t.sendTo, "aria-label": t.sendTo, onClick: say }, h(Icon, { name: "send" }))));
+      h("button", { type: "button", className: "ad-round", disabled: busy || (!draft.trim() && !a.any), title: t.sendTo, "aria-label": t.sendTo, onClick: say }, h(Icon, { name: "send" }))));
 }

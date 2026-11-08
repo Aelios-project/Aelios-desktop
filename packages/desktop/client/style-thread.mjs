@@ -63,6 +63,7 @@ export const THREAD = `
 .ad-perm .top svg { width: 16px; height: 16px; color: var(--accent-text); }
 .ad-perm .top .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ad-perm .paths { margin: 0; font: 11.5px/1.5 var(--mono); color: var(--text-3); overflow-wrap: anywhere; }
+.ad-perm .detail { margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(127,127,127,.12); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
 .ad-perm .said { margin: 0; font-size: 12px; color: var(--text-3); }
 .ad-perm .said.allowed { color: var(--ok-text); } .ad-perm .said.denied { color: var(--err-text); }
 .ad-tl-result { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line-dash); }

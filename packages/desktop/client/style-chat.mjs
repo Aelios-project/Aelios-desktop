@@ -90,11 +90,18 @@ export const CHAT = `
 .ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
 .ad-sticker img, .ad-sticker video { display: block; width: 112px; height: auto; image-rendering: pixelated; }
 
+.ad-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.ad-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); font-size: 12.5px; }
+.ad-chip:hover { color: var(--text-1); border-color: var(--text-4); }
+.ad-chip .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-chip .ad-helper { width: 18px; height: 18px; background: transparent; }
+
 .ad-compose { padding: 4px max(18px, calc((100% - 772px) / 2)) 16px; }
 .ad-bar { display: flex; align-items: flex-end; gap: 4px; padding: 5px; border: 1px solid var(--line); border-radius: 24px; background: var(--panel-strong); box-shadow: var(--shadow); transition: border-color .15s; }
 .ad-bar:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-field { flex: 1; min-width: 0; display: flex; align-items: flex-end; min-height: 38px; padding-left: 4px; }
 .ad-field textarea { flex: 1; min-width: 0; max-height: 38vh; padding: 8px 0; border: 0; outline: 0; background: transparent; resize: none; font-size: 15px; line-height: 1.5; }
+.ad-field textarea:focus-visible { outline: 0; } /* the bar around it shows the focus */
 .ad-field textarea::placeholder { color: var(--text-4); }
 .ad-round { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; border: 0; background: var(--accent); color: var(--on-accent); }
 .ad-round svg { width: 18px; height: 18px; }
@@ -107,6 +114,9 @@ export const CHAT = `
 .ad-thumbs { display: flex; gap: 8px; padding: 0 2px 8px; overflow-x: auto; }
 .ad-thumbs div { position: relative; flex: none; width: 60px; height: 60px; border-radius: 12px; overflow: hidden; background: var(--panel); }
 .ad-thumbs img { width: 100%; height: 100%; object-fit: cover; }
+.ad-docs { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px 8px; }
+.ad-doc { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 12.5px; overflow-wrap: anywhere; }
+.ad-doc .ad-x { position: static; width: 20px; height: 20px; }
 .ad-thumbs .ad-x { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; display: grid; place-items: center; }
 .ad-thumbs .ad-x svg { width: 10px; height: 10px; }
 .ad-picker { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; margin: 0 0 8px; padding: 10px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }

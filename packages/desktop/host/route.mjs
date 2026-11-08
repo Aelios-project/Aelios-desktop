@@ -1,14 +1,17 @@
 // The one route the client half calls: POST /api/aelios-desktop { action, ... }. It never returns the key.
-import { ConnectError, connect, defaultWorkspace, disconnect } from "./connect.mjs";
+import { ConnectError, connect, defaultWorkspace, disconnect, ensurePaired } from "./connect.mjs";
+import { switchHelper } from "./helper.mjs";
+import { makeLocal } from "./local.mjs";
 import { ProxyError, forward, forwardBytes, forwardRaw } from "./proxy.mjs";
 
 export const ROUTE = "/api/aelios-desktop";
-const MAX_BODY = 8 * 1024 * 1024; // a message may carry four pictures, base64
+const MAX_BODY = 24 * 1024 * 1024; // a message may carry pictures and files, base64 (the resident takes the same)
 const HEADERS = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const json = (value, status = 200) => Response.json(value, { status, headers: HEADERS });
 
 export function makeRoute(deps) {
   const { store, supervisor } = deps;
+  const local = makeLocal(deps);
 
   async function status() {
     const c = await store.get();
@@ -26,7 +29,14 @@ export function makeRoute(deps) {
       await connect({ url: c.url, key: c.key, helper: c.plugin, access: c.access, workspace: c.workspace, resident: c.resident, confirmFull: true }, deps);
       return status();
     },
-    async start() { supervisor.start(); return status(); },
+    async helper(input) { await switchHelper(input, deps); return status(); },
+    async start() { await ensurePaired(deps); return status(); },
+    machine: () => local.machine(),
+    sessions: () => local.sessions(),
+    session: (input) => local.session(input),
+    permit: (input) => local.permit(input),
+    open: (input) => local.open(input),
+    present: () => local.present(),
     async stop() { await supervisor.stop(); return status(); },
     async select({ resident }) {
       const c = await store.get();

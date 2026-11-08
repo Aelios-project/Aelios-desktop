@@ -1,9 +1,10 @@
 // The threads panel: the work the resident handed out, and one thread opened in its place. The old Board panel is
 // folded in here: it listed the same work task by task, so all that is kept of it is the line over the list (where
-// threads run and how many of the day's quota are used). Rows follow the 线程 page of Aelios-resident (AGPL-3.0).
+// threads run and how many of the day's quota are used). Rows follow the threads page of Aelios-resident (AGPL-3.0).
 import { createElement as h, useEffect, useState } from "react";
 import { Icon } from "./icons.mjs";
 import { Empty, Explained } from "./info.mjs";
+import { stepNow } from "./panel-ids.mjs";
 import { usePoll } from "./poll.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -15,7 +16,7 @@ import { HELPER_ICON, helperOf } from "./thread-model.mjs";
 export const RUN_ICON = { local: "spark", linux: "cloud", machine: "laptop", retired: "exit" };
 
 /** A thread card: its helper's icon, title and time; one status word; how many tasks; a bar while it works. */
-function Row({ item, t, local, onOpen }) {
+function Row({ item, t, local, unread = 0, onOpen }) {
   const state = stateOf(item);
   const tone = taskTone(state);
   const helper = helperOf(item, local);
@@ -26,9 +27,11 @@ function Row({ item, t, local, onOpen }) {
       h("span", { className: "ad-card-title" }, item.title), h("span", { className: "ad-card-time" }, when(item.updatedAt))),
     h("span", { className: "ad-card-row" },
       h("span", { className: `ad-pill ${tone}` }, h("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
+      unread > 0 && h("span", { className: "ad-pill hot", title: t.unread }, unread),
       pending > 0 && h("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, h(Icon, { name: "shield" }), pending),
       h("span", { className: "sp" }),
       h("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, h(Icon, { name: "stack" }), item.tasks)),
+    isWorking(item) && stepNow(item) && h("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
     isWorking(item) && h("span", { className: "ad-track", "aria-hidden": true }, h("span")));
 }
 
@@ -45,7 +48,7 @@ function Quota({ q, t }) {
 
 export function ThreadsPanel() {
   const t = words();
-  const { status, focus, threads: quota, local } = useStore(store);
+  const { status, focus, threads: quota, local, waiting } = useStore(store);
   const resident = status?.resident || "default";
   const [data, setData] = useState({ loaded: false, on: true, threads: [] });
   const [error, setError] = useState("");
@@ -64,8 +67,8 @@ export function ThreadsPanel() {
     h(Quota, { q: quota, t }),
     data.loaded && !data.on && data.threads.length === 0 && h(Empty, { icon: "threads", text: t.threadsOff }),
     data.loaded && data.on && data.threads.length === 0 && h(Empty, { icon: "threads", text: t.noThreads, why: t.threadsInfo }),
-    open.map((item) => h(Row, { key: item.id, item, t, local, onOpen: setId })),
+    open.map((item) => h(Row, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })),
     done.length > 0 && h("button", { type: "button", className: "ad-fold ad-label", "aria-expanded": showDone, onClick: () => setShowDone((v) => !v) },
       h(Icon, { name: "down" }), t.done, h("span", { className: "ad-badge" }, done.length)),
-    showDone && done.map((item) => h(Row, { key: item.id, item, t, local, onOpen: setId })));
+    showDone && done.map((item) => h(Row, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })));
 }

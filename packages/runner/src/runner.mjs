@@ -5,6 +5,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync } from "node:fs";
 import { Cloud, CloudError } from "./cloud.mjs";
 import { Turn } from "./helper.mjs";
+import { readAttachments, saveAttachments } from "./inbox.mjs";
+import { Progress } from "./steps.mjs";
+import { computerName } from "./machine-name.mjs";
+import { workspaceDenied } from "./reason.mjs";
 import { launchOf } from "./plugins.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
@@ -33,8 +37,8 @@ function redactor(secrets, places) {
 
 export class Runner {
   /** @param {{config: object, state: import("./state.mjs").StateFile, cloud?: Cloud, log?: Function, request?: Function}} o */
-  constructor({ config, state, cloud, log = () => {}, request = fetch }) {
-    this.config = config; this.state = state; this.log = log; this.request = request;
+  constructor({ config, state, cloud, journal = null, log = () => {}, request = fetch }) {
+    this.config = config; this.state = state; this.log = log; this.request = request; this.journal = journal;
     this.cloud = cloud ?? null;
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
@@ -94,19 +98,20 @@ export class Runner {
     return work && typeof work === "object" && ID.test(work.workId ?? "") && typeof work.token === "string" && work.token.length > 0 && work.token.length <= 200
       && typeof work.thread === "string" && THREAD.test(work.thread) && KINDS.includes(work.kind)
       && (work.kind === "cancel" || (typeof work.text === "string" && work.text.trim() && work.text.length <= TEXT_MAX))
-      && (work.access === undefined || tierOf(work.access) !== null);
+      && (work.access === undefined || tierOf(work.access) !== null)
+      && (work.kind === "cancel" || readAttachments(work.attachments) !== null);
   }
 
   async receive(raw) {
     const identifiable = raw && typeof raw === "object" && ID.test(raw.workId ?? "") && typeof raw.token === "string" && raw.token.length <= 200;
     if (!this.#valid(raw)) {
       this.log("work refused", raw?.workId);
-      await this.#queueReceipts(identifiable ? [this.#receipt(raw, "final", { status: "failed", summary: "The runner could not read this message (bad format) and did not run it." })] : [], state => { state.claimKey = null; });
+      await this.#queueReceipts(identifiable ? [this.#receipt(raw, "final", { status: "failed", reason: "error", summary: "The runner could not read this message (bad format) and did not run it." })] : [], state => { state.claimKey = null; });
       return;
     }
     // Only what the protocol names is kept; anything else the cloud sent (a folder, a command, a helper) is dropped here.
     const work = { workId: raw.workId, token: raw.token, thread: raw.thread, kind: raw.kind, title: String(raw.title ?? "").slice(0, 200),
-      ...(raw.kind === "cancel" ? {} : { text: raw.text }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
+      ...(raw.kind === "cancel" ? {} : { text: raw.text, ...(raw.attachments?.length ? { attachments: readAttachments(raw.attachments) } : {}) }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
     const receipts = [];
     let stop = false;
     await this.state.update(state => {
@@ -161,14 +166,26 @@ export class Runner {
 
   async #execute(work) {
     const state = await this.state.read();
+    this.journal?.turn(work);
     const record = state.threads[work.thread];
     let cwd = record?.cwd;
-    if (!cwd) { mkdirSync(this.config.workspace, { recursive: true }); cwd = realpathSync(this.config.workspace); }
+    if (!cwd) {
+      try { mkdirSync(this.config.workspace, { recursive: true }); cwd = realpathSync(this.config.workspace); }
+      catch (error) {
+        if (!workspaceDenied(error)) throw error;
+        this.journal?.end(work, "failed", "workspace");
+        return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "workspace_denied", summary: "The runner could not use its workspace folder. Check that the folder exists and this user may write to it." })]);
+      }
+    }
     const tier = lowest(tierOf(this.config.access) ?? "read", work.access ?? this.config.access ?? "read");
     const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
+    // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
+    const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
+    const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
     const turn = new Turn({
-      launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
+      files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
+      hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped)),
       onSession: async (sessionId, how) => {
         // The thread's folder and session are fixed from the first time it has one.
         await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
@@ -178,11 +195,12 @@ export class Runner {
     });
     this.live.turn = turn;
     if (this.live.pendingCancel || this.shuttingDown) turn.cancel();
-    let outcome = await turn.run();
+    let outcome;
+    try { outcome = await turn.run(); } finally { progress.close(); }
     if (this.shuttingDown && outcome.status === "cancelled") {
       outcome = { ...outcome, status: "needs_you", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically.", ask: { key: "stopped:" + work.workId, question: "The runner was stopped and this turn did not finish. Do it again?" } };
     }
-    const receipt = { status: outcome.status, summary: outcome.summary || "(no content)" };
+    const receipt = { status: outcome.status, summary: outcome.summary || "(no content)", ...(outcome.status === "failed" && outcome.reason ? { reason: outcome.reason } : {}) };
     await this.state.update(s => {
       if (outcome.status === "needs_you" && outcome.ask) remember(s, work.thread, outcome.ask.key);
       const entry = s.threads[work.thread];
@@ -191,6 +209,7 @@ export class Runner {
     if (outcome.sessionId) receipt.sessionId = safeId(outcome.sessionId);
     if (outcome.ask) receipt.ask = outcome.ask;
     if (outcome.notice) receipt.notice = outcome.notice;
+    this.journal?.end(work, receipt.status, receipt.summary);
     await this.#queueReceipts([this.#receipt(work, "final", receipt)]);
   }
 
@@ -222,7 +241,7 @@ export class Runner {
     try {
       const cloud = await this.#cloud();
       if (Date.now() - this.lastBeat >= this.heartbeatMs) {
-        await cloud.heartbeat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null });
+        await cloud.heartbeat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() });
         this.lastBeat = Date.now();
       }
       await this.flush();

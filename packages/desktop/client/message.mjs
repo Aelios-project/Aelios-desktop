@@ -9,6 +9,7 @@ import { Md } from "./md.mjs";
 import { MessageActions } from "./message-actions.mjs";
 import { voiceLength } from "./media.mjs";
 import { words } from "./strings.mjs";
+import { ThreadChips } from "./thread-chip.mjs";
 
 const clock = (at) => (at ? new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 
@@ -27,6 +28,7 @@ function Busy({ busy }) {
   return h("div", { className: `ad-busy${open ? " open" : ""}` },
     h("button", { type: "button", className: busy.live ? "live" : "", "aria-expanded": open, "aria-label": busy.label, title: busy.label, onClick: () => setOpen((v) => !v) },
       busy.thoughts > 0 && h("span", { className: "spark" }, h(Icon, { name: "spark" })),
+      busy.thoughts > 0 && h("span", null, t.thinking),
       busy.thoughts > 0 && busy.tools > 0 && h("span", { className: "sep", "aria-hidden": true }),
       busy.tools > 0 && h(Icon, { name: "wrench" }),
       busy.tools > 0 && h("span", null, busy.tools),
@@ -75,6 +77,12 @@ function Files({ files, resident }) {
     h(Icon, { name: "file" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
 }
 
+/** Files the user attached to this message: name and size, no download (the page shows the same chips). */
+function Attached({ attached }) {
+  return h("div", { className: "ad-files" }, attached.map((file, i) => h("span", { key: i, className: "ad-file", title: file.name },
+    h(Icon, { name: "file" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
+}
+
 /** A voice note: hers, played straight from the resident's media store. */
 function Voice({ voice, resident }) {
   const t = words();
@@ -110,7 +118,7 @@ function Stickers({ stickers }) {
 }
 
 /** `last` marks the newest reply (it can be taken back); `onChanged` reads the conversation again after. */
-export function Message({ line, resident, last = false, onChanged = null }) {
+export function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? (String(line.text || "").trim() ? [line.text] : []) : bubbleTexts(line.text);
@@ -121,8 +129,10 @@ export function Message({ line, resident, last = false, onChanged = null }) {
     bubbles.map((text, i) => h("div", { key: i, className: `ad-bubble${i === 0 ? " first" : ""}` },
       me ? text : h(Md, { text }),
       i === bubbles.length - 1 && h("span", { className: "ad-meta" }, clock(line.at)))),
+    me && (line.attached ?? []).length > 0 && h(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
     (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }),
+    cards.length > 0 && h(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && h(MessageActions, { line, resident, last, onChanged }));
 }

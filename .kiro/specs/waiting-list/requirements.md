@@ -1,5 +1,16 @@
 # Requirements: waiting list
 
+## Amendment (Waiting holds only decisions and actions)
+
+This amendment overrides every older line below that disagrees with it. The list holds only what needs the owner's decision or action; when it is empty, nothing needs them.
+
+1. The list SHALL hold items of two kinds: `ask` and `stuck`. `note` and `done` are not items.
+2. An `ask` item SHALL show the question in one line and its options as buttons. A thread that is `needs_you` but has no question text SHALL NOT give an `ask`; it shows only as the thread's status.
+3. An `ask` older than 7 days SHALL leave the list (it is no longer marked "expired").
+4. A `stuck` item SHALL stay only when the owner can act on it: a choice (its options as buttons), a missing key or login (one button to the settings), or a permission to give (one button to the thread). Any other failure SHALL leave the list and show only as the thread's status.
+5. A thread with unread `done` or `note` news SHALL show an unread count on its row, and the Threads tab SHALL show the total. Opening the thread SHALL mark its news read (`POST /web/waiting/seen {id: <thread>}`). Nothing in the list or the count is written into the conversation.
+6. `GET /web/waiting` SHALL return `{ items, open, unread }`, where `unread` maps a thread id to its count of unread news. An item has `action` (`""`, `"settings"` or `"open"`) instead of `expired`.
+
 ## Introduction
 
 A resident can run many threads at once, on a paired machine or in the cloud. Each thread may ask the owner a question, finish, or get stuck. Today these show up as cards inside threads and as notes in the conversation, so the owner has to open each thread to find out who is waiting.

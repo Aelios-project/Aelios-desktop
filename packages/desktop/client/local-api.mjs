@@ -1,5 +1,5 @@
-// What only this machine knows, asked of the host half. These are the calls the desktop's local views draw from;
-// the host side is wired separately. Until the host answers them ("unknown action"), local.wired is false and the
+// What only this machine knows, asked of the host half (host/route.mjs answers all of these). These are the calls the
+// desktop's local views draw from. With an older host half that answers "unknown action", local.wired is false and the
 // views say so instead of guessing. The preview answers them with made-up data (preview/fake-host.mjs).
 //
 //   call("machine")                 → { runner: { state, error, since, pid, log: [{ at, text }] },
@@ -8,7 +8,7 @@
 //   call("sessions")                → { sessions: [{ thread, plugin, at, status, turns, tools, files, commands, pending }] }
 //   call("session", { thread })     → { session: { plugin, cwd, turns: [{ text, at, end: { status, summary } | null, items }] } | null }
 //                                       items: say | thought | tool { id, kind, title, status, input, output, paths, diffs }
-//                                              | plan { steps: [{ text, status }] } | perm { id, title, kind, paths, decided, by }
+//                                              | plan { steps: [{ text, status }] } | perm { id, title, kind, paths, detail, decided, by }
 //   call("permit", { id, allow })   → the owner's answer to a held permission request
 //   call("open", { path })          → the workspace (or a file in it) in the system's file manager
 //   call("present")                 → the window is open and looked at
