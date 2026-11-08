@@ -83,9 +83,9 @@ export function ResidentSection({ rows, reload }) {
           h("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy) || name === (me.name || ""), onClick: saveName }, t.save))),
       h("div", { className: "ad-field-row" }, h("label", null, t.model),
         h("div", { className: "ad-set-line" },
-          models?.length
-            ? h("select", { value: model.now, "aria-label": t.model, onChange: (e) => setModel({ ...model, now: e.target.value }) }, models.map((m) => h("option", { key: m.id, value: m.id }, m.name)))
-            : h("input", { value: model.now, "aria-label": t.model, onChange: (e) => setModel({ ...model, now: e.target.value }) }),
+          // Free text with the list as suggestions: a model the list lacks (claude-code/<model>, the Claude box) can be typed.
+          h("input", { value: model.now, list: "ad-models", "aria-label": t.model, spellCheck: false, onChange: (e) => setModel({ ...model, now: e.target.value }) }),
+          h("datalist", { id: "ad-models" }, (models || []).map((m) => h("option", { key: m.id, value: m.id }, m.name))),
           h("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy) || model.now === model.saved, onClick: saveModel }, t.save))),
       h("div", { className: "ad-field-row" }, h("label", { htmlFor: "ad-persona" }, t.persona),
         h("textarea", { id: "ad-persona", className: "ad-persona", rows: 6, value: persona.draft, onChange: (e) => setPersona({ ...persona, draft: e.target.value }) }),

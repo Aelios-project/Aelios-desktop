@@ -390,7 +390,7 @@ var WORDS = {
     removeResident: "Delete this resident",
     sections: { resident: "Resident", model: "Model access", memory: "Memory", time: "Time", channels: "Channels", web: "Web & tools", voice: "Voice & stickers", work: "Background help", usage: "Usage", app: "App" },
     name: "Name",
-    model: "Model",
+    model: "Resident model",
     persona: "Persona",
     setFace: "Change the picture",
     dropFace: "Remove the picture",
@@ -594,7 +594,7 @@ var WORDS = {
     removeResident: "删掉这个住户",
     sections: { resident: "住户", model: "模型接入", memory: "记忆", time: "时间", channels: "聊天渠道", web: "网页与工具", voice: "语音与表情", work: "后台帮忙", usage: "用量", app: "应用" },
     name: "名字",
-    model: "模型",
+    model: "住户模型",
     persona: "人设",
     setFace: "换头像",
     dropFace: "撤下头像",
@@ -2603,7 +2603,9 @@ function ResidentSection({ rows, reload }) {
         (0, import_react18.createElement)(
           "div",
           { className: "ad-set-line" },
-          models?.length ? (0, import_react18.createElement)("select", { value: model.now, "aria-label": t.model, onChange: (e) => setModel({ ...model, now: e.target.value }) }, models.map((m) => (0, import_react18.createElement)("option", { key: m.id, value: m.id }, m.name))) : (0, import_react18.createElement)("input", { value: model.now, "aria-label": t.model, onChange: (e) => setModel({ ...model, now: e.target.value }) }),
+          // Free text with the list as suggestions: a model the list lacks (claude-code/<model>, the Claude box) can be typed.
+          (0, import_react18.createElement)("input", { value: model.now, list: "ad-models", "aria-label": t.model, spellCheck: false, onChange: (e) => setModel({ ...model, now: e.target.value }) }),
+          (0, import_react18.createElement)("datalist", { id: "ad-models" }, (models || []).map((m) => (0, import_react18.createElement)("option", { key: m.id, value: m.id }, m.name))),
           (0, import_react18.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy) || model.now === model.saved, onClick: saveModel }, t.save)
         )
       ),
