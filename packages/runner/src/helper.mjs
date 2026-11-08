@@ -4,7 +4,10 @@
 import { createHash } from "node:crypto";
 import { AcpClosed, AcpConnection, AcpError, PROTOCOL_VERSION } from "./acp.mjs";
 import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
+import { promptBlocks } from "./inbox.mjs";
+import { reasonOf, reasonOfStart } from "./reason.mjs";
 import { answer } from "./permission.mjs";
+import { StepLog } from "./steps.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
 /** Added to every prompt. How the helper tells the user something; a question mark means nothing. */
@@ -21,13 +24,15 @@ export const CONVENTION = [
 
 export class Turn {
   /**
-   * @param {{launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number,
-   *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void}} o
+   * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
+   *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void,
+   *          onStep?: (steps: {kind: string, title: string}[]) => void}} o
    */
   constructor(o) {
     Object.assign(this, { timeoutMs: 30 * 60_000, killAfterMs: 10_000 }, Object.fromEntries(Object.entries(o).filter(([, value]) => value !== undefined)));
     this.cancelled = false; this.timedOut = false; this.collecting = false;
     this.current = ""; this.finished = []; this.denied = []; this.opened = null;
+    this.stepLog = this.onStep ? new StepLog({ cwd: this.cwd, redact: this.redact }) : null;
   }
 
   /** Stop this turn. Safe at any moment: before the session exists the turn simply never sends its prompt. */
@@ -44,12 +49,19 @@ export class Turn {
     if (method !== "session/update" || !this.collecting) return; // replayed history while loading is not this turn's
     const update = params.update ?? {};
     if (update.sessionUpdate === "agent_message_chunk" && update.content?.type === "text") this.current += String(update.content.text ?? "");
-    else if (update.sessionUpdate === "tool_call" && this.current.trim()) { this.finished.push(this.current); this.current = ""; }
+    else if (update.sessionUpdate === "tool_call") {
+      if (this.current.trim()) { this.finished.push(this.current); this.current = ""; }
+      const steps = this.stepLog?.add(update);
+      if (steps) this.onStep(steps);
+    }
   }
 
   async #request(method, params) {
     if (method !== "session/request_permission") throw new AcpError("method not found", -32601);
-    const { response, denied } = answer(this.tier, params, this.cwd);
+    let { response, denied, hold } = answer(this.tier, params, this.cwd);
+    if (hold?.detail) hold.detail = this.redact(hold.detail); // the folder and the pairing token stay off the owner's screen too
+    // A refusal made by the tier alone waits for the owner. Allowing it covers this one request only.
+    if (hold && this.hold && await this.hold(hold, () => this.cancelled)) ({ response, denied } = answer("full", params, this.cwd));
     if (denied) this.denied.push(denied);
     return response;
   }
@@ -84,16 +96,17 @@ export class Turn {
       this.timer = setTimeout(() => { this.timedOut = true; this.cancel(); }, this.timeoutMs);
       this.timer.unref?.();
       this.collecting = true;
-      const result = await this.conn.request("session/prompt", { sessionId: this.opened, prompt: [{ type: "text", text: `${this.prompt}\n\n${CONVENTION}` }] });
+      const prompt = await promptBlocks(this.prompt, CONVENTION, this.files, Boolean(init.agentCapabilities?.promptCapabilities?.image));
+      const result = await this.conn.request("session/prompt", { sessionId: this.opened, prompt });
       return this.#outcome(String(result.stopReason ?? "end_turn"), how);
     } catch (error) {
       if (this.cancelled && !this.timedOut) return this.#cancelled(how);
       if (this.timedOut) return this.#stuck(how, "The helper did not finish within the time limit and was stopped.");
       if (error instanceof AcpClosed) {
-        if (!this.opened) return { status: "failed", summary: this.redact(`The helper could not start or connect: ${error.message} ${stderrNote()}`), sessionId: null, how };
+        if (!this.opened) return { status: "failed", summary: this.redact(`The helper could not start or connect: ${error.message} ${stderrNote()}`), reason: reasonOfStart(error, this.conn.stderr), sessionId: null, how };
         return this.#stuck(how, `The helper process died in the middle of the turn (${this.redact(error.message)}). It will not be redone automatically. ${stderrNote()}`.trim());
       }
-      return { status: "failed", summary: this.redact(`The helper reported an error: ${error.message}`), sessionId: this.opened, how };
+      return { status: "failed", summary: this.redact(`The helper reported an error: ${error.message}`), reason: reasonOf(error.code, error.message), sessionId: this.opened, how };
     } finally {
       clearTimeout(this.timer); clearTimeout(this.killTimer);
       await this.conn.close();
@@ -132,7 +145,7 @@ export class Turn {
     const said = lastMarker(final);
     if (said?.kind === "blocked") {
       const reason = this.redact(said.text || "(no reason given)");
-      return { ...base, status: "failed", summary: `Blocked: ${reason}${said.body ? "\n\n" + this.redact(said.body) : ""}` };
+      return { ...base, status: "failed", reason: "error", summary: `Blocked: ${reason}${said.body ? "\n\n" + this.redact(said.body) : ""}` };
     }
     if (said?.kind === "ask") {
       const question = this.redact(said.text || "(the helper wants you to decide, but wrote no question)");

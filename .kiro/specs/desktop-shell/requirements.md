@@ -124,7 +124,7 @@ Out of scope. An own Electron app. The board and the tools panels (only a place 
 3. A release file that contains DSH SHALL carry the same notice inside it.
 4. WHEN a commit copies code from DS Bot (Apache-2.0) THEN the same commit SHALL add the Apache-2.0 text and DS Bot's `NOTICE` lines for that file to `THIRD_PARTY_NOTICES.md`, mark the file as changed, and keep the original copyright line. IF a license is unclear THEN only the idea SHALL be used, not the code.
 5. The shell SHALL NOT copy DS Bot's icons, text or graphics.
-6. The resident's front end is AGPL-3.0 and this repository is MIT. The shell SHALL copy none of its code or styles; it MAY follow its layout and design. Copying needs the resident's copyright holder to agree first.
+6. This repository is AGPL-3.0-only. The shell MAY copy styles and components from Aelios-resident (AGPL-3.0, same author), only small parts that are used, with the source named in the file header.
 7. Code, docs, tests and fixtures SHALL contain no person's name, personal detail, private address or secret, and SHALL be in English. (A copyright line that a copied file must keep is the one exception.)
 8. Each source file SHALL stay small and do one job.
 

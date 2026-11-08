@@ -17,38 +17,38 @@ Known result, no task needed: a page placed by a plugin fills only the middle of
   - [ ] 2.3 Decide how the shell gets the runner (publish or vendor) and write it in `design.md`
   - _Requirements: 2.3, 2.5, 8.1_
 
-- [ ] 3. Plugin skeleton
-  - [ ] 3.1 `packages/desktop/package.json` with `dsh.client`, `dsh.bundle.patch` and `engines.dsh` pinned to 0.2.2-rc.1
-  - [ ] 3.2 `cordis.patch.yml`
-  - [ ] 3.3 `host/index.mjs` and `client/index.mjs` that only register
+- [x] 3. Plugin skeleton
+  - [x] 3.1 `packages/desktop/package.json` with `dsh.client`, `dsh.bundle.patch` and `engines.dsh` pinned to 0.2.2-rc.1
+  - [x] 3.2 `cordis.patch.yml`
+  - [x] 3.3 `host/index.mjs` and `client/index.mjs` that only register
   - _Requirements: 11.8_
 
-- [ ] 4. Supervisor
-  - [ ] 4.1 `host/supervisor.mjs`: states, start, stop, one restart per minute, dispose
-  - [ ] 4.2 Map exit codes and output to `locked`, `crashed`, `revoked`
-  - [ ] 4.3 `test/supervisor.test.mjs` with the fake cloud and fake helper
+- [x] 4. Supervisor
+  - [x] 4.1 `host/supervisor.mjs`: states, start, stop, one restart per minute, dispose
+  - [x] 4.2 Map exit codes and output to `locked`, `crashed`, `revoked`
+  - [x] 4.3 `test/supervisor.test.mjs` with the fake cloud and fake helper
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 12.1, 12.2_
 
-- [ ] 5. Connect and proxy
-  - [ ] 5.1 `host/connect.mjs`: input checks, default folder, key in the credential store, pair arguments
-  - [ ] 5.2 `host/proxy.mjs`: the allow-list and the forward with `x-web-key`
-  - [ ] 5.3 `host/route.mjs`: status, connect, stop, unpair, `web/*`, details
-  - [ ] 5.4 Tests: allowed paths pass; `..`, encoded slashes, other origins and `/web/runner/*` are refused; the key never reaches a response or a log
+- [x] 5. Connect and proxy
+  - [x] 5.1 `host/connect.mjs`: input checks, default folder, key in the credential store, pair arguments
+  - [x] 5.2 `host/proxy.mjs`: the allow-list and the forward with `x-web-key`
+  - [x] 5.3 `host/route.mjs`: status, connect, stop, unpair, `web/*`, details
+  - [x] 5.4 Tests: allowed paths pass; `..`, encoded slashes, other origins and `/web/runner/*` are refused; the key never reaches a response or a log
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4, 4.5, 6.1, 6.2, 12.2_
 
-- [ ] 6. Client base
-  - [ ] 6.1 `client/api.mjs`: fetch and poll with `since`
-  - [ ] 6.2 `client/theme.mjs`: all CSS variables with plain defaults
-  - [ ] 6.3 `client/index.mjs`: shadow the left slot and the middle, mount the columns
-  - [ ] 6.4 `client/connect-form.mjs`
-  - [ ] 6.5 Test the poll: an unchanged answer changes nothing
+- [x] 6. Client base
+  - [x] 6.1 `client/api.mjs`: fetch and poll with `since`
+  - [x] 6.2 `client/theme.mjs`: all CSS variables with plain defaults
+  - [x] 6.3 `client/index.mjs`: shadow the left slot and the middle, mount the columns
+  - [x] 6.4 `client/connect-form.mjs`
+  - [x] 6.5 Test the poll: an unchanged answer changes nothing
   - _Requirements: 1.1, 1.2, 1.3, 1.5, 6.3, 9.1_
 
 - [ ] 7. The columns
   - [ ] 7.1 `client/left.mjs`: residents, pinned and recent threads
-  - [ ] 7.2 `client/chat.mjs`: messages and input
+  - [x] 7.2 `client/chat.mjs`: messages and input
   - [ ] 7.3 `client/panels.mjs`: the panel registry and switcher, with places for Board and Tools
-  - [ ] 7.4 Read the resident's page design for layout and mood only; copy no code or style
+  - [x] 7.4 Copy only the small styles and components that are used from Aelios-resident, with the source in each file header
   - _Requirements: 1.1, 1.4, 6.1, 11.6_
 
 - [ ] 8. Right panels
@@ -64,7 +64,7 @@ Known result, no task needed: a page placed by a plugin fills only the middle of
   - _Requirements: 8.2, 8.3, 8.4, 8.6_
 
 - [ ] 10. Four-step check
-  - [ ] 10.1 A test that reads the setup script and fails above four steps
+  - [x] 10.1 A test that reads the setup script and fails above four steps
   - [ ] 10.2 Walk the steps by hand on a clean DSH and write the result in `packages/desktop/README.md`
   - [ ] 10.3 Confirm with the resident side who sends the first message (Open question 6)
   - _Requirements: 5.1, 5.2, 5.3, 5.4_

@@ -5,7 +5,10 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { register, revoke } from "../src/cloud.mjs";
+import { Journal } from "../src/journal.mjs";
+import { computerName } from "../src/machine-name.mjs";
 import { acquire, stopHolder } from "../src/lock.mjs";
+import { overview } from "../src/overview.mjs";
 import { PLUGINS, available, launchOf } from "../src/plugins.mjs";
 import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
@@ -16,6 +19,7 @@ const home = homeDir();
 const configFile = path.join(home, "config.json");
 const lockFile = path.join(home, "runner.lock");
 const state = new StateFile(path.join(home, "state.json"));
+const journal = new Journal(path.join(home, "journal.jsonl"));
 
 /** The web key comes from AELIOS_WEB_KEY or one line on stdin. It is used once and never written down. */
 async function webKey() {
@@ -27,7 +31,7 @@ async function webKey() {
 async function pair() {
   const { values } = parseArgs({ args: rest, options: {
     url: { type: "string" }, resident: { type: "string", default: "default" }, workspace: { type: "string" },
-    access: { type: "string", default: "read" }, plugin: { type: "string", default: "kiro" }, label: { type: "string", default: "Runner" }, command: { type: "string" }, code: { type: "string" }
+    access: { type: "string", default: "read" }, plugin: { type: "string", default: "kiro" }, label: { type: "string" }, command: { type: "string" }, code: { type: "string" }
   } });
   if (!values.url?.startsWith("https://") && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(values.url ?? "")) throw new Error("--url must be the resident's https address");
   if (!values.workspace || !path.isAbsolute(values.workspace)) throw new Error("--workspace must be an absolute folder path");
@@ -43,7 +47,7 @@ async function pair() {
     if ((await state.read()).device) throw new Error('already paired; run "aelios-runner unpair" first');
     mkdirSync(values.workspace, { recursive: true });
     config.workspace = realpathSync(values.workspace);
-    const device = await register({ url: config.url, resident: config.resident, ...(values.code ? { code: values.code } : { webKey: await webKey() }), label: values.label });
+    const device = await register({ url: config.url, resident: config.resident, ...(values.code ? { code: values.code } : { webKey: await webKey() }), label: values.label || computerName() });
     await state.update(s => { s.device = device; });
     await writeConfig(configFile, config);
     console.log(`Paired. Plugin ${config.plugin}, access ${config.access}, folder ${config.workspace}.\nStart with: aelios-runner start`);
@@ -57,7 +61,7 @@ async function start() {
     if (!(await state.read()).device) throw new Error('not paired; run "aelios-runner pair" first');
     const control = new AbortController();
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => control.abort());
-    const runner = new Runner({ config, state, log: (...args) => console.error(new Date().toISOString(), ...args) });
+    const runner = new Runner({ config, state, journal, log: (...args) => console.error(new Date().toISOString(), ...args) });
     console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}`);
     await runner.start(control.signal);
   } finally { release(); }
@@ -83,6 +87,16 @@ async function unpair() {
   } finally { release(); }
 }
 
-const commands = { pair, start, status, unpair };
-if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair"); process.exit(2); }
+async function showOverview() { console.log(JSON.stringify(overview(await readConfig(configFile), await state.read(), journal))); }
+
+/** aelios-runner permit <id> allow|deny: the owner's answer to a request the running turn is holding. */
+async function permit() {
+  const [id, answer] = rest;
+  if (!id || !["allow", "deny"].includes(answer)) throw new Error("usage: aelios-runner permit <id> allow|deny");
+  if (!journal.decide(id, answer === "allow")) throw new Error("no such request is waiting");
+  console.log("Recorded.");
+}
+
+const commands = { pair, start, status, unpair, overview: showOverview, permit };
+if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit"); process.exit(2); }
 commands[command]().catch(error => { console.error("aelios-runner:", error.message); process.exit(1); });

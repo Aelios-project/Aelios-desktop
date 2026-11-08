@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aelios desktop — preview</title>
+<style>
+  html, body { margin: 0; height: 100%; }
+  .frame { height: 100%; display: flex; flex-direction: column; font: 13px/1.5 system-ui, -apple-system, sans-serif; }
+  .frame-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 7px 14px; font-size: 12px; border-bottom: 1px solid rgba(128,128,128,.18); }
+  .frame-bar b { font-weight: 600; margin-right: 6px; }
+  .frame-bar a { color: inherit; opacity: .75; text-decoration: none; border: 1px solid rgba(128,128,128,.28); border-radius: 8px; padding: 1px 8px; }
+  .frame-bar a:hover { opacity: 1; }
+  .frame-bar .sp { flex: 1; }
+  .stage { flex: 1; min-height: 0; display: flex; }
+  .stage > .side { flex: none; width: 248px; min-height: 0; }
+  .stage > .main { flex: 1; min-width: 0; min-height: 0; }
+  .shot .frame-bar { display: none; }
+</style>
+<!-- DSH supplies React to the plugin; the preview takes the same major version from a CDN. -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script type="importmap">{ "imports": { "react": "./react-shim.mjs" } }</script>
+</head>
+<body>
+<div class="frame">
+  <div class="frame-bar"><b>Aelios desktop</b><span>preview · the real client components, made-up data, no DSH</span><span class="sp"></span>
+    <a href="?">chat</a><a href="?panel=threads">threads</a><a href="?panel=threads&amp;thread=t3&amp;wide=1">thread</a><a href="?panel=alarms">alarms</a>
+    <a href="?view=machine">machine</a><a href="?sheet=resident">settings</a><a href="?sheet=usage">usage</a><a href="?group=g1">group</a>
+    <a href="#" data-theme="light">light</a><a href="#" data-theme="dark">dark</a></div>
+  <div class="stage"><div class="side" id="side"></div><div class="main" id="main"></div></div>
+</div>
+<script type="module" src="./preview.mjs"></script>
+</body>
+</html>

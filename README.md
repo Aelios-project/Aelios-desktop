@@ -50,7 +50,8 @@ For the Kiroween rules, this is what was there before the submission period (202
 - **The cloud half of the protocol** (`src/machine.ts` and the matching changes in Aelios-resident, PR #67) was also written on 2026-11-07, inside the submission period. The runner needs it to work. The rest of Aelios-resident existed before the period.
 - **Changes after the move:** the code was changed in one way only. Every message the runner sends (receipt text, errors, comments, test fixtures) was translated from Chinese to English, and the task line sent to the helper now ends with "Reply in the language of the job." The docs were translated too, and `packages/runner/package.json` got its name, license, `files`, `bin` and `engines` fields.
 - The desktop app plan, the `.kiro` folder, and the root files are new in this repository.
+- **The desktop interface** copies styles and components from Aelios-resident (AGPL-3.0, same author). Each copied file says in its header where it came from. This repository is AGPL-3.0-only for that reason and so that nobody can take it closed-source or sell it without sharing their changes.
 
 ## License
 
-MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+AGPL-3.0-only. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

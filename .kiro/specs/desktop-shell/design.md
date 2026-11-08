@@ -68,7 +68,7 @@ Panel registry: `{ id, title, icon, component }`. The shell registers `threads` 
 
 Polling. The conversation and the lists are fetched with the `since` version the resident returns; an unchanged answer is `{ same }` and costs nothing to read. No server push is used. shortcut: polling, not a stream; move to a stream if the resident offers one.
 
-The look follows the resident's page in layout and mood. Its front end is AGPL-3.0 and this repository is MIT, so no code or style is copied (requirement 11.6).
+The look follows the resident's page. Its front end is AGPL-3.0 with the same author, and this repository is AGPL-3.0-only, so small parts of its styles and components may be copied; each file header names the source (requirement 11.6).
 
 ## Where a thread's record lives
 
@@ -132,7 +132,7 @@ shortcut: the runner has no machine-readable status, so the supervisor parses it
 
 ### Connect (`host/connect.mjs`)
 
-Input: address, web key, folder, helper (`dsh` or `kiro`), tier. It checks the address (https, or http on 127.0.0.1), makes the default folder, stores the key in `ctx.credentials`, and runs `aelios-runner pair --url … --workspace … --access … --plugin …` with the key in the environment (the runner reads `WEB_KEY` from the environment and never writes it). It uses an argument array, never a shell string.
+Input: address, web key, folder, helper (`dsh` or `kiro`), tier. It checks the address (https, or http on 127.0.0.1), makes the default folder, stores the key in `ctx.credentials`, and runs `aelios-runner pair --url … --workspace … --access … --plugin …` with the key in the environment (the runner reads `AELIOS_WEB_KEY` from the environment and never writes it). It uses an argument array, never a shell string.
 
 shortcut: this keeps the web key on the owner's machine. The resident has no narrower credential for a window (only the web key and the Mini App session). Switch if the resident adds a device token.
 
@@ -187,7 +187,7 @@ DSH is MIT: its license text and copyright line must travel with any copy or sub
 | A commit adds DSH code, a DSH package, a DSH asset (icon, font, CSS) or a copied DSH type file | Yes, in the same commit: the full MIT text and the copyright line. |
 | A release file includes DSH | Yes, in the file as well. |
 | A commit copies code from DS Bot (Apache-2.0) | Yes, in the same commit: the Apache-2.0 text, DS Bot's `NOTICE` lines for that file, a changed-file note in the file, the original copyright line kept. DS Bot's own `NOTICE` says some of its files follow DSH files, so those bring the DSH notice too. |
-| The resident's front end (AGPL-3.0) | Copy nothing. Design only. |
+| The resident's front end (AGPL-3.0, same author) | Copy only small used parts; the file header names the source. |
 
 By default nothing is copied from DS Bot; its ideas (shadowing slots, spawn and stop) are used with a citation here. A check in `npm test` can fail the build when a file under `packages/desktop` imports a vendored DSH path and `THIRD_PARTY_NOTICES.md` has no "MIT License" block.
 
@@ -224,11 +224,10 @@ Not settled. Do not treat any of these as fact.
 4. Which Node version runs plugin host code? The runner needs Node 22 or newer.
 5. For `dsh web` on a server: does the process token survive a restart? Is there a password or other persistent login? How does a reverse-proxy mount work with the token and the secure cookie? DS Bot's Docker setup was not read in detail.
 6. After connecting, who sends the resident's first message? That change would be in the resident repository.
-7. How does the shell list residents? The earlier plugin's bridge had a `residents` action; the matching resident route was not found in `/web/` routes read here.
+7. (Answered) The resident lists its residents at `GET /web/residents`; the shell uses it for the left column.
 8. Which Kiroween categories does this entry go in? Confirm before the look is described as a costume entry.
 9. Is it acceptable that the web key is stored on the owner's machine (in DSH's credential store)? The resident has no narrower credential.
 10. How does DSH load a theme or skin from a separate plugin (DS Bot's `installTheme()`)?
 11. How does the shell get the runner? It is not on npm and is not published without the owner's say-so. Choices: publish it, or vendor it into the plugin package.
-12. The runner has no machine-readable status. Add `aelios-runner status --json`? (A small change in `packages/runner`.)
+12. `aelios-runner status` already prints JSON (`paired`, `revoked`, ...). The shell reads it. What is missing is a stable exit code for "revoked" and "locked"; the shell reads the lock message and the status instead.
 13. Real DSH has not been connected to the runner yet (the runner README says so). The default helper is untested against the real thing.
-14. May the resident's design be followed closely while its front end is AGPL-3.0 and this repository is MIT? The owner of both should say.
