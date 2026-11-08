@@ -14,3 +14,6 @@ export function tabCounts({ waiting, threads, alarms } = {}) {
     alarms: { n: alarms?.on === false ? 0 : (alarms?.alarms || []).filter((a) => a?.next).length, hot: false },
   };
 }
+
+/** What a working thread on the machine did last (the resident keeps its last steps), or "". */
+export const stepNow = (item) => (Array.isArray(item?.steps) ? String(item.steps.at(-1)?.title || "") : "");

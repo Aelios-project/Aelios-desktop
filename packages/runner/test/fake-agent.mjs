@@ -36,6 +36,14 @@ async function prompt(id, params) {
   store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd, blocks: params.prompt }));
   chunk(sessionId, "starting. ");
   send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "look around", kind: "read" } } });
+  if (text.includes("STEPSME")) { // several tool calls: a command with a secret and file contents in its input, two edits, a read
+    const call = (n, update) => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "s" + n, ...update } } });
+    call(1, { title: "Run tests", kind: "execute", rawInput: { command: "npm test --token=abc123456789", stdin: "FILE BODY SECRET" } });
+    call(2, { title: "Edit a", kind: "edit", locations: [{ path: (session?.cwd ?? "") + "/src/a.js" }], rawInput: { new_string: "FILE BODY SECRET" } });
+    call(3, { title: "Edit b", kind: "edit", locations: [{ path: (session?.cwd ?? "") + "/src/b.js" }] });
+    call(4, { title: "Read c", kind: "read", locations: [{ path: (session?.cwd ?? "") + "/c.md" }] });
+    await sleep(100);
+  }
   if (text.includes("CRASH")) process.exit(3);
   if (text.includes("SLOW")) {
     chunk(sessionId, "partial work");

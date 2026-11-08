@@ -35,6 +35,7 @@ button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-card-time { flex: none; padding-top: 1px; font-size: 11.5px; color: var(--text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ad-card-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ad-card-row .sp { flex: 1; }
+.ad-step { font: 11.5px/1.5 var(--mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-card-more { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2); overflow-wrap: anywhere; }
 .ad-card .ad-hide { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; background: var(--panel-strong); }
 .ad-card:hover .ad-hide, .ad-card:focus-within .ad-hide { opacity: 1; }

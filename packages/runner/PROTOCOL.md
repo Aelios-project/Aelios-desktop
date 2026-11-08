@@ -26,6 +26,7 @@ For the resident `default` the prefix is empty. Otherwise it is `/r/<id>`. Below
 | `POST {P}/runner/v1/heartbeat` | The runner, once per cycle | `Authorization: Bearer <token>` |
 | `POST {P}/runner/v1/poll` | The runner | Same |
 | `POST {P}/runner/v1/receipt` | The runner | Same |
+| `POST {P}/runner/v1/progress` `{workId, token, steps}` -> `{ok}` | The runner, while a turn works: the last steps (see **progress**) | Same |
 | `POST {P}/runner/v1/file` `{workId, key}` -> `{name, type, data}` | The runner, to fetch a picture or file that came with a message (`data` is base64, at most 4 MB of bytes) | Same |
 
 A request body is a JSON object, at most 16 KB. On error the response is `{error, code}` plus a status code.
@@ -47,6 +48,20 @@ How many runners a resident may have is decided by the cloud. The runner knows o
 ```
 
 `label` is optional: the computer's name (macOS: the Computer Name; elsewhere the host name), at most 60 characters. The cloud shows it as the machine's name and updates it when it changes, so a machine paired before names existed gets its name without pairing again. Pairing sends the same name as `label`. A heartbeat with any field other than these three is refused (400). The cloud uses it to decide "online", and to renew the lease (5 minutes) on work the runner holds without a receipt yet. When a lease runs out, the cloud marks that work "state to be confirmed" and **does not send it again**.
+
+## progress
+
+```jsonc
+// request: not a receipt. Sent while a turn works, at most once every 3 seconds. Nothing is queued or sent again.
+{ "workId": "w_…", "token": "wt_…", "steps": [ { "kind": "read", "title": "read src/parser.js" }, { "kind": "run", "title": "ran npm test" } ] }
+// response
+{ "ok": true }            // or { "ok": true, "ignored": true } when that work has already finished
+```
+
+- `steps` is the thread's last steps, at most 10, oldest first; each list replaces the one before. A step has exactly `kind` and `title`; any other field, an unknown kind, an empty title or one over 80 characters is refused (400 `INVALID_PROGRESS`). `kind` is one of `read`, `edit`, `run`, `search`, `fetch`, `think`, `other`.
+- A title says what the helper started doing, on one line: `read src/parser.js`, `ran npm test`, `edited 2 files` (edits in a row are one step). It never holds file contents or command output. The runner takes only a command's own words from the helper's input, hides things that look like keys, tokens or passwords, and replaces the workspace folder.
+- The resident shows the newest three on the thread's card and page while it works, lets its own `find` tool return them, and drops them when the turn's final receipt arrives. A body that carries the runner's token is refused. `workId` and `token` are the work's, as for a receipt (409 `UNKNOWN_WORK` / `INVALID_TOKEN`).
+- The runner needs no answer: a failed or lost send is not repeated, the next list replaces it. An older resident without this address answers 404; the runner ignores it.
 
 ## poll: claim work
 

@@ -50,6 +50,8 @@ export class Cloud {
   heartbeat(body) { return this.#post("heartbeat", body); }
   poll(body) { return this.#post("poll", body); }
   receipt(body) { return this.#post("receipt", body); }
+  /** What a working thread is doing: {workId, token, steps: [{kind, title}]}. Not a receipt: never queued or sent again. */
+  progress(body) { return this.#post("progress", body); }
   /** A picture or file that came with a message: {workId, key} -> {name, type, data (base64)}. */
   file(body) { return this.#post("file", body); }
 }

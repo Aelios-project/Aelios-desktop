@@ -57,6 +57,11 @@ export class FakeCloud {
       const file = this.files?.[body.key];
       return file ? reply(200, { name: file.name, type: file.type, data: Buffer.from(file.bytes).toString("base64") }) : reply(404, { error: "no file", code: "UNKNOWN_FILE" });
     }
+    if (action === "progress") { // not a receipt: the latest steps of a working thread
+      if (JSON.stringify(body).includes(this.deviceToken)) return reply(400, { error: "credential in progress", code: "INVALID_PROGRESS" });
+      (this.progresses ??= []).push(body);
+      return reply(200, { ok: true });
+    }
     if (action === "heartbeat") { this.beats++; (this.beatBodies ??= []).push(body); return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
     if (action === "poll") {
       this.polls.push(body);

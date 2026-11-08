@@ -77,3 +77,10 @@ test("tabs: the waiting count is the accent badge; threads and alarms count plai
   assert.equal(tabCounts().waiting.n, 0);
   assert.deepEqual(PANEL_IDS, ["waiting", "threads", "alarms"]);
 });
+
+test("threads: a working thread on the machine shows its last step", async () => {
+  const { stepNow } = await import("../client/panel-ids.mjs");
+  assert.equal(stepNow({ steps: [{ kind: "read", title: "read a.js" }, { kind: "run", title: "ran npm test" }] }), "ran npm test");
+  assert.equal(stepNow({}), "");
+  assert.equal(stepNow({ steps: [] }), "");
+});

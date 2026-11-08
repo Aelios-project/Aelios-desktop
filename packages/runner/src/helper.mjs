@@ -7,6 +7,7 @@ import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
 import { promptBlocks } from "./inbox.mjs";
 import { reasonOf, reasonOfStart } from "./reason.mjs";
 import { answer } from "./permission.mjs";
+import { StepLog } from "./steps.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
 /** Added to every prompt. How the helper tells the user something; a question mark means nothing. */
@@ -24,12 +25,14 @@ export const CONVENTION = [
 export class Turn {
   /**
    * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
-   *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void}} o
+   *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void,
+   *          onStep?: (steps: {kind: string, title: string}[]) => void}} o
    */
   constructor(o) {
     Object.assign(this, { timeoutMs: 30 * 60_000, killAfterMs: 10_000 }, Object.fromEntries(Object.entries(o).filter(([, value]) => value !== undefined)));
     this.cancelled = false; this.timedOut = false; this.collecting = false;
     this.current = ""; this.finished = []; this.denied = []; this.opened = null;
+    this.stepLog = this.onStep ? new StepLog({ cwd: this.cwd, redact: this.redact }) : null;
   }
 
   /** Stop this turn. Safe at any moment: before the session exists the turn simply never sends its prompt. */
@@ -46,7 +49,11 @@ export class Turn {
     if (method !== "session/update" || !this.collecting) return; // replayed history while loading is not this turn's
     const update = params.update ?? {};
     if (update.sessionUpdate === "agent_message_chunk" && update.content?.type === "text") this.current += String(update.content.text ?? "");
-    else if (update.sessionUpdate === "tool_call" && this.current.trim()) { this.finished.push(this.current); this.current = ""; }
+    else if (update.sessionUpdate === "tool_call") {
+      if (this.current.trim()) { this.finished.push(this.current); this.current = ""; }
+      const steps = this.stepLog?.add(update);
+      if (steps) this.onStep(steps);
+    }
   }
 
   async #request(method, params) {

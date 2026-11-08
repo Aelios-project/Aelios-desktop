@@ -4,6 +4,7 @@
 import { createElement as h, useEffect, useState } from "react";
 import { Icon } from "./icons.mjs";
 import { Empty, Explained } from "./info.mjs";
+import { stepNow } from "./panel-ids.mjs";
 import { usePoll } from "./poll.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -30,6 +31,7 @@ function Row({ item, t, local, unread = 0, onOpen }) {
       pending > 0 && h("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, h(Icon, { name: "shield" }), pending),
       h("span", { className: "sp" }),
       h("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, h(Icon, { name: "stack" }), item.tasks)),
+    isWorking(item) && stepNow(item) && h("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
     isWorking(item) && h("span", { className: "ad-track", "aria-hidden": true }, h("span")));
 }
 

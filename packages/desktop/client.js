@@ -3284,6 +3284,7 @@ function tabCounts({ waiting, threads, alarms } = {}) {
     alarms: { n: alarms?.on === false ? 0 : (alarms?.alarms || []).filter((a) => a?.next).length, hot: false }
   };
 }
+var stepNow = (item) => Array.isArray(item?.steps) ? String(item.steps.at(-1)?.title || "") : "";
 
 // client/panels.mjs
 var import_react31 = require("react");
@@ -3672,6 +3673,7 @@ function Row2({ item, t, local, unread = 0, onOpen }) {
       (0, import_react29.createElement)("span", { className: "sp" }),
       (0, import_react29.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react29.createElement)(Icon, { name: "stack" }), item.tasks)
     ),
+    isWorking(item) && stepNow(item) && (0, import_react29.createElement)("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
     isWorking(item) && (0, import_react29.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react29.createElement)("span"))
   );
 }
@@ -4238,6 +4240,7 @@ button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-card-time { flex: none; padding-top: 1px; font-size: 11.5px; color: var(--text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ad-card-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ad-card-row .sp { flex: 1; }
+.ad-step { font: 11.5px/1.5 var(--mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-card-more { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2); overflow-wrap: anywhere; }
 .ad-card .ad-hide { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; background: var(--panel-strong); }
 .ad-card:hover .ad-hide, .ad-card:focus-within .ad-hide { opacity: 1; }

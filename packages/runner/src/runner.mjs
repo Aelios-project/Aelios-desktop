@@ -6,6 +6,7 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { Cloud, CloudError } from "./cloud.mjs";
 import { Turn } from "./helper.mjs";
 import { readAttachments, saveAttachments } from "./inbox.mjs";
+import { Progress } from "./steps.mjs";
 import { computerName } from "./machine-name.mjs";
 import { workspaceDenied } from "./reason.mjs";
 import { launchOf } from "./plugins.mjs";
@@ -180,8 +181,9 @@ export class Runner {
     const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
+    const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
     const turn = new Turn({
-      files, launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
+      files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped)),
       onSession: async (sessionId, how) => {
@@ -193,7 +195,8 @@ export class Runner {
     });
     this.live.turn = turn;
     if (this.live.pendingCancel || this.shuttingDown) turn.cancel();
-    let outcome = await turn.run();
+    let outcome;
+    try { outcome = await turn.run(); } finally { progress.close(); }
     if (this.shuttingDown && outcome.status === "cancelled") {
       outcome = { ...outcome, status: "needs_you", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically.", ask: { key: "stopped:" + work.workId, question: "The runner was stopped and this turn did not finish. Do it again?" } };
     }
