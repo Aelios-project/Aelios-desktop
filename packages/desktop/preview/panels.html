@@ -11,8 +11,8 @@
   .frame-bar { display: flex; gap: 8px; align-items: center; padding: 8px 14px; font-size: 12px; color: #7f85b0; border-bottom: 1px solid rgba(148,163,255,.12); }
   .frame-bar b { color: #eef0ff; font-weight: 600; }
   .frame-bar a { margin-left: auto; color: #9aa0c8; text-decoration: none; border: 1px solid rgba(148,163,255,.16); border-radius: 8px; padding: 2px 8px; }
-  .stage { flex: 1; display: flex; gap: 18px; padding: 18px; align-items: stretch; }
-  .stage > .ad-right { flex: none; width: 352px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
+  .stage { flex: 1; display: flex; flex-wrap: wrap; gap: 18px; padding: 18px; align-items: flex-start; align-content: flex-start; }
+  .stage > .ad-right { flex: none; width: 340px; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); }
   .stage > .ad-root { position: relative; }
 </style>
 </head>
@@ -48,6 +48,7 @@
       <div class="ad-tabs" role="tablist">
         <button type="button" role="tab" class="ad-tab" ${title === "Waiting" ? 'aria-selected="true"' : ""}>Waiting ${badge ? '<span class="ad-badge">2</span>' : ""}</button>
         <button type="button" role="tab" class="ad-tab" ${title === "Threads" ? 'aria-selected="true"' : ""}>Threads</button>
+        <button type="button" role="tab" class="ad-tab" ${title === "Me" ? 'aria-selected="true"' : ""}>Me</button>
         <button type="button" role="tab" class="ad-tab" ${title === "Board" ? 'aria-selected="true"' : ""}>Board</button>
         <button type="button" role="tab" class="ad-tab">Tools</button>
       </div>
@@ -92,6 +93,25 @@
         <button type="button" class="ad-round" aria-label="Send to it">${send}</button></div>
     </div>`;
 
+
+  const me = `
+    <div class="ad-panel">
+      <div class="ad-me-head"><span class="ad-avatar" aria-hidden="true"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Crect width='96' height='96' fill='%23241c42'/%3E%3Ccircle cx='48' cy='38' r='17' fill='%23F6DDAE'/%3E%3Cpath d='M18 96c6-20 17-30 30-30s24 10 30 30z' fill='%23F6DDAE'/%3E%3C/svg%3E" alt=""></span>
+        <div><b>Aster</b><span class="ad-sub">default</span></div></div>
+      <p class="ad-me-line"><span>Model</span><code>auto/gpt-6.1-terra</code></p>
+      <div class="ad-me-block">
+        <label class="ad-me-label" for="ad-persona">Persona</label>
+        <textarea id="ad-persona" class="ad-me-text" rows="6">A quiet resident who keeps the days in order and says less than it knows.</textarea>
+        <div class="ad-links"><button type="button" class="ad-btn small" disabled>Save the persona</button></div>
+      </div>
+      <div class="ad-me-block">
+        <p class="ad-me-label">Runner</p>
+        <p class="ad-me-state s-unpaired">runner not paired</p>
+        <p class="ad-hint">The runner is the helper on this machine. Without a pairing the resident cannot hand it work; the chat itself keeps working.</p>
+        <div class="ad-links"><button type="button" class="ad-btn quiet small">Pair it again</button><button type="button" class="ad-btn quiet small">Start runner</button><button type="button" class="ad-btn quiet small">Disconnect</button></div>
+      </div>
+    </div>`;
+
   const board = `
     <div class="ad-panel">
       <div class="ad-slot"><span class="ad-slot-mark">${gear}</span><span>Left open for the next slice</span></div>
@@ -103,7 +123,7 @@
 
   const stage = document.getElementById("stage");
   const panel = (title, body, badge) => `<aside class="ad-right" aria-label="${title}">${head(title, badge)}${body}</aside>`;
-  stage.innerHTML = [panel("Threads", threads), panel("Threads", thread), panel("Board", board)].join("") + `<aside class="ad-right" aria-label="Tools">${head("Tools")}${tools}</aside>`;
+  stage.innerHTML = [panel("Threads", threads), panel("Threads", thread), panel("Me", me), panel("Board", board)].join("") + `<aside class="ad-right" aria-label="Tools">${head("Tools")}${tools}</aside>`;
 
   const bar = document.querySelector(".frame-bar");
   const dark = wanted !== "light";

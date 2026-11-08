@@ -19,6 +19,13 @@ export function makeRoute(deps) {
     status,
     async connect(input) { await connect(input, deps); return status(); },
     async disconnect() { await disconnect(deps); return status(); },
+    async repair() {
+      const c = await store.get();
+      if (!c) throw new ProxyError("not connected", 409);
+      // Pairing again with what was saved: the runner keeps its own device, and a stale one is unpaired first.
+      await connect({ url: c.url, key: c.key, helper: c.plugin, access: c.access, workspace: c.workspace, resident: c.resident, confirmFull: true }, deps);
+      return status();
+    },
     async start() { supervisor.start(); return status(); },
     async stop() { await supervisor.stop(); return status(); },
     async select({ resident }) {

@@ -2,6 +2,7 @@
 import { createElement as h } from "react";
 import { Icon } from "./icons.mjs";
 import { PANEL_IDS } from "./panel-ids.mjs";
+import { MePanel } from "./panel-me.mjs";
 import { WaitingPanel } from "./panel-waiting.mjs";
 import { ThreadsPanel } from "./panel-threads.mjs";
 import { words } from "./strings.mjs";
@@ -16,6 +17,6 @@ function Empty({ id }) {
       h("span", null, words().soon)));
 }
 
-const DRAW = { waiting: WaitingPanel, threads: ThreadsPanel };
+const DRAW = { waiting: WaitingPanel, threads: ThreadsPanel, me: MePanel };
 
 export const PANELS = PANEL_IDS.map((id) => ({ id, render: () => (DRAW[id] ? h(DRAW[id]) : h(Empty, { id })) }));

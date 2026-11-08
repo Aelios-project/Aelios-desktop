@@ -4,6 +4,7 @@ import { createElement as h, useEffect, useRef, useState } from "react";
 import { createMessages, web, call } from "./api.mjs";
 import { MAX_PICTURES, readPicture, roomFor } from "./attach.mjs";
 import { Icon } from "./icons.mjs";
+import { Face } from "./face.mjs";
 import { Message } from "./message.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -78,7 +79,7 @@ export function Chat() {
   return h("section", { className: "ad-main" },
     h("div", { className: "ad-top" },
       h("div", { className: "ad-ident" },
-        h("span", { className: "ad-avatar", "aria-hidden": true }, name.slice(0, 1)),
+        h(Face, { resident: residents.find((r) => r.id === resident) || { id: resident, name } , base: status?.url }),
         h("div", { className: "ad-who" }, h("span", { className: "ad-name" }, name), state && h("span", { className: "ad-status" }, state))),
       h("div", { className: "ad-act" },
         down && h("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),

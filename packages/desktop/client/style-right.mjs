@@ -41,6 +41,20 @@ button.ad-trow:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-say textarea { flex: 1; min-width: 0; min-height: 40px; max-height: 30vh; padding: 9px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
 .ad-say textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-say .ad-round { width: 40px; height: 40px; }
+.ad-me-head { display: flex; align-items: center; gap: 10px; }
+.ad-me-head .ad-avatar { width: 44px; height: 44px; }
+.ad-me-head b { display: block; font-size: 15px; font-weight: 600; }
+.ad-me-head .ad-sub { font-size: 12px; color: var(--text-4); }
+.ad-me-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; font-size: 12px; color: var(--text-3); }
+.ad-me-line code { padding: 2px 8px; border-radius: 8px; background: var(--line-soft); font-family: var(--mono); font-size: 11.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.ad-me-block { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); }
+.ad-me-label { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--text-4); }
+.ad-me-text { width: 100%; min-height: 96px; max-height: 40vh; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--input-bg); outline: 0; resize: vertical; font-size: 13px; line-height: 1.6; }
+.ad-me-text:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ad-me-state { margin: 0; font-size: 13px; color: var(--text-2); }
+.ad-me-state.s-running { color: var(--ok-text); }
+.ad-me-state.s-unpaired, .ad-me-state.s-locked, .ad-me-state.s-revoked { color: var(--accent-text); }
+.ad-me-state.s-crashed { color: var(--err-text); }
 .ad-slot { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 16px; text-align: center; color: var(--text-4); font-size: 13px; line-height: 1.7; }
 .ad-slot .ad-slot-mark { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; border: 1px dashed var(--line-dash); color: var(--text-3); }
 .ad-slot .ad-slot-mark svg { width: 18px; height: 18px; }

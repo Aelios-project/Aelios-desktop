@@ -3,6 +3,7 @@
 // Drawn like Aelios-resident's wide-screen rail (styles in style-rail.mjs).
 import { createElement as h, useEffect } from "react";
 import { call, web } from "./api.mjs";
+import { Face } from "./face.mjs";
 import { Icon } from "./icons.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -42,11 +43,11 @@ export function Left({ onBack }) {
     h("div", { className: "ad-rail-head" },
       h("span", { className: "ad-rail-brand" }, h("span", { className: "ad-rail-mark", "aria-hidden": true }, "✦"), t.residents)),
     h("button", { type: "button", className: "ad-current on", title: current.name, onClick: () => pick(current.id) },
-      h("span", { className: "ad-avatar", "aria-hidden": true }, (current.name || current.id).slice(0, 1)),
+      h(Face, { resident: current, base: status?.url }),
       h("span", { className: "ad-name" }, current.name || current.id),
       h("span", { className: "ad-tag" }, status?.runner?.state ? (t.runner[status.runner.state] || status.runner.state) : t.title)),
     others.map((r) => h("button", { key: r.id, type: "button", className: "ad-rail-item", title: r.name, onClick: () => pick(r.id) },
-      h("span", { className: "ad-avatar", "aria-hidden": true }, (r.name || r.id).slice(0, 1)),
+      h(Face, { resident: r, base: status?.url }),
       h("span", { className: "ad-txt" }, h("span", { className: "ad-label" }, r.name || r.id)))),
     rows.length > 0 && h("div", { className: "ad-usage" },
       h("p", { className: "ad-group-title" }, t.usage),
