@@ -7,6 +7,7 @@ import { Cloud, CloudError } from "./cloud.mjs";
 import { Turn } from "./helper.mjs";
 import { readAttachments, saveAttachments } from "./inbox.mjs";
 import { computerName } from "./machine-name.mjs";
+import { workspaceDenied } from "./reason.mjs";
 import { launchOf } from "./plugins.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
@@ -104,7 +105,7 @@ export class Runner {
     const identifiable = raw && typeof raw === "object" && ID.test(raw.workId ?? "") && typeof raw.token === "string" && raw.token.length <= 200;
     if (!this.#valid(raw)) {
       this.log("work refused", raw?.workId);
-      await this.#queueReceipts(identifiable ? [this.#receipt(raw, "final", { status: "failed", summary: "The runner could not read this message (bad format) and did not run it." })] : [], state => { state.claimKey = null; });
+      await this.#queueReceipts(identifiable ? [this.#receipt(raw, "final", { status: "failed", reason: "error", summary: "The runner could not read this message (bad format) and did not run it." })] : [], state => { state.claimKey = null; });
       return;
     }
     // Only what the protocol names is kept; anything else the cloud sent (a folder, a command, a helper) is dropped here.
@@ -167,7 +168,14 @@ export class Runner {
     this.journal?.turn(work);
     const record = state.threads[work.thread];
     let cwd = record?.cwd;
-    if (!cwd) { mkdirSync(this.config.workspace, { recursive: true }); cwd = realpathSync(this.config.workspace); }
+    if (!cwd) {
+      try { mkdirSync(this.config.workspace, { recursive: true }); cwd = realpathSync(this.config.workspace); }
+      catch (error) {
+        if (!workspaceDenied(error)) throw error;
+        this.journal?.end(work, "failed", "workspace");
+        return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "workspace_denied", summary: "The runner could not use its workspace folder. Check that the folder exists and this user may write to it." })]);
+      }
+    }
     const tier = lowest(tierOf(this.config.access) ?? "read", work.access ?? this.config.access ?? "read");
     const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
@@ -189,7 +197,7 @@ export class Runner {
     if (this.shuttingDown && outcome.status === "cancelled") {
       outcome = { ...outcome, status: "needs_you", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically.", ask: { key: "stopped:" + work.workId, question: "The runner was stopped and this turn did not finish. Do it again?" } };
     }
-    const receipt = { status: outcome.status, summary: outcome.summary || "(no content)" };
+    const receipt = { status: outcome.status, summary: outcome.summary || "(no content)", ...(outcome.status === "failed" && outcome.reason ? { reason: outcome.reason } : {}) };
     await this.state.update(s => {
       if (outcome.status === "needs_you" && outcome.ask) remember(s, work.thread, outcome.ask.key);
       const entry = s.threads[work.thread];

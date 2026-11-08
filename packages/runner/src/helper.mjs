@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { AcpClosed, AcpConnection, AcpError, PROTOCOL_VERSION } from "./acp.mjs";
 import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
 import { promptBlocks } from "./inbox.mjs";
+import { reasonOf, reasonOfStart } from "./reason.mjs";
 import { answer } from "./permission.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
@@ -94,10 +95,10 @@ export class Turn {
       if (this.cancelled && !this.timedOut) return this.#cancelled(how);
       if (this.timedOut) return this.#stuck(how, "The helper did not finish within the time limit and was stopped.");
       if (error instanceof AcpClosed) {
-        if (!this.opened) return { status: "failed", summary: this.redact(`The helper could not start or connect: ${error.message} ${stderrNote()}`), sessionId: null, how };
+        if (!this.opened) return { status: "failed", summary: this.redact(`The helper could not start or connect: ${error.message} ${stderrNote()}`), reason: reasonOfStart(error, this.conn.stderr), sessionId: null, how };
         return this.#stuck(how, `The helper process died in the middle of the turn (${this.redact(error.message)}). It will not be redone automatically. ${stderrNote()}`.trim());
       }
-      return { status: "failed", summary: this.redact(`The helper reported an error: ${error.message}`), sessionId: this.opened, how };
+      return { status: "failed", summary: this.redact(`The helper reported an error: ${error.message}`), reason: reasonOf(error.code, error.message), sessionId: this.opened, how };
     } finally {
       clearTimeout(this.timer); clearTimeout(this.killTimer);
       await this.conn.close();
@@ -136,7 +137,7 @@ export class Turn {
     const said = lastMarker(final);
     if (said?.kind === "blocked") {
       const reason = this.redact(said.text || "(no reason given)");
-      return { ...base, status: "failed", summary: `Blocked: ${reason}${said.body ? "\n\n" + this.redact(said.body) : ""}` };
+      return { ...base, status: "failed", reason: "error", summary: `Blocked: ${reason}${said.body ? "\n\n" + this.redact(said.body) : ""}` };
     }
     if (said?.kind === "ask") {
       const question = this.redact(said.text || "(the helper wants you to decide, but wrote no question)");

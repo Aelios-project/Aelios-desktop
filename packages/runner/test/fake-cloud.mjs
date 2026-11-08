@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 
+import { REASONS } from "../src/reason.mjs";
 const STATUSES = ["done", "failed", "needs_you", "cancelled"];
 
 export class FakeCloud {
@@ -75,6 +76,7 @@ export class FakeCloud {
       if (!["started", "queued", "final"].includes(body.type) || body.receiptId !== `${body.workId}:${body.type}`) return reply(400, { error: "type", code: "INVALID_RECEIPT" });
       if (body.type === "final") {
         if (!STATUSES.includes(body.status) || typeof body.summary !== "string" || body.summary.length > 4000) return reply(400, { error: "final", code: "INVALID_RECEIPT" });
+        if (body.reason !== undefined && (body.status !== "failed" || !REASONS.includes(body.reason))) return reply(400, { error: "reason", code: "INVALID_RECEIPT" });
         if (body.status === "needs_you" && !body.ask?.key) return reply(400, { error: "ask", code: "INVALID_RECEIPT" });
       }
       const fingerprint = JSON.stringify(body);
