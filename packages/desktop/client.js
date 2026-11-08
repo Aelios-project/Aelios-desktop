@@ -137,6 +137,8 @@ var PATHS = {
   panel: "M4 5h16v14H4zM15 5v14",
   grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   plus: "M12 5v14M5 12h14",
+  sticker: "M12 3.5a8.5 8.5 0 1 0 0 17c.8 0 1.6-.1 2.3-.4l5.2 1.4-1.4-5.2c.3-.7.4-1.5.4-2.3a8.5 8.5 0 0 0-8.5-8.5zM9 9.5h.01M15 9.5h.01M8.5 14.5c1.6 1.8 5 1.8 7 0",
+  mic: "M12 4a3 3 0 0 1 3 3v4a3 3 0 0 1-6 0V7a3 3 0 0 1 3-3zM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21",
   wrench: "M14.5 6a4 4 0 1 0 3.8 6.2L21 15l-1.8 1.8-2.8-2.7A4 4 0 0 0 14.5 6z"
 };
 var Icon = ({ name }) => (0, import_react.createElement)(
@@ -161,6 +163,18 @@ function Face({ resident, base, className = "" }) {
   const name = resident?.name || resident?.id || "";
   const src = avatarUrl(base, resident?.avatar);
   return (0, import_react2.createElement)("span", { className: `ad-avatar${className}`, "aria-hidden": true }, src ? (0, import_react2.createElement)("img", { src, alt: "" }) : name.slice(0, 1));
+}
+
+// client/media.mjs
+var residentPrefix = (resident) => resident && resident !== "default" ? `/r/${resident}` : "";
+var stickerSrc = (base, resident, key) => `${String(base || "").replace(/\/+$/, "")}${residentPrefix(resident)}/stickers/${key}`;
+function pickerPacks(packs = []) {
+  return packs.filter((pack) => pack && pack.enabled && Array.isArray(pack.stickers) && pack.stickers.length > 0).map((pack) => ({ id: pack.id, name: pack.name || "", stickers: pack.stickers }));
+}
+function voiceLength(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "";
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
 // client/message.mjs
@@ -543,6 +557,13 @@ var WORDS = {
     usage: "Usage",
     alarms: "Alarms",
     search: "Search the conversation",
+    stickers: "Stickers",
+    voice: "Record a voice note",
+    play: "Play it",
+    stopPlay: "Stop",
+    missed: "did not hear it",
+    recording: "Recording… tap to send",
+    noStickers: "No sticker packs are on.",
     searchHint: "Find a message",
     noHits: "No message has that.",
     around: "Showing one message from the search",
@@ -613,6 +634,13 @@ var WORDS = {
     usage: "用量",
     alarms: "闹钟",
     search: "搜聊天记录",
+    stickers: "表情包",
+    voice: "录一段语音",
+    play: "听",
+    stopPlay: "停下",
+    missed: "没听清",
+    recording: "在录…再点一下发出",
+    noStickers: "没开表情包。",
     searchHint: "找一句话",
     noHits: "没有哪条消息有这句。",
     around: "这是搜索结果里的那段",
@@ -748,6 +776,47 @@ function Files({ files, resident }) {
     file.size ? (0, import_react4.createElement)("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null
   )));
 }
+function Voice({ voice, resident }) {
+  const t = words();
+  const [playing, setPlaying] = (0, import_react4.useState)(false);
+  const audio = (0, import_react4.useRef)(null);
+  const flip = async () => {
+    if (!voice?.key) return;
+    if (playing) {
+      audio.current?.pause();
+      setPlaying(false);
+      return;
+    }
+    try {
+      const url = await blobUrl(`/web/media?key=${encodeURIComponent(voice.key)}`, { resident });
+      if (!audio.current) audio.current = new Audio(url);
+      audio.current.src = url;
+      audio.current.onended = () => setPlaying(false);
+      audio.current.onerror = () => setPlaying(false);
+      await audio.current.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
+  };
+  return (0, import_react4.createElement)(
+    "div",
+    { className: "ad-voice" },
+    (0, import_react4.createElement)(
+      "button",
+      { type: "button", className: "ad-voice-play", onClick: flip, "aria-label": playing ? t.stopPlay : t.play, title: playing ? t.stopPlay : t.play },
+      playing ? (0, import_react4.createElement)("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true }, (0, import_react4.createElement)("rect", { x: 6, y: 5, width: 4, height: 14, rx: 1 }), (0, import_react4.createElement)("rect", { x: 14, y: 5, width: 4, height: 14, rx: 1 })) : (0, import_react4.createElement)("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true }, (0, import_react4.createElement)("path", { d: "M7 4.5v15l13-7.5z" }))
+    ),
+    (0, import_react4.createElement)("span", { className: "len" }, voice.missed ? t.missed : voiceLength(voice.seconds))
+  );
+}
+function Stickers({ stickers }) {
+  return (0, import_react4.createElement)("div", { className: "ad-stickers" }, stickers.map((sticker) => (0, import_react4.createElement)(
+    "div",
+    { key: sticker.url, className: "ad-sticker" },
+    sticker.video ? (0, import_react4.createElement)("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": "sticker" }) : (0, import_react4.createElement)("img", { src: sticker.url, alt: "", loading: "lazy" })
+  )));
+}
 function Message({ line, resident }) {
   const busy = busyOf(line);
   const me = line.role === "user";
@@ -764,7 +833,9 @@ function Message({ line, resident }) {
       me ? text : (0, import_react4.createElement)(Md, { text }),
       i === bubbles.length - 1 && (0, import_react4.createElement)("span", { className: "ad-meta" }, clock(line.at))
     )),
-    (line.files ?? []).length > 0 && (0, import_react4.createElement)(Files, { files: line.files, resident })
+    (line.files ?? []).length > 0 && (0, import_react4.createElement)(Files, { files: line.files, resident }),
+    line.voice && (line.voice.key || line.voice.missed) && (0, import_react4.createElement)(Voice, { voice: line.voice, resident }),
+    (line.stickers ?? []).length > 0 && (0, import_react4.createElement)(Stickers, { stickers: line.stickers })
   );
 }
 
@@ -816,7 +887,11 @@ function Chat() {
   const [lines, setLines] = (0, import_react6.useState)([]);
   const [text, setText] = (0, import_react6.useState)("");
   const [pics, setPics] = (0, import_react6.useState)([]);
+  const [packs, setPacks] = (0, import_react6.useState)(null);
+  const [openPicker, setOpenPicker] = (0, import_react6.useState)(false);
+  const [recording, setRecording] = (0, import_react6.useState)(false);
   const picker = (0, import_react6.useRef)(null);
+  const recorder = (0, import_react6.useRef)(null);
   const [busy, setBusy] = (0, import_react6.useState)(false);
   const [error, setError] = (0, import_react6.useState)("");
   const end = (0, import_react6.useRef)(null);
@@ -859,6 +934,61 @@ function Chat() {
       setError(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+  const say = (body) => web("/web/say", { method: "POST", body, resident });
+  async function openStickers() {
+    setOpenPicker((was) => !was);
+    if (packs) return;
+    try {
+      setPacks(pickerPacks((await web("/web/stickers", { resident }))?.packs));
+    } catch {
+      setPacks([]);
+    }
+  }
+  async function sendSticker(key) {
+    setOpenPicker(false);
+    try {
+      await say({ sticker: key });
+      reader.current = createMessages((path) => web(path, { resident }));
+      await refresh();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function toggleRecording() {
+    if (recording) {
+      recorder.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const type = typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm") ? { mimeType: "audio/webm" } : void 0;
+      const tap = new MediaRecorder(stream, type);
+      const chunks = [];
+      tap.ondataavailable = (e) => {
+        if (e.data.size) chunks.push(e.data);
+      };
+      tap.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: tap.mimeType || "audio/webm" });
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+        try {
+          await say({ voice: { data: btoa(binary) } });
+          reader.current = createMessages((path) => web(path, { resident }));
+          await refresh();
+        } catch (e) {
+          setError(e.message);
+        }
+      };
+      tap.start();
+      recorder.current = tap;
+      setRecording(true);
+    } catch (e) {
+      setError(e.message);
     }
   }
   async function attach(event) {
@@ -927,11 +1057,27 @@ function Chat() {
         (0, import_react6.createElement)("img", { src: pic.url, alt: "" }),
         (0, import_react6.createElement)("button", { type: "button", className: "ad-x", "aria-label": t.remove, title: t.remove, onClick: () => setPics((was) => was.filter((_, at) => at !== i)) }, (0, import_react6.createElement)(Icon, { name: "close" }))
       ))),
+      openPicker && (0, import_react6.createElement)(
+        "div",
+        { className: "ad-picker" },
+        packs === null ? (0, import_react6.createElement)("p", { className: "ad-hint" }, "…") : packs.length === 0 ? (0, import_react6.createElement)("p", { className: "ad-hint" }, t.noStickers) : packs.map((pack) => (0, import_react6.createElement)(
+          "div",
+          { key: pack.id, className: "ad-pack" },
+          (0, import_react6.createElement)("p", { className: "ad-group-title" }, pack.name),
+          (0, import_react6.createElement)("div", { className: "ad-pack-grid" }, pack.stickers.map((sticker) => (0, import_react6.createElement)(
+            "button",
+            { key: sticker.key, type: "button", title: sticker.name || "", onClick: () => sendSticker(sticker.key) },
+            sticker.video ? (0, import_react6.createElement)("video", { src: stickerSrc(status?.url, resident, sticker.key), autoPlay: true, loop: true, muted: true, playsInline: true }) : (0, import_react6.createElement)("img", { src: stickerSrc(status?.url, resident, sticker.key), alt: sticker.name || "" })
+          )))
+        ))
+      ),
       (0, import_react6.createElement)(
         "div",
         { className: "ad-bar" },
         (0, import_react6.createElement)("input", { ref: picker, type: "file", accept: "image/*", multiple: true, hidden: true, onChange: attach }),
         (0, import_react6.createElement)("button", { className: "ad-round quiet", type: "button", title: t.attach, "aria-label": t.attach, onClick: () => picker.current?.click() }, (0, import_react6.createElement)(Icon, { name: "plus" })),
+        (0, import_react6.createElement)("button", { className: `ad-round quiet${openPicker ? " on" : ""}`, type: "button", title: t.stickers, "aria-label": t.stickers, onClick: openStickers }, (0, import_react6.createElement)(Icon, { name: "sticker" })),
+        (0, import_react6.createElement)("button", { className: `ad-round quiet${recording ? " rec" : ""}`, type: "button", title: recording ? t.recording : t.voice, "aria-label": recording ? t.recording : t.voice, onClick: toggleRecording }, (0, import_react6.createElement)(Icon, { name: "mic" })),
         (0, import_react6.createElement)(
           "div",
           { className: "ad-field" },
@@ -1751,6 +1897,24 @@ var CHAT = `
 .ad-thumbs img { width: 100%; height: 100%; object-fit: cover; }
 .ad-thumbs .ad-x { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; display: grid; place-items: center; }
 .ad-thumbs .ad-x svg { width: 11px; height: 11px; }
+.ad-voice { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 7px; border-radius: 18px 18px 18px 6px; border: 1px solid var(--line); background: var(--panel); }
+.ad-row.me .ad-voice { background: var(--mine); border-color: var(--mine-line); border-radius: 18px 18px 6px 18px; }
+.ad-voice-play { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--violet); color: #fff; }
+.ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
+.ad-voice-play svg { width: 14px; height: 14px; }
+.ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
+.ad-sticker img, .ad-sticker video { display: block; width: 120px; height: auto; image-rendering: pixelated; }
+.ad-picker { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; margin: 0 0 8px; padding: 8px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
+.ad-picker .ad-group-title { margin: 0 4px; }
+.ad-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.ad-pack-grid button { aspect-ratio: 1; padding: 6px; border: 0; border-radius: 12px; background: var(--panel); display: grid; place-items: center; }
+.ad-pack-grid button:hover { background: var(--accent-soft); }
+.ad-pack-grid img, .ad-pack-grid video { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+.ad-round.on { background: var(--accent-soft); color: var(--accent-text); }
+.ad-round.rec { background: var(--err); color: #fff; animation: ad-pulse 1.4s infinite ease-in-out; }
+@keyframes ad-pulse { 50% { opacity: .55; } }
 .ad-typing { display: inline-flex; gap: 4px; padding: 3px 2px; }
 .ad-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); animation: ad-bounce 1.2s infinite ease-in-out; }
 .ad-typing span:nth-child(2) { animation-delay: .15s; } .ad-typing span:nth-child(3) { animation-delay: .3s; }

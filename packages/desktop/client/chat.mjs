@@ -5,6 +5,7 @@ import { createMessages, web, call } from "./api.mjs";
 import { MAX_PICTURES, readPicture, roomFor } from "./attach.mjs";
 import { Icon } from "./icons.mjs";
 import { Face } from "./face.mjs";
+import { pickerPacks, stickerSrc } from "./media.mjs";
 import { Message } from "./message.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -19,7 +20,11 @@ export function Chat() {
   const [lines, setLines] = useState([]);
   const [text, setText] = useState("");
   const [pics, setPics] = useState([]);
+  const [packs, setPacks] = useState(null);
+  const [openPicker, setOpenPicker] = useState(false);
+  const [recording, setRecording] = useState(false);
   const picker = useRef(null);
+  const recorder = useRef(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const end = useRef(null);
@@ -59,6 +64,42 @@ export function Chat() {
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
 
+  const say = (body) => web("/web/say", { method: "POST", body, resident });
+
+  async function openStickers() {
+    setOpenPicker((was) => !was);
+    if (packs) return;
+    try { setPacks(pickerPacks((await web("/web/stickers", { resident }))?.packs)); } catch { setPacks([]); }
+  }
+
+  async function sendSticker(key) {
+    setOpenPicker(false);
+    try { await say({ sticker: key }); reader.current = createMessages((path) => web(path, { resident })); await refresh(); } catch (e) { setError(e.message); }
+  }
+
+  async function toggleRecording() {
+    if (recording) { recorder.current?.stop(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const type = typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm") ? { mimeType: "audio/webm" } : undefined;
+      const tap = new MediaRecorder(stream, type);
+      const chunks = [];
+      tap.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      tap.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: tap.mimeType || "audio/webm" });
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        try { await say({ voice: { data: btoa(binary) } }); reader.current = createMessages((path) => web(path, { resident })); await refresh(); } catch (e) { setError(e.message); }
+      };
+      tap.start();
+      recorder.current = tap;
+      setRecording(true);
+    } catch (e) { setError(e.message); }
+  }
+
   async function attach(event) {
     const files = Array.from(event.target.files || []);
     event.target.value = "";
@@ -96,9 +137,20 @@ export function Chat() {
       pics.length > 0 && h("div", { className: "ad-thumbs" }, pics.map((pic, i) => h("div", { key: i },
         h("img", { src: pic.url, alt: "" }),
         h("button", { type: "button", className: "ad-x", "aria-label": t.remove, title: t.remove, onClick: () => setPics((was) => was.filter((_, at) => at !== i)) }, h(Icon, { name: "close" }))))),
+      openPicker && h("div", { className: "ad-picker" },
+        packs === null ? h("p", { className: "ad-hint" }, "…")
+          : packs.length === 0 ? h("p", { className: "ad-hint" }, t.noStickers)
+            : packs.map((pack) => h("div", { key: pack.id, className: "ad-pack" },
+              h("p", { className: "ad-group-title" }, pack.name),
+              h("div", { className: "ad-pack-grid" }, pack.stickers.map((sticker) => h("button", { key: sticker.key, type: "button", title: sticker.name || "", onClick: () => sendSticker(sticker.key) },
+                sticker.video
+                  ? h("video", { src: stickerSrc(status?.url, resident, sticker.key), autoPlay: true, loop: true, muted: true, playsInline: true })
+                  : h("img", { src: stickerSrc(status?.url, resident, sticker.key), alt: sticker.name || "" }))))))),
       h("div", { className: "ad-bar" },
         h("input", { ref: picker, type: "file", accept: "image/*", multiple: true, hidden: true, onChange: attach }),
         h("button", { className: "ad-round quiet", type: "button", title: t.attach, "aria-label": t.attach, onClick: () => picker.current?.click() }, h(Icon, { name: "plus" })),
+        h("button", { className: `ad-round quiet${openPicker ? " on" : ""}`, type: "button", title: t.stickers, "aria-label": t.stickers, onClick: openStickers }, h(Icon, { name: "sticker" })),
+        h("button", { className: `ad-round quiet${recording ? " rec" : ""}`, type: "button", title: recording ? t.recording : t.voice, "aria-label": recording ? t.recording : t.voice, onClick: toggleRecording }, h(Icon, { name: "mic" })),
         h("div", { className: "ad-field" },
           h("textarea", { rows: 1, value: text, placeholder: t.write, "aria-label": t.write, onChange: (e) => setText(e.target.value), onKeyDown: onKey })),
         h("button", { className: "ad-round", type: "button", disabled: busy || (!text.trim() && !pics.length), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" })))));

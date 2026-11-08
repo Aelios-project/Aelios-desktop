@@ -1,11 +1,12 @@
 // One line of the conversation: what it was busy with, the pictures, the words as bubbles, the files it handed over.
 // Follows Aelios-resident's chat rows and cards (AGPL-3.0, same author; main at b118dfb, 2026-11-07); the words and
 // the split of the text come from client/activity.mjs.
-import { createElement as h, useEffect, useState } from "react";
+import { createElement as h, useEffect, useRef, useState } from "react";
 import { blobUrl } from "./api.mjs";
 import { bubbleTexts, busyOf } from "./activity.mjs";
 import { Icon } from "./icons.mjs";
 import { Md } from "./md.mjs";
+import { voiceLength } from "./media.mjs";
 import { words } from "./strings.mjs";
 
 const SPARK = "M12 3.5l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z";
@@ -65,6 +66,40 @@ function Files({ files, resident }) {
     h(Icon, { name: "open" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
 }
 
+/** A voice note: hers, played straight from the resident's media store. */
+function Voice({ voice, resident }) {
+  const t = words();
+  const [playing, setPlaying] = useState(false);
+  const audio = useRef(null);
+  const flip = async () => {
+    if (!voice?.key) return;
+    if (playing) { audio.current?.pause(); setPlaying(false); return; }
+    try {
+      const url = await blobUrl(`/web/media?key=${encodeURIComponent(voice.key)}`, { resident });
+      if (!audio.current) audio.current = new Audio(url);
+      audio.current.src = url;
+      audio.current.onended = () => setPlaying(false);
+      audio.current.onerror = () => setPlaying(false);
+      await audio.current.play();
+      setPlaying(true);
+    } catch { setPlaying(false); }
+  };
+  return h("div", { className: "ad-voice" },
+    h("button", { type: "button", className: "ad-voice-play", onClick: flip, "aria-label": playing ? t.stopPlay : t.play, title: playing ? t.stopPlay : t.play },
+      playing
+        ? h("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true }, h("rect", { x: 6, y: 5, width: 4, height: 14, rx: 1 }), h("rect", { x: 14, y: 5, width: 4, height: 14, rx: 1 }))
+        : h("svg", { viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true }, h("path", { d: "M7 4.5v15l13-7.5z" }))),
+    h("span", { className: "len" }, voice.missed ? t.missed : voiceLength(voice.seconds)));
+}
+
+/** Stickers a reply carried: a still picture, or the short loop it is. */
+function Stickers({ stickers }) {
+  return h("div", { className: "ad-stickers" }, stickers.map((sticker) => h("div", { key: sticker.url, className: "ad-sticker" },
+    sticker.video
+      ? h("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": "sticker" })
+      : h("img", { src: sticker.url, alt: "", loading: "lazy" }))));
+}
+
 export function Message({ line, resident }) {
   const busy = busyOf(line);
   const me = line.role === "user";
@@ -76,5 +111,7 @@ export function Message({ line, resident }) {
     bubbles.map((text, i) => h("div", { key: i, className: `ad-bubble${i === 0 ? " first" : ""}` },
       me ? text : h(Md, { text }),
       i === bubbles.length - 1 && h("span", { className: "ad-meta" }, clock(line.at)))),
-    (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }));
+    (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
+    line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
+    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }));
 }

@@ -73,6 +73,24 @@ export const CHAT = `
 .ad-thumbs img { width: 100%; height: 100%; object-fit: cover; }
 .ad-thumbs .ad-x { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; display: grid; place-items: center; }
 .ad-thumbs .ad-x svg { width: 11px; height: 11px; }
+.ad-voice { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 7px; border-radius: 18px 18px 18px 6px; border: 1px solid var(--line); background: var(--panel); }
+.ad-row.me .ad-voice { background: var(--mine); border-color: var(--mine-line); border-radius: 18px 18px 6px 18px; }
+.ad-voice-play { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--violet); color: #fff; }
+.ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
+.ad-voice-play svg { width: 14px; height: 14px; }
+.ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
+.ad-sticker img, .ad-sticker video { display: block; width: 120px; height: auto; image-rendering: pixelated; }
+.ad-picker { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; margin: 0 0 8px; padding: 8px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
+.ad-picker .ad-group-title { margin: 0 4px; }
+.ad-pack-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.ad-pack-grid button { aspect-ratio: 1; padding: 6px; border: 0; border-radius: 12px; background: var(--panel); display: grid; place-items: center; }
+.ad-pack-grid button:hover { background: var(--accent-soft); }
+.ad-pack-grid img, .ad-pack-grid video { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+.ad-round.on { background: var(--accent-soft); color: var(--accent-text); }
+.ad-round.rec { background: var(--err); color: #fff; animation: ad-pulse 1.4s infinite ease-in-out; }
+@keyframes ad-pulse { 50% { opacity: .55; } }
 .ad-typing { display: inline-flex; gap: 4px; padding: 3px 2px; }
 .ad-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--text-3); animation: ad-bounce 1.2s infinite ease-in-out; }
 .ad-typing span:nth-child(2) { animation-delay: .15s; } .ad-typing span:nth-child(3) { animation-delay: .3s; }
