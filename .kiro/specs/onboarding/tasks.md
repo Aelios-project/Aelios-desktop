@@ -44,7 +44,7 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
 
 - [ ] 7. Changes in other repositories (each its own PR, reviewed before merge)
   - [ ] 7.1 Aelios: a `WorkerEntrypoint` for the resident; resident: the `AELIOS` binding and its use before `fetch`
-  - [ ] 7.2 Decide with the owner: rewire an existing resident to a newly deployed Aelios, or leave it
+  - [x] 7.2 Settled: an existing resident keeps its Aelios; the wizard asks about the resident first and skips Aelios when one exists
   - _Requirements: 3.4_
 
 - [ ] 8. Client cards

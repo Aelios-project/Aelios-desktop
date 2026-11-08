@@ -21,20 +21,27 @@ Out of scope. Boxes. Telegram and other messengers. Deleting cloud resources.
 3. WHEN the shell starts with no saved connection THEN it SHALL open the wizard in place of the connect form.
 4. WHEN the owner closes the window in the middle of the wizard THEN the next start SHALL continue at the same card.
 
-### 2. Aelios: use mine or make one
+### 2. Resident first, then Aelios
 
-1. The first card SHALL ask "Do you already run Aelios?" with two answers.
+A resident works only with Aelios, so a resident that exists already has its Aelios. The wizard asks about the resident first.
+
+1. The first card SHALL ask "Do you already run a resident?" with two answers.
+2. WHEN the owner answers yes THEN the wizard SHALL ask for its address and web key (secret card), check it, read which Aelios it uses from the resident itself, and go straight to the helper card. It SHALL NOT ask for Aelios details and SHALL NOT change the resident's Aelios.
+3. WHEN the owner answers no THEN the wizard SHALL go on to the Aelios card (below), then deploy a resident (requirement 3).
+
+### 2a. Aelios: use mine or make one (only when there is no resident yet)
+
+1. The Aelios card SHALL ask "Do you already run Aelios?" with two answers.
 2. WHEN the owner answers yes THEN the wizard SHALL ask for its address and API key (secret card), call a read-only health check, and go on only when it answers.
 3. WHEN the owner answers no THEN the wizard SHALL start Cloudflare authorization (requirement 4) and then deploy the bundled Aelios (requirement 6).
 4. WHEN Aelios was deployed by the wizard THEN the wizard SHALL show its address and a generated password once, and SHALL ask what the assistant is called.
 5. The generated password SHALL also be stored in DSH credentials, and SHALL NOT be shown again by the shell except by a "generate a new one" action.
 
-### 3. Resident: use mine or make one
+### 3. A new resident
 
-1. The wizard SHALL ask "Do you already run a resident?" with two answers. WHEN yes THEN it SHALL ask for its address and web key (secret card) and check it.
-2. WHEN no THEN the wizard SHALL deploy the bundled resident bound to Aelios (requirement 7) and SHALL show its address and a generated web key once.
-3. WHEN the owner has both THEN the wizard SHALL show only the two secret cards and go to the helper card.
-4. WHEN Aelios is in the same Cloudflare account THEN the resident SHALL reach it through a service binding and SHALL NOT store an Aelios key. Otherwise it SHALL get the Aelios address and key as a variable and a secret.
+1. WHEN the owner has no resident THEN the wizard SHALL deploy the bundled resident bound to the Aelios from requirement 2a (requirement 7) and SHALL show its address and a generated web key once.
+2. There is no path with an existing resident and a new Aelios: a resident never exists without Aelios.
+3. WHEN Aelios is in the same Cloudflare account THEN the resident SHALL reach it through a service binding and SHALL NOT store an Aelios key. Otherwise it SHALL get the Aelios address and key as a variable and a secret.
 
 ### 4. Cloudflare authorization
 
@@ -93,10 +100,10 @@ Out of scope. Boxes. Telegram and other messengers. Deleting cloud resources.
 
 ### 11. Steps (the goal)
 
-1. From an installed plugin to the resident's first line, a returning owner (Aelios and resident both exist) SHALL need 3 steps: the Aelios card, the resident card, the helper card.
+1. From an installed plugin to the resident's first line, a returning owner (a resident exists, so Aelios does too) SHALL need 2 steps: the resident card, the helper card.
 2. A new owner with the default choices SHALL need 3 steps: the first card with Cloudflare approval, the "your assistant" card (name, model, pattern), the helper card that also shows the new keys.
 3. Choosing bring-your-own-key or Codex SHALL add typing or a browser approval inside the same card, not a new step.
-4. An owner with Aelios but no resident SHALL need 3 steps: the Aelios card, the Cloudflare approval, the helper card.
+4. An owner with Aelios but no resident SHALL need 4 steps: the resident card (no), the Aelios card with its key, the Cloudflare approval, the helper card.
 5. The design SHALL list the count per path, and a test SHALL fail when a path grows past it.
 
 ### 12. House rules

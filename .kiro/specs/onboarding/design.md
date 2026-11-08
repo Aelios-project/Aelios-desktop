@@ -43,21 +43,23 @@ packages/desktop/
     secret-field.mjs       the password field
 ```
 
-`host/route.mjs` gets one line that hands actions starting with `onboarding.` to `host/onboarding/route.mjs`. `client/connect-form.mjs` stays as the "I have both" card.
+`host/route.mjs` gets one line that hands actions starting with `onboarding.` to `host/onboarding/route.mjs`. `client/connect-form.mjs` stays as the "I have a resident" card.
 
 ## The flow
 
+A resident never exists without Aelios, so the resident question comes first and an existing resident skips everything about Aelios.
+
 ```
 start
- └─ Card A  "Do you run Aelios?"
-      ├─ yes ── address + API key (secret) ── health check
-      └─ no  ── Cloudflare approval (browser) ── detect Workers ──┐
-                                                                  │ found: connect it, or go on
- └─ Card R  "Do you run a resident?"                              │
-      ├─ yes ── address + web key (secret) ── check               │
-      └─ no  ── (needs Cloudflare approval; ask now if skipped)   │
- └─ Card S  "Your assistant" (new Aelios only)  ◄───────────────┘
-      name · main model · memory pattern  ── deploy runs behind it
+ └─ Card R  "Do you run a resident?"
+      ├─ yes ── address + web key (secret) ── check ── read its Aelios ──► Card H
+      └─ no
+           └─ Card A  "Do you run Aelios?"
+                ├─ yes ── address + API key (secret) ── health check ── Cloudflare approval
+                └─ no  ── Cloudflare approval (browser) ── detect Workers ──┐
+                                                                            │ found: connect it, or go on
+           └─ Card S  "Your assistant" (new Aelios only)  ◄─────────────────┘
+                name · main model · memory pattern  ── deploys run behind it
  └─ Card H  helpers, folder, tier. Shows new keys once.  [Start]
       pair runner → start → first line
 ```
@@ -68,10 +70,10 @@ The deploy runs while Card S is open, so the wait is spent on the owner's choice
 
 | Path | Steps | Which |
 |---|---|---|
-| Has both | 3 | A (yes + address + key), R (yes + address + key), H |
-| New everything, defaults | 3 | A (no, then approve in the browser), S, H |
-| Has Aelios, no resident | 3 | A (yes + key), approve in the browser, H |
-| New, with BYOK or Codex | 3 | the same cards; the key is typed or the browser approved inside S |
+| Has a resident (so Aelios too) | 2 | R (yes + address + key), H |
+| New everything, defaults | 4 | R (no), A (no, then approve in the browser), S, H |
+| Has Aelios, no resident | 4 | R (no), A (yes + key), approve in the browser, H |
+| New, with BYOK or Codex | 4 | the same cards; the key is typed or the browser approved inside S |
 
 A browser approval is counted with the click that opens it. Typing in a field of the same card is not a step.
 
@@ -160,5 +162,5 @@ The deployed version tag (`aelios-desktop bundle <semver>`, set at deploy throug
 ## Open items (need a decision or a change in another repository)
 
 1. Service binding trust. A binding gives no caller identity, and the Aelios front door wants an API key. Plan: Aelios adds a `WorkerEntrypoint` that calls its handler as the trusted resident; the resident adds an `AELIOS` binding with that entrypoint and uses it before `fetch`. This changes Aelios (`src/index.ts`, `wrangler.toml`) and the resident (`src/aelios.ts`, `wrangler.jsonc`, `env.d.ts`). Until then the wizard uses the URL and key path.
-2. An existing resident with a new Aelios: rewire it, or leave it? See Task 7.2.
+2. (Settled) An existing resident with a new Aelios does not happen: a resident only works with Aelios, so the wizard never deploys Aelios for an owner who already has a resident.
 3. Where users get `cf`. It is an npm package in beta (`cf`). The wizard pins a tested version in `npx`.
