@@ -6,25 +6,34 @@ import { blobUrl } from "./api.mjs";
 import { bubbleTexts, busyOf } from "./activity.mjs";
 import { Icon } from "./icons.mjs";
 import { Md } from "./md.mjs";
+import { MessageActions } from "./message-actions.mjs";
 import { voiceLength } from "./media.mjs";
 import { words } from "./strings.mjs";
 
-const SPARK = "M12 3.5l2 5.5 5.5 2-5.5 2-2 5.5-2-5.5-5.5-2 5.5-2z";
 const clock = (at) => (at ? new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 
-/** The dashed line under a reply, and each thought or tool call inside it. */
+/** How one row of the list stands: a tick when it ran, a dot (with its word as the tooltip) when it did not. */
+function RowState({ state, t }) {
+  if (!state) return h("span", { title: t.ran, "aria-label": t.ran }, h(Icon, { name: "check" }));
+  const tone = state === "failed" || state === "not run" ? "bad" : "warn live";
+  return h("span", { className: `ad-dot ${tone}`, title: state, "aria-label": state });
+}
+
+/** The chip under a reply: a spark when it thought, a wrench and a number for its tools; each one openable. */
 function Busy({ busy }) {
   const t = words();
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState({});
   return h("div", { className: `ad-busy${open ? " open" : ""}` },
-    h("button", { type: "button", className: busy.live ? "live" : "", "aria-expanded": open, onClick: () => setOpen((v) => !v) },
-      h("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinejoin: "round", "aria-hidden": true }, h("path", { d: SPARK })),
-      h("span", null, busy.label),
-      h("svg", { className: "chev", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true }, h("path", { d: "M9 6l6 6-6 6" }))),
+    h("button", { type: "button", className: busy.live ? "live" : "", "aria-expanded": open, "aria-label": busy.label, title: busy.label, onClick: () => setOpen((v) => !v) },
+      busy.thoughts > 0 && h("span", { className: "spark" }, h(Icon, { name: "spark" })),
+      busy.thoughts > 0 && busy.tools > 0 && h("span", { className: "sep", "aria-hidden": true }),
+      busy.tools > 0 && h(Icon, { name: "wrench" }),
+      busy.tools > 0 && h("span", null, busy.tools),
+      h("span", { className: "chev" }, h(Icon, { name: "next" }))),
     open && h("div", { className: "ad-busy-list" }, busy.items.map((item) => h("div", { key: item.key, className: "ad-busy-item" },
       h("button", { type: "button", "aria-expanded": Boolean(seen[item.key]), onClick: () => setSeen((v) => ({ ...v, [item.key]: !v[item.key] })) },
-        h("span", { className: "what" }, item.what), h("span", { className: "detail" }, item.detail), h("span", { className: "state" }, item.state || t.ran)),
+        h("span", { className: "what" }, item.what), h("span", { className: "detail" }, item.detail), h(RowState, { state: item.state, t })),
       seen[item.key] && h("div", null, item.body.map((part, i) => h("div", { key: i },
         part.label && h("div", { className: "label" }, part.label),
         h("pre", null, part.text))))))));
@@ -46,7 +55,7 @@ function Pictures({ lineId, count, resident }) {
   }, [lineId, count, resident]);
   if (!urls.length) return null;
   return h("div", { className: `ad-pics${urls.length === 1 ? " one" : ""}` },
-    urls.map((url) => h("button", { key: url, type: "button", onClick: () => window.open(url, "_blank", "noopener"), "aria-label": "Open the picture" }, h("img", { src: url, alt: "" }))));
+    urls.map((url) => h("button", { key: url, type: "button", onClick: () => window.open(url, "_blank", "noopener"), "aria-label": words().openPicture }, h("img", { src: url, alt: "" }))));
 }
 
 /** Files a reply handed over: a chip each, downloaded through the host half. */
@@ -63,7 +72,7 @@ function Files({ files, resident }) {
     } catch { /* the chip stays, the reader can try again */ } finally { setBusy(""); }
   };
   return h("div", { className: "ad-files" }, files.map((file) => h("button", { key: file.key, type: "button", className: "ad-file", title: file.name, disabled: Boolean(busy), onClick: () => save(file) },
-    h(Icon, { name: "open" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
+    h(Icon, { name: "file" }), h("span", { className: "n" }, file.name || "file"), file.size ? h("span", { className: "s" }, `${Math.max(1, Math.round(file.size / 1024))} KB`) : null)));
 }
 
 /** A voice note: hers, played straight from the resident's media store. */
@@ -96,11 +105,12 @@ function Voice({ voice, resident }) {
 function Stickers({ stickers }) {
   return h("div", { className: "ad-stickers" }, stickers.map((sticker) => h("div", { key: sticker.url, className: "ad-sticker" },
     sticker.video
-      ? h("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": "sticker" })
+      ? h("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers })
       : h("img", { src: sticker.url, alt: "", loading: "lazy" }))));
 }
 
-export function Message({ line, resident }) {
+/** `last` marks the newest reply (it can be taken back); `onChanged` reads the conversation again after. */
+export function Message({ line, resident, last = false, onChanged = null }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? (String(line.text || "").trim() ? [line.text] : []) : bubbleTexts(line.text);
@@ -113,5 +123,6 @@ export function Message({ line, resident }) {
       i === bubbles.length - 1 && h("span", { className: "ad-meta" }, clock(line.at)))),
     (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
-    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }));
+    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }),
+    !me && !line.pending && line.id && String(line.text || "").trim() && h(MessageActions, { line, resident, last, onChanged }));
 }

@@ -51,7 +51,7 @@ export function bubbleTexts(text) {
 
 /**
  * The one dashed line under a reply: what it thought, which tools it used, and each of them openable.
- * @returns {null | {label: string, live: boolean, items: {key: string, what: string, detail: string, state: string, body: {label: string, text: string}[]}[]}}
+ * @returns {null | {label: string, live: boolean, thoughts: number, tools: number, items:{key: string, what: string, detail: string, state: string, body: {label: string, text: string}[]}[]}}
  */
 export function busyOf(line) {
   const activity = Array.isArray(line?.activity) ? line.activity : [];
@@ -71,5 +71,6 @@ export function busyOf(line) {
     state: STATE[item.state] ?? "running",
     body: [{ label: "Input", text: item.input || "(none)" }].concat(item.output === undefined ? [] : [{ label: "Result", text: item.output }]),
   }));
-  return { label: bits.join(" · "), live: Boolean(line.pending), items };
+  // The chip draws the two counts as icons and numbers; `label` is its spoken name.
+  return { label: bits.join(" · "), live: Boolean(line.pending), thoughts: thoughts.length, tools: tools.length, items };
 }

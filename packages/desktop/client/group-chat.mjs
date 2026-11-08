@@ -1,10 +1,13 @@
 // One group open in the middle column: its lines, the pictures in them, and a box that says something to the group.
-// Everything comes from /web/group, /web/group/say and /web/group/picture.
+// Everything comes from /web/group, /web/group/say and /web/group/picture. The header is the chat's own, with the
+// member count (or who is answering) as an icon and a number; the rail is the way back to a resident.
 import { createElement as h, useEffect, useRef, useState } from "react";
+import { avatarUrl } from "./avatar.mjs";
 import { blobUrl, web } from "./api.mjs";
+import { ChatHead } from "./chat-head.mjs";
+import { Composer } from "./composer.mjs";
 import { authorOf, groupRows } from "./group.mjs";
 import { Icon } from "./icons.mjs";
-import { Face } from "./face.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
 
@@ -25,58 +28,57 @@ function Pictures({ group, seq, count }) {
   }, [group, seq, count]);
   if (!urls.length) return null;
   return h("div", { className: `ad-pics${urls.length === 1 ? " one" : ""}` },
-    urls.map((url) => h("button", { key: url, type: "button", onClick: () => window.open(url, "_blank", "noopener"), "aria-label": "Open the picture" }, h("img", { src: url, alt: "" }))));
+    urls.map((url) => h("button", { key: url, type: "button", onClick: () => window.open(url, "_blank", "noopener"), "aria-label": words().openPicture }, h("img", { src: url, alt: "" }))));
+}
+
+/** Who is answering, or how many wait in line, or how many are in the group: an icon and a number. */
+function Meta({ data, t }) {
+  if (!data) return null;
+  const queue = (data.waiting || []).length;
+  if (data.running) return h("span", { className: "ad-meta-chip", title: t.answering }, h("span", { className: "ad-dot ok live", "aria-hidden": true }), t.answering);
+  if (queue) return h("span", { className: "ad-meta-chip", title: `${queue} ${t.inLine}` }, h(Icon, { name: "stack" }), queue);
+  const n = (data.group?.members || []).length;
+  return h("span", { className: "ad-meta-chip", title: `${n} ${t.members}`, "aria-label": `${n} ${t.members}` }, h(Icon, { name: "people" }), n);
 }
 
 export function GroupChat() {
   const t = words();
-  const { status, residents, group } = useStore(store);
+  const { status, group } = useStore(store);
   const [data, setData] = useState(null);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const end = useRef(null);
+  const load = async () => setData(await web(`/web/group?g=${encodeURIComponent(group)}`));
 
   useEffect(() => {
-    if (!group) return;
+    if (!group) return undefined;
     let alive = true;
-    const load = async () => {
+    setData(null);
+    const tick = async () => {
       try { const next = await web(`/web/group?g=${encodeURIComponent(group)}`); if (alive) { setData(next); setError(""); } } catch (e) { if (alive) setError(e.message); }
     };
-    void load();
-    const timer = setInterval(() => { if (!document.hidden) void load(); }, POLL_MS);
+    void tick();
+    const timer = setInterval(() => { if (!document.hidden) void tick(); }, POLL_MS);
     return () => { alive = false; clearInterval(timer); };
   }, [group]);
 
   useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [data?.lines?.length]);
 
-  const said = async () => {
-    const body = text.trim();
-    if (!body || busy) return;
-    setBusy(true);
-    try {
-      await web("/web/group/say", { method: "POST", body: { id: group, text: body } });
-      setText("");
-      setData(await web(`/web/group?g=${encodeURIComponent(group)}`));
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
+  const say = async (body) => {
+    if (!body.text) return;
+    // The resident reads the group from ?g=, not from the body.
+    await web(`/web/group/say?g=${encodeURIComponent(group)}`, { method: "POST", body: { text: body.text } });
+    await load();
   };
-  const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); void said(); } };
-
   const rows = groupRows(data?.lines);
-  const members = data?.group?.members || [];
-  const composer = h("div", { className: "ad-compose" },
-    h("div", { className: "ad-bar" },
-      h("div", { className: "ad-field" }, h("textarea", { rows: 1, value: text, placeholder: t.writeGroup, "aria-label": t.writeGroup, onChange: (e) => setText(e.target.value), onKeyDown: onKey })),
-      h("button", { className: "ad-round", type: "button", disabled: busy || !text.trim(), onClick: said, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" }))));
+  const name = data?.group?.name || t.group;
+  const icon = data?.group?.icon;
+  const face = h("span", { className: "ad-avatar", "aria-hidden": true }, icon ? h("img", { src: avatarUrl(status?.url, icon), alt: "" }) : h(Icon, { name: "people" }));
 
-  return h("section", { className: "ad-main" },
-    h("div", { className: "ad-top" },
-      h("button", { type: "button", className: "ad-ident", title: t.backToResident, onClick: () => store.set({ group: "" }) },
-        h("span", { className: "ad-avatar", "aria-hidden": true }, (data?.group?.name || "·").slice(0, 1)),
-        h("div", { className: "ad-who" }, h("span", { className: "ad-name" }, data?.group?.name || t.group), h("span", { className: "ad-status" }, likes(data, t)))),
-      h("div", { className: "ad-act" },
-        h("button", { type: "button", className: "ad-icon-btn", title: t.backToResident, "aria-label": t.backToResident, onClick: () => store.set({ group: "" }) }, h(Icon, { name: "back" })))),
+  return h("section", { className: "ad-main", "aria-label": name },
+    h(ChatHead, { face, name, meta: h(Meta, { data, t }),
+      actions: h("button", { type: "button", className: "ad-icon-btn", title: t.groupSettings, "aria-label": t.groupSettings, onClick: () => store.set({ groupSheet: { id: group } }) }, h(Icon, { name: "gear" })) }),
     h("div", { className: "ad-stream", "aria-live": "polite" },
+      h("div", { className: "grow" }),
       rows.map((row) => h("div", { key: row.seq, className: `ad-row ${row.author === "you" ? "me" : row.note ? "note" : "ai"}` },
         !row.note && row.author !== "you" && h("span", { className: "ad-who-g" }, authorOf(row, data?.group, { you: t.mine })),
         row.pictures > 0 && h(Pictures, { group, seq: row.seq, count: row.pictures }),
@@ -84,15 +86,6 @@ export function GroupChat() {
         (row.stickers || []).length > 0 && h("div", { className: "ad-stickers" }, row.stickers.map((s) => h("div", { key: s.url, className: "ad-sticker" },
           s.video ? h("video", { src: s.url, autoPlay: true, loop: true, muted: true, playsInline: true }) : h("img", { src: s.url, alt: "" })))))),
       h("div", { ref: end })),
-    error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 16px" } }, error),
-    composer);
-}
-
-/** Who is answering, or how many are in the group. */
-function likes(data, t) {
-  if (!data) return "";
-  const queue = (data.waiting || []).length;
-  if (data.running) return t.speaking;
-  if (queue) return `${queue} ${t.inLine}`;
-  return `${(data.group?.members || []).length} ${t.members}`;
+    error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 18px 4px", textAlign: "center" } }, error),
+    h(Composer, { placeholder: t.writeGroup, say, onError: setError, rich: false }));
 }

@@ -2,6 +2,7 @@
 // resident's /web/ routes. No React here, so the tests can run it. The rules for stateOf, the pill colors and the
 // open/done split follow Aelios-resident, public/app.js (AGPL-3.0, same author; main at b118dfb, 2026-11-07).
 import { web } from "./api.mjs";
+import { shortWhen } from "./time.mjs";
 
 /** A task that waited for the person and was dealt with asks no more. */
 export function stateOf(task) {
@@ -33,6 +34,7 @@ export const markSeen = (resident, item, request) => post("/web/waiting/seen", r
 /** A choice on a task: the same call from the waiting list and from a card in a thread. */
 export const choose = (resident, task, text, request) => post("/web/task/choose", resident, { id: task, text }, request);
 
-export const when = (at) => (at ? new Date(at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+/** A card's time: the clock today, else the day (time.mjs). */
+export const when = (at) => shortWhen(at);
 // A link in a thread line is drawn only when it is an http(s) address.
 export const safeLink = (url) => /^https?:\/\/[^\s<>"'`]+$/i.test(url || "");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { choose, loadThread, loadWaiting, markSeen, sayToThread, splitThreads, stateOf, stopThread } from "../client/threads-api.mjs";
-import { PANEL_IDS } from "../client/panel-ids.mjs";
+import { PANEL_IDS, tabCounts } from "../client/panel-ids.mjs";
 import { words } from "../client/strings.mjs";
 
 // A fake fetch for the host route: it records each web call and answers with `reply`.
@@ -54,13 +54,23 @@ test("a task that waited and was dealt with is chosen or settled; open threads a
   assert.deepEqual([open.map((t) => t.id), done.map((t) => t.id)], [[1, 3], [2]]);
 });
 
-test("words: every panel has a name, and both languages have the same keys", () => {
-  const original = globalThis.navigator;
+test("words: every panel has a name, both languages have the same keys, and English is the default", () => {
   const keys = (o) => Object.keys(o).sort().map((k) => (o[k] && typeof o[k] === "object" ? [k, keys(o[k])] : k));
-  const read = (lang) => { Object.defineProperty(globalThis, "navigator", { value: { language: lang }, configurable: true }); return words(); };
-  const en = read("en");
-  const zh = read("zh-CN");
-  Object.defineProperty(globalThis, "navigator", { value: original, configurable: true });
+  const en = words("en");
+  const zh = words("zh");
   assert.deepEqual(keys(zh), keys(en));
   for (const id of PANEL_IDS) assert.ok(en.panels[id] && zh.panels[id]);
+  const original = globalThis.navigator;
+  Object.defineProperty(globalThis, "navigator", { value: { language: "zh-CN" }, configurable: true });
+  assert.equal(words(), en, "a Chinese system still gets English until the reader picks 中文");
+  Object.defineProperty(globalThis, "navigator", { value: original, configurable: true });
+  assert.equal(words("xx"), en);
+});
+
+test("tabs: the waiting count is the accent badge; threads and alarms count plainly; zero is no badge", () => {
+  const counts = tabCounts({ waiting: { open: 2 }, threads: { open: 1 }, alarms: { on: true, alarms: [{ next: "x" }, { next: null }, { next: "y" }] } });
+  assert.deepEqual(counts, { waiting: { n: 2, hot: true }, threads: { n: 1, hot: false }, alarms: { n: 2, hot: false } });
+  assert.equal(tabCounts({ alarms: { on: false, alarms: [{ next: "x" }] } }).alarms.n, 0);
+  assert.equal(tabCounts().waiting.n, 0);
+  assert.deepEqual(PANEL_IDS, ["waiting", "threads", "alarms"]);
 });
