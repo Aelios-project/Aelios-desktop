@@ -821,9 +821,11 @@ function Message({ line, resident }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? String(line.text || "").trim() ? [line.text] : [] : bubbleTexts(line.text);
+  const mouthful = bubbles.length > 0 || (line.pictures ?? 0) > 0 || (line.files ?? []).length > 0;
+  const onlyVoice = !mouthful && (Boolean(line.voice) || (line.stickers ?? []).length > 0);
   return (0, import_react4.createElement)(
     "div",
-    { className: `ad-row ${me ? "me" : "ai"}` },
+    { className: `ad-row ${me || onlyVoice ? "me" : "ai"}` },
     busy && (0, import_react4.createElement)(Busy, { busy }),
     line.quote && (0, import_react4.createElement)("span", { className: "ad-quote" }, line.quote.text),
     (line.pictures ?? 0) > 0 && (0, import_react4.createElement)(Pictures, { lineId: line.id, count: line.pictures, resident }),
@@ -1897,14 +1899,13 @@ var CHAT = `
 .ad-thumbs img { width: 100%; height: 100%; object-fit: cover; }
 .ad-thumbs .ad-x { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; display: grid; place-items: center; }
 .ad-thumbs .ad-x svg { width: 11px; height: 11px; }
-.ad-voice { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 7px; border-radius: 18px 18px 18px 6px; border: 1px solid var(--line); background: var(--panel); }
-.ad-row.me .ad-voice { background: var(--mine); border-color: var(--mine-line); border-radius: 18px 18px 6px 18px; }
+.ad-voice { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; }
 .ad-voice-play { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--violet); color: #fff; }
 .ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
 .ad-voice-play svg { width: 14px; height: 14px; }
 .ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
-.ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
+.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.ad-sticker { border-radius: 12px; overflow: hidden; }
 .ad-sticker img, .ad-sticker video { display: block; width: 120px; height: auto; image-rendering: pixelated; }
 .ad-picker { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; margin: 0 0 8px; padding: 8px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
 .ad-picker .ad-group-title { margin: 0 4px; }

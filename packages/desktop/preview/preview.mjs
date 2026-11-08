@@ -37,9 +37,11 @@ if (new URLSearchParams(location.search).get("desktop") === "1") {
   document.body.append(lights);
 }
 
-// The conversation opens at its end, the way the shell draws it.
+// The conversation opens at its end, the way the shell draws it. Images settle later, so scroll once more after
+// the layout has run.
 const stream = document.querySelector(".ad-stream");
-if (stream) stream.scrollTop = stream.scrollHeight;
+const toEnd = () => { if (stream) stream.scrollTop = stream.scrollHeight; };
+if (stream) { toEnd(); requestAnimationFrame(toEnd); setTimeout(toEnd, 120); addEventListener("load", toEnd); }
 
 const bar = document.querySelector(".frame-bar");
 bar.style.color = dark ? "#7f85b0" : "#5a5d82";
