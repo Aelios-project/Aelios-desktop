@@ -2,6 +2,7 @@
 // or the job text says. Only one-time choices are ever picked, so nothing stays allowed after the turn.
 import { realpathSync } from "node:fs";
 import path from "node:path";
+import { describeInput } from "./detail.mjs";
 
 export const TIERS = ["read", "edit", "full"];
 export const tierOf = value => (TIERS.includes(value) ? value : null);
@@ -23,7 +24,8 @@ function inside(root, file) {
 /**
  * Only what the helper asks about is judged, and only by what it says: the kind of the operation and the paths it names.
  * Below "full", a request that names a path outside the working folder is always turned down, whatever its kind.
- * @returns {{allow: boolean, why: string}}
+ * A refusal made by the tier alone may be held for the owner (`hold`); one for a path outside the folder never is.
+ * @returns {{allow: boolean, why: string, hold?: boolean}}
  */
 export function judge(tier, toolCall, cwd) {
   const kind = typeof toolCall?.kind === "string" ? toolCall.kind : "other";
@@ -33,25 +35,30 @@ export function judge(tier, toolCall, cwd) {
   if (READ.has(kind)) return { allow: true, why: "" };
   if (tier === "edit" && EDIT.has(kind)) {
     if (kind !== "edit" || files.length) return { allow: true, why: "" };
-    return { allow: false, why: "the edit does not say where" };
+    return { allow: false, why: "the edit does not say where", hold: true };
   }
-  return { allow: false, why: `tier ${tier} does not allow "${kind}"` };
+  return { allow: false, why: `tier ${tier} does not allow "${kind}"`, hold: true };
 }
+
+/** What the request does, when the helper says: its command or arguments, shortened and with secrets hidden. */
+const detailOf = rawInput => { const detail = describeInput(rawInput); return detail ? { detail } : {}; };
 
 /**
  * The reply for the helper, and what to tell the person when a request was turned down.
- * @returns {{response: object, denied: string|null}}
+ * @returns {{response: object, denied: string|null, hold: {title: string, kind: string, paths: string[], detail?: string}|null}}
  */
 export function answer(tier, params, cwd) {
   const options = Array.isArray(params?.options) ? params.options : [];
   const pick = kind => options.find(option => option?.kind === kind && typeof option.optionId === "string");
-  const { allow, why } = judge(tier, params?.toolCall, cwd);
+  const { allow, why, hold } = judge(tier, params?.toolCall, cwd);
   const title = String(params?.toolCall?.title ?? params?.toolCall?.kind ?? "an action").replace(/[\x00-\x1f\x7f]/g, " ").slice(0, 120);
   if (allow) {
     const choice = pick("allow_once");
-    if (choice) return { response: { outcome: { outcome: "selected", optionId: choice.optionId } }, denied: null };
-    return { response: { outcome: { outcome: "cancelled" } }, denied: `${title} (the helper offered no "allow once" option)` };
+    if (choice) return { response: { outcome: { outcome: "selected", optionId: choice.optionId } }, denied: null, hold: null };
+    return { response: { outcome: { outcome: "cancelled" } }, denied: `${title} (the helper offered no "allow once" option)`, hold: null };
   }
   const choice = pick("reject_once");
-  return { response: choice ? { outcome: { outcome: "selected", optionId: choice.optionId } } : { outcome: { outcome: "cancelled" } }, denied: `${title}（${why}）` };
+  const paths = (Array.isArray(params?.toolCall?.locations) ? params.toolCall.locations : []).map(place => place?.path).filter(file => typeof file === "string");
+  return { response: choice ? { outcome: { outcome: "selected", optionId: choice.optionId } } : { outcome: { outcome: "cancelled" } }, denied: `${title} (${why})`,
+    hold: hold ? { title, kind: String(params?.toolCall?.kind ?? "other"), paths, ...detailOf(params?.toolCall?.rawInput) } : null };
 }

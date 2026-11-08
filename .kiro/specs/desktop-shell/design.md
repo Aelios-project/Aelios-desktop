@@ -132,7 +132,7 @@ shortcut: the runner has no machine-readable status, so the supervisor parses it
 
 ### Connect (`host/connect.mjs`)
 
-Input: address, web key, folder, helper (`dsh` or `kiro`), tier. It checks the address (https, or http on 127.0.0.1), makes the default folder, stores the key in `ctx.credentials`, and runs `aelios-runner pair --url … --workspace … --access … --plugin …` with the key in the environment (the runner reads `WEB_KEY` from the environment and never writes it). It uses an argument array, never a shell string.
+Input: address, web key, folder, helper (`dsh` or `kiro`), tier. It checks the address (https, or http on 127.0.0.1), makes the default folder, stores the key in `ctx.credentials`, and runs `aelios-runner pair --url … --workspace … --access … --plugin …` with the key in the environment (the runner reads `AELIOS_WEB_KEY` from the environment and never writes it). It uses an argument array, never a shell string.
 
 shortcut: this keeps the web key on the owner's machine. The resident has no narrower credential for a window (only the web key and the Mini App session). Switch if the resident adds a device token.
 
@@ -224,10 +224,10 @@ Not settled. Do not treat any of these as fact.
 4. Which Node version runs plugin host code? The runner needs Node 22 or newer.
 5. For `dsh web` on a server: does the process token survive a restart? Is there a password or other persistent login? How does a reverse-proxy mount work with the token and the secure cookie? DS Bot's Docker setup was not read in detail.
 6. After connecting, who sends the resident's first message? That change would be in the resident repository.
-7. How does the shell list residents? The earlier plugin's bridge had a `residents` action; the matching resident route was not found in `/web/` routes read here.
+7. (Answered) The resident lists its residents at `GET /web/residents`; the shell uses it for the left column.
 8. Which Kiroween categories does this entry go in? Confirm before the look is described as a costume entry.
 9. Is it acceptable that the web key is stored on the owner's machine (in DSH's credential store)? The resident has no narrower credential.
 10. How does DSH load a theme or skin from a separate plugin (DS Bot's `installTheme()`)?
 11. How does the shell get the runner? It is not on npm and is not published without the owner's say-so. Choices: publish it, or vendor it into the plugin package.
-12. The runner has no machine-readable status. Add `aelios-runner status --json`? (A small change in `packages/runner`.)
+12. `aelios-runner status` already prints JSON (`paired`, `revoked`, ...). The shell reads it. What is missing is a stable exit code for "revoked" and "locked"; the shell reads the lock message and the status instead.
 13. Real DSH has not been connected to the runner yet (the runner README says so). The default helper is untested against the real thing.

@@ -33,9 +33,17 @@ process.stdout.write("this line is not JSON, a client must skip it\n");
 async function prompt(id, params) {
   const { sessionId } = params, full = params.prompt.map(part => part.text).join(""), text = full.split("\n\nHow to talk to the user.")[0];
   const session = load().sessions[sessionId];
-  store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd }));
+  store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd, blocks: params.prompt }));
   chunk(sessionId, "starting. ");
   send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "look around", kind: "read" } } });
+  if (text.includes("STEPSME")) { // several tool calls: a command with a secret and file contents in its input, two edits, a read
+    const call = (n, update) => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "s" + n, ...update } } });
+    call(1, { title: "Run tests", kind: "execute", rawInput: { command: "npm test --token=abc123456789", stdin: "FILE BODY SECRET" } });
+    call(2, { title: "Edit a", kind: "edit", locations: [{ path: (session?.cwd ?? "") + "/src/a.js" }], rawInput: { new_string: "FILE BODY SECRET" } });
+    call(3, { title: "Edit b", kind: "edit", locations: [{ path: (session?.cwd ?? "") + "/src/b.js" }] });
+    call(4, { title: "Read c", kind: "read", locations: [{ path: (session?.cwd ?? "") + "/c.md" }] });
+    await sleep(100);
+  }
   if (text.includes("CRASH")) process.exit(3);
   if (text.includes("SLOW")) {
     chunk(sessionId, "partial work");
@@ -68,7 +76,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   const reply = result => send({ jsonrpc: "2.0", id, result });
   if (method === "session/cancel") { store(data => data.log.push({ event: method, sessionId: params.sessionId })); cancelled.add(params.sessionId); cancelWaiters.get(params.sessionId)?.(); return; }
   store(data => data.log.push({ event: method, sessionId: params?.sessionId, cwd: params?.cwd, caps: params?.clientCapabilities }));
-  if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true }, authMethods: [] });
+  if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true, promptCapabilities: { image: true } }, authMethods: [] });
   if (method === "session/new") {
     const data = store(d => { d.n += 1; d.sessions[`sess-${d.n}`] = { cwd: params.cwd }; });
     return reply({ sessionId: `sess-${data.n}` });
