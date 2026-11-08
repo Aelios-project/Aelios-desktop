@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { AcpClosed, AcpConnection, AcpError, PROTOCOL_VERSION } from "./acp.mjs";
 import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
+import { promptBlocks } from "./inbox.mjs";
 import { answer } from "./permission.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
@@ -21,7 +22,7 @@ export const CONVENTION = [
 
 export class Turn {
   /**
-   * @param {{launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
+   * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
    *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void}} o
    */
   constructor(o) {
@@ -86,7 +87,8 @@ export class Turn {
       this.timer = setTimeout(() => { this.timedOut = true; this.cancel(); }, this.timeoutMs);
       this.timer.unref?.();
       this.collecting = true;
-      const result = await this.conn.request("session/prompt", { sessionId: this.opened, prompt: [{ type: "text", text: `${this.prompt}\n\n${CONVENTION}` }] });
+      const prompt = await promptBlocks(this.prompt, CONVENTION, this.files, Boolean(init.agentCapabilities?.promptCapabilities?.image));
+      const result = await this.conn.request("session/prompt", { sessionId: this.opened, prompt });
       return this.#outcome(String(result.stopReason ?? "end_turn"), how);
     } catch (error) {
       if (this.cancelled && !this.timedOut) return this.#cancelled(how);

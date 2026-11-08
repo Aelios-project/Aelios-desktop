@@ -52,7 +52,11 @@ export class FakeCloud {
       if (this.drops[action] > 0) { this.drops[action]--; return req.socket.destroy(); } // the cloud did it; the runner never hears
       send(status, value);
     };
-    if (action === "heartbeat") { this.beats++; return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
+    if (action === "file") { // files handed along with a message: this.files[key] = {name, type, bytes}
+      const file = this.files?.[body.key];
+      return file ? reply(200, { name: file.name, type: file.type, data: Buffer.from(file.bytes).toString("base64") }) : reply(404, { error: "no file", code: "UNKNOWN_FILE" });
+    }
+    if (action === "heartbeat") { this.beats++; (this.beatBodies ??= []).push(body); return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
     if (action === "poll") {
       this.polls.push(body);
       const known = this.claims.get(body.claimKey);

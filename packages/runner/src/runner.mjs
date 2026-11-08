@@ -5,6 +5,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync } from "node:fs";
 import { Cloud, CloudError } from "./cloud.mjs";
 import { Turn } from "./helper.mjs";
+import { readAttachments, saveAttachments } from "./inbox.mjs";
+import { computerName } from "./machine-name.mjs";
 import { launchOf } from "./plugins.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
@@ -94,7 +96,8 @@ export class Runner {
     return work && typeof work === "object" && ID.test(work.workId ?? "") && typeof work.token === "string" && work.token.length > 0 && work.token.length <= 200
       && typeof work.thread === "string" && THREAD.test(work.thread) && KINDS.includes(work.kind)
       && (work.kind === "cancel" || (typeof work.text === "string" && work.text.trim() && work.text.length <= TEXT_MAX))
-      && (work.access === undefined || tierOf(work.access) !== null);
+      && (work.access === undefined || tierOf(work.access) !== null)
+      && (work.kind === "cancel" || readAttachments(work.attachments) !== null);
   }
 
   async receive(raw) {
@@ -106,7 +109,7 @@ export class Runner {
     }
     // Only what the protocol names is kept; anything else the cloud sent (a folder, a command, a helper) is dropped here.
     const work = { workId: raw.workId, token: raw.token, thread: raw.thread, kind: raw.kind, title: String(raw.title ?? "").slice(0, 200),
-      ...(raw.kind === "cancel" ? {} : { text: raw.text }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
+      ...(raw.kind === "cancel" ? {} : { text: raw.text, ...(raw.attachments?.length ? { attachments: readAttachments(raw.attachments) } : {}) }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
     const receipts = [];
     let stop = false;
     await this.state.update(state => {
@@ -167,8 +170,10 @@ export class Runner {
     if (!cwd) { mkdirSync(this.config.workspace, { recursive: true }); cwd = realpathSync(this.config.workspace); }
     const tier = lowest(tierOf(this.config.access) ?? "read", work.access ?? this.config.access ?? "read");
     const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
+    // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
+    const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
     const turn = new Turn({
-      launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
+      files, launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped)),
       onSession: async (sessionId, how) => {
@@ -225,7 +230,7 @@ export class Runner {
     try {
       const cloud = await this.#cloud();
       if (Date.now() - this.lastBeat >= this.heartbeatMs) {
-        await cloud.heartbeat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null });
+        await cloud.heartbeat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() });
         this.lastBeat = Date.now();
       }
       await this.flush();

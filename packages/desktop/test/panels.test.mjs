@@ -17,10 +17,12 @@ function fake(reply = {}) {
 
 test("threads: say and stop go to the thread routes with the thread id", async () => {
   const { calls, request } = fake({ id: "t1" });
-  await sayToThread("default", "t1", "hello", request);
+  await sayToThread("default", "t1", "hello", {}, request);
+  await sayToThread("default", "t1", "", { pictures: [{ data: "AA==" }], files: [{ name: "a.pdf", data: "AA==" }] }, request);
   await stopThread("default", "t1", request);
   assert.deepEqual(calls.map((c) => [c.method, c.path, c.body]), [
     ["POST", "/web/thread/say", { id: "t1", text: "hello" }],
+    ["POST", "/web/thread/say", { id: "t1", text: "", pictures: [{ data: "AA==" }], files: [{ name: "a.pdf", data: "AA==" }] }],
     ["POST", "/web/thread/stop", { id: "t1" }],
   ]);
 });

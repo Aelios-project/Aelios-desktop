@@ -26,6 +26,7 @@ function Live({ runner, info, t, act, pick, switching }) {
     h("div", { className: "ad-mv-state" },
       h("span", { className: `ad-dot big ${tone}${runner.state === "starting" || runner.state === "running" ? " live" : ""}`, "aria-hidden": true }),
       h("b", null, t.runner[runner.state] || runner.state),
+      info?.name && h("span", { className: "ad-mi", title: t.machineName }, info.name),
       runner.since && h("span", { className: "ad-mi" }, `${t.since} ${new Date(runner.since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`),
       runner.pid && h("span", { className: "ad-mi", title: "PID" }, `#${runner.pid}`)),
     runner.error && h("p", { className: "ad-error" }, runner.error),

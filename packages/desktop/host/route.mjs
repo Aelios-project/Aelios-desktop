@@ -5,7 +5,7 @@ import { makeLocal } from "./local.mjs";
 import { ProxyError, forward, forwardBytes, forwardRaw } from "./proxy.mjs";
 
 export const ROUTE = "/api/aelios-desktop";
-const MAX_BODY = 8 * 1024 * 1024; // a message may carry four pictures, base64
+const MAX_BODY = 24 * 1024 * 1024; // a message may carry pictures and files, base64 (the resident takes the same)
 const HEADERS = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const json = (value, status = 200) => Response.json(value, { status, headers: HEADERS });
 

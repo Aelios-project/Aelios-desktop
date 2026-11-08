@@ -31,7 +31,7 @@ export function makeLocal({ entry, node, supervisor, env = {}, read = READERS, l
   return {
     async machine() {
       const ov = await overview();
-      const info = ov && { plugin: ov.plugin, access: ov.access, workspace: ov.workspace, paired: ov.paired, queued: ov.queued, unsent: ov.unsent, threads: Object.keys(ov.threads).length, running: ov.running };
+      const info = ov && { name: ov.name, plugin: ov.plugin, access: ov.access, workspace: ov.workspace, paired: ov.paired, queued: ov.queued, unsent: ov.unsent, threads: Object.keys(ov.threads).length, running: ov.running };
       return { runner: supervisor.detail(), info, cloud: null };
     },
     async sessions() {

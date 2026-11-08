@@ -33,7 +33,7 @@ process.stdout.write("this line is not JSON, a client must skip it\n");
 async function prompt(id, params) {
   const { sessionId } = params, full = params.prompt.map(part => part.text).join(""), text = full.split("\n\nHow to talk to the user.")[0];
   const session = load().sessions[sessionId];
-  store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd }));
+  store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd, blocks: params.prompt }));
   chunk(sessionId, "starting. ");
   send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "look around", kind: "read" } } });
   if (text.includes("CRASH")) process.exit(3);
@@ -68,7 +68,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   const reply = result => send({ jsonrpc: "2.0", id, result });
   if (method === "session/cancel") { store(data => data.log.push({ event: method, sessionId: params.sessionId })); cancelled.add(params.sessionId); cancelWaiters.get(params.sessionId)?.(); return; }
   store(data => data.log.push({ event: method, sessionId: params?.sessionId, cwd: params?.cwd, caps: params?.clientCapabilities }));
-  if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true }, authMethods: [] });
+  if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true, promptCapabilities: { image: true } }, authMethods: [] });
   if (method === "session/new") {
     const data = store(d => { d.n += 1; d.sessions[`sess-${d.n}`] = { cwd: params.cwd }; });
     return reply({ sessionId: `sess-${data.n}` });

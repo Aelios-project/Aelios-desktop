@@ -37,7 +37,7 @@ const post = (path, resident, body, request) => web(path, { method: "POST", body
 
 export const loadThreads = (resident, request) => web("/web/threads", { resident }, request);
 export const loadThread = (resident, id, request) => web(`/web/thread?id=${encodeURIComponent(id)}`, { resident }, request);
-export const sayToThread = (resident, id, text, request) => post("/web/thread/say", resident, { id, text }, request);
+export const sayToThread = (resident, id, text, extra = {}, request) => post("/web/thread/say", resident, { id, text, ...extra }, request);
 export const stopThread = (resident, id, request) => post("/web/thread/stop", resident, { id }, request);
 
 export const loadWaiting = (resident, request) => web("/web/waiting", { resident }, request);
