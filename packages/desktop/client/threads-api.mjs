@@ -47,6 +47,9 @@ export const markSeen = (resident, thread, request) => post("/web/waiting/seen",
 /** A choice on a task: the same call from the waiting list and from a card in a thread. */
 export const choose = (resident, task, text, request) => post("/web/task/choose", resident, { id: task, text }, request);
 
+/** Allow / Deny on a permission the machine holds (the id is the item's `perm`). Gives the list as it stands after. */
+export const decidePermission = (resident, perm, allow, request) => post("/web/waiting/permission", resident, { id: perm, allow }, request);
+
 /** A card's time: the clock today, else the day (time.mjs). */
 export const when = (at) => shortWhen(at);
 // A link in a thread line is drawn only when it is an http(s) address.

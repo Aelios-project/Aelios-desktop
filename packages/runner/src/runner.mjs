@@ -6,6 +6,7 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { Cloud, CloudError } from "./cloud.mjs";
 import { Turn } from "./helper.mjs";
 import { readAttachments, saveAttachments } from "./inbox.mjs";
+import { PermReport } from "./perm-report.mjs";
 import { Progress } from "./steps.mjs";
 import { computerName } from "./machine-name.mjs";
 import { workspaceDenied } from "./reason.mjs";
@@ -40,6 +41,7 @@ export class Runner {
   constructor({ config, state, cloud, journal = null, log = () => {}, request = fetch }) {
     this.config = config; this.state = state; this.log = log; this.request = request; this.journal = journal;
     this.cloud = cloud ?? null;
+    this.perms = new PermReport({ cloud: () => this.#cloud(), journal, log });
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
     this.pollMs = config.pollMs ?? 5000; this.heartbeatMs = config.heartbeatMs ?? 30_000; this.backoffMaxMs = config.backoffMaxMs ?? 60_000;
@@ -185,7 +187,8 @@ export class Runner {
     const turn = new Turn({
       files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
-      hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped)),
+      hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
+      auto: info => this.journal?.auto(work.thread, info),
       onSession: async (sessionId, how) => {
         // The thread's folder and session are fixed from the first time it has one.
         await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
@@ -247,7 +250,8 @@ export class Runner {
       await this.flush();
       const busy = Boolean(this.live) || state.queue.length > 0;
       const claimKey = state.claimKey ?? await this.state.update(s => (s.claimKey ??= "ck_" + randomBytes(12).toString("hex")));
-      const { work } = await cloud.poll({ claimKey, accept: busy ? ["say", "mail", "cancel"] : KINDS });
+      const { work, answers } = await cloud.poll({ claimKey, accept: busy ? ["say", "mail", "cancel"] : KINDS });
+      this.perms.apply(answers);
       if (work) await this.receive(work);
       this.kick();
       this.error = ""; this.failures = 0;

@@ -38,17 +38,34 @@ export class Journal {
     return true;
   }
 
-  /** Writes the request down and waits for the owner. No answer in time, or a stopped turn, is a "no". */
-  async hold(thread, info, stopped = () => false) {
+  /** A request allowed without asking because it only looks at things: shown to the owner, decided by "auto". */
+  auto(thread, info) {
+    const id = this.#request(thread, info);
+    this.add({ t: "decision", id, allow: true, by: "auto" });
+  }
+
+  #request(thread, info) {
     const id = "p_" + randomBytes(5).toString("hex");
     this.add({ t: "perm", id, thread, title: clip(info.title, 120), kind: clip(info.kind, 20), paths: info.paths.map(path => clip(path, 300)).slice(0, 5), ...(info.detail ? { detail: clip(info.detail, 400) } : {}) });
-    const end = Date.now() + this.holdMs;
-    for (;;) {
-      const answer = this.lines().find(line => line.t === "decision" && line.id === id);
-      if (answer) return answer.allow;
-      if (stopped() || Date.now() >= end) { this.add({ t: "decision", id, allow: false, by: stopped() ? "stopped" : "timeout" }); return false; }
-      await new Promise(resolve => setTimeout(resolve, this.pollMs));
-    }
+    return id;
+  }
+
+  /**
+   * Writes the request down and waits for the owner. No answer in time, or a stopped turn, is a "no".
+   * `on.held(id)` runs once the request is written, and `on.closed(id)` once it is settled, however it was.
+   */
+  async hold(thread, info, stopped = () => false, on = {}) {
+    const id = this.#request(thread, info);
+    on.held?.(id);
+    try {
+      const end = Date.now() + this.holdMs;
+      for (;;) {
+        const answer = this.lines().find(line => line.t === "decision" && line.id === id);
+        if (answer) return answer.allow;
+        if (stopped() || Date.now() >= end) { this.add({ t: "decision", id, allow: false, by: stopped() ? "stopped" : "timeout" }); return false; }
+        await new Promise(resolve => setTimeout(resolve, this.pollMs));
+      }
+    } finally { on.closed?.(id); }
   }
 
   /** Turns per thread (newest last) with how each ended, and every request with its answer. */

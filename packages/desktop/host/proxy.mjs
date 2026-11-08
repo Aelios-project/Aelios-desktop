@@ -3,7 +3,7 @@
 // supervisor and never from the page.
 const ALLOWED = [
   "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
-  "waiting", "waiting/seen", "task/choose", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
+  "waiting", "waiting/seen", "waiting/permission", "task/choose", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
   "groups", "group", "group/say",
 ];
 // Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.

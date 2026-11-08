@@ -62,15 +62,20 @@ export class FakeCloud {
       (this.progresses ??= []).push(body);
       return reply(200, { ok: true });
     }
+    if (action === "permission") { // a held permission or its end; this.answers are the owner's buttons, handed back on every poll
+      if (JSON.stringify(body).includes(this.deviceToken)) return reply(400, { error: "credential", code: "INVALID_PERMISSION" });
+      (this.permissions ??= []).push(body);
+      return reply(200, { ok: true });
+    }
     if (action === "heartbeat") { this.beats++; (this.beatBodies ??= []).push(body); return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
     if (action === "poll") {
       this.polls.push(body);
       const known = this.claims.get(body.claimKey);
-      if (known) return reply(200, { work: known });
+      if (known) return reply(200, { work: known, answers: this.answers ?? [] });
       const entry = this.works.find(w => !w.leased && body.accept.includes(w.work.kind));
-      if (!entry) return reply(200, { work: null });
+      if (!entry) return reply(200, { work: null, answers: this.answers ?? [] });
       entry.leased = true; this.claims.set(body.claimKey, entry.work);
-      return reply(200, { work: entry.work });
+      return reply(200, { work: entry.work, answers: this.answers ?? [] });
     }
     if (action === "receipt") {
       this.receiptHits++;

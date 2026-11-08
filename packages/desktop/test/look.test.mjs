@@ -14,6 +14,7 @@ test("tones: the runner is green running, amber on its way or paired elsewhere, 
 test("tones: an open question is hot, a stuck one bad; tasks follow the resident's pill colors", () => {
   assert.equal(waitTone({ kind: "ask" }), "hot");
   assert.equal(waitTone({ kind: "stuck" }), "bad");
+  assert.equal(waitTone({ kind: "permission" }), "hot");
   assert.equal(waitTone({ kind: "done" }), "idle");
   assert.deepEqual(["working", "needs_you", "done", "failed"].map(taskTone), ["warn", "hot", "ok", "bad"]);
 });
