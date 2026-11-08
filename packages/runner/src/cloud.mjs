@@ -52,6 +52,8 @@ export class Cloud {
   receipt(body) { return this.#post("receipt", body); }
   /** What a working thread is doing: {workId, token, steps: [{kind, title}]}. Not a receipt: never queued or sent again. */
   progress(body) { return this.#post("progress", body); }
+  /** A permission request held for the owner, or settled: {workId, token, id, state: "held"|"closed", title, kind, detail}. Not a receipt: never queued or sent again. */
+  permission(body) { return this.#post("permission", body); }
   /** A picture or file that came with a message: {workId, key} -> {name, type, data (base64)}. */
   file(body) { return this.#post("file", body); }
 }

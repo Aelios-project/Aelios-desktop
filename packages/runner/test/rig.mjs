@@ -25,7 +25,7 @@ export async function rig(plugin, extra = {}) {
   rig.prompts = () => rig.log().filter(e => e.event === "prompt");
   rig.start = () => {
     rig.control = new AbortController();
-    rig.runner = new Runner({ config, state });
+    rig.runner = new Runner({ config, state, journal: rig.journal });
     rig.loop = rig.runner.start(rig.control.signal);
   };
   rig.stop = async () => { if (rig.control && !rig.stopped) { rig.stopped = true; rig.control.abort(); await rig.loop; } };

@@ -314,7 +314,7 @@ var WORDS = {
     copied: "Copied",
     commands: "Commands",
     cmd: { status: "Status report", letter: "Write the letter now", handoff: "Hand off to a new window" },
-    kind: { ask: "Ask", stuck: "Stuck" },
+    kind: { ask: "Ask", permission: "Permission", stuck: "Stuck" },
     openSettings: "Open settings",
     nothingWaiting: "Nothing needs you",
     open: "Open thread",
@@ -345,8 +345,8 @@ var WORDS = {
     toolsN: "tool calls",
     filesN: "files changed",
     commandsN: "commands",
-    allow: "Allow",
-    deny: "Deny",
+    permitYes: "Allow",
+    permitNo: "Deny",
     decided: { allowed_you: "Allowed by you", denied_you: "Denied by you", allowed_tier: "Allowed", denied_tier: "Refused by the tier" },
     noAlarms: "No alarms",
     alarmsOff: "Alarms are off",
@@ -521,7 +521,7 @@ var WORDS = {
     copied: "复制了",
     commands: "命令",
     cmd: { status: "状态", letter: "现在写交接信", handoff: "交接到新窗口" },
-    kind: { ask: "等你", stuck: "卡住" },
+    kind: { ask: "等你", permission: "要你点头", stuck: "卡住" },
     openSettings: "去设置",
     nothingWaiting: "没有要你处理的",
     open: "打开线程",
@@ -552,8 +552,8 @@ var WORDS = {
     toolsN: "次工具调用",
     filesN: "个文件改动",
     commandsN: "条命令",
-    allow: "允许",
-    deny: "拒绝",
+    permitYes: "允许",
+    permitNo: "拒绝",
     decided: { allowed_you: "你允许了", denied_you: "你拒绝了", allowed_tier: "已允许", denied_tier: "权限挡下了" },
     noAlarms: "没定闹钟",
     alarmsOff: "闹钟关着",
@@ -724,6 +724,7 @@ var stopThread = (resident, id, request) => post("/web/thread/stop", resident, {
 var loadWaiting = (resident, request) => web("/web/waiting", { resident }, request);
 var markSeen = (resident, thread, request) => post("/web/waiting/seen", resident, thread ? { id: thread } : { all: true }, request);
 var choose = (resident, task, text, request) => post("/web/task/choose", resident, { id: task, text }, request);
+var decidePermission = (resident, perm, allow, request) => post("/web/waiting/permission", resident, { id: perm, allow }, request);
 var when = (at) => shortWhen(at);
 var safeLink = (url) => /^https?:\/\/[^\s<>"'`]+$/i.test(url || "");
 
@@ -1614,7 +1615,7 @@ var RUNNER = { running: "ok", starting: "warn", unpaired: "warn", locked: "warn"
 var runnerTone = (state) => RUNNER[state] || "idle";
 var runnerDown = (state) => ["stopped", "crashed", "revoked"].includes(state);
 function waitTone(item) {
-  return { ask: "hot", stuck: "bad" }[item?.kind] || "idle";
+  return { ask: "hot", permission: "hot", stuck: "bad" }[item?.kind] || "idle";
 }
 var taskTone = (state) => ({ working: "warn", sent: "warn", needs_you: "hot", done: "ok", chosen: "ok", settled: "idle", failed: "bad", quiet: "bad", stopped: "idle" })[state] || "idle";
 
@@ -3738,7 +3739,7 @@ function Card({ item, t, busy, open, onToggle, act }) {
   const options = item.options || [];
   return (0, import_react30.createElement)(
     "div",
-    { className: `ad-card${item.kind === "ask" ? " ask" : ""}` },
+    { className: `ad-card${item.kind === "ask" || item.kind === "permission" ? " ask" : ""}` },
     (0, import_react30.createElement)(
       "button",
       { type: "button", className: "ad-card-top", "aria-expanded": open, title: open ? "" : t.details, onClick: onToggle },
@@ -3746,10 +3747,14 @@ function Card({ item, t, busy, open, onToggle, act }) {
       (0, import_react30.createElement)("span", { className: "ad-card-time" }, when(item.at))
     ),
     (0, import_react30.createElement)("p", { className: "ad-card-more" }, item.line),
+    item.kind === "permission" && item.detail && (0, import_react30.createElement)("p", { className: "ad-perm-detail" }, item.detail),
     (0, import_react30.createElement)(
       "div",
       { className: "ad-card-row" },
       (0, import_react30.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react30.createElement)("span", { className: `ad-dot ${tone}`, "aria-hidden": true }), t.kind[item.kind] || item.kind),
+      // Allow / Deny on a permission the machine holds: only these buttons answer it.
+      item.kind === "permission" && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small", disabled: Boolean(busy), onClick: act.permit(item, true) }, t.permitYes),
+      item.kind === "permission" && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small quiet", disabled: Boolean(busy), onClick: act.permit(item, false) }, t.permitNo),
       item.kind === "ask" && options.map((option, i) => (0, import_react30.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
       // One action on a stuck item (it never carries choices): the settings, or the thread where a permission is given.
       item.kind === "stuck" && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
@@ -3791,6 +3796,9 @@ function WaitingPanel() {
     settle: (item) => run(item.task, async () => {
       await web("/web/task/settle", { method: "POST", body: { id: item.task }, resident });
       store.set({ waiting: await loadWaiting(resident) });
+    }),
+    permit: (item, allow) => run(item.id, async () => {
+      store.set({ waiting: await decidePermission(resident, item.perm, allow) });
     }),
     // A stuck item put away: it comes back only when the thread fails again (/web/waiting/seen {item}).
     putAside: (item) => run(item.id, async () => {
@@ -4249,6 +4257,7 @@ button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-card-row .sp { flex: 1; }
 .ad-step { font: 11.5px/1.5 var(--mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-card-more { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2); overflow-wrap: anywhere; }
+.ad-perm-detail { margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(127,127,127,.12); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
 .ad-card .ad-hide { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; background: var(--panel-strong); }
 .ad-card:hover .ad-hide, .ad-card:focus-within .ad-hide { opacity: 1; }
 .ad-card:hover .ad-card-time, .ad-card:focus-within .ad-card-time { visibility: hidden; }

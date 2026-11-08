@@ -10,6 +10,7 @@ test("allowed paths pass, with the resident prefix", () => {
   assert.equal(target(BASE, "default", "/web/residents").href, `${BASE}/web/residents`);
   assert.equal(target(BASE, "default", "/web/config").href, `${BASE}/web/config`);
   assert.equal(target(BASE, "luna", "/web/avatar", "POST").href, `${BASE}/r/luna/web/avatar`);
+  assert.equal(target(BASE, "luna", "/web/waiting/permission", "POST").href, `${BASE}/r/luna/web/waiting/permission`);
 });
 
 test("everything else is refused", () => {

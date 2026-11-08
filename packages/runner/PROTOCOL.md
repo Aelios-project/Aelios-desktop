@@ -27,6 +27,7 @@ For the resident `default` the prefix is empty. Otherwise it is `/r/<id>`. Below
 | `POST {P}/runner/v1/poll` | The runner | Same |
 | `POST {P}/runner/v1/receipt` | The runner | Same |
 | `POST {P}/runner/v1/progress` `{workId, token, steps}` -> `{ok}` | The runner, while a turn works: the last steps (see **progress**) | Same |
+| `POST {P}/runner/v1/permission` `{workId, token, id, state, ...}` -> `{ok}` | The runner, when it holds a permission request for the owner, and when that request is settled (see **permission**) | Same |
 | `POST {P}/runner/v1/file` `{workId, key}` -> `{name, type, data}` | The runner, to fetch a picture or file that came with a message (`data` is base64, at most 4 MB of bytes) | Same |
 
 A request body is a JSON object, at most 16 KB. On error the response is `{error, code}` plus a status code.
@@ -63,14 +64,32 @@ How many runners a resident may have is decided by the cloud. The runner knows o
 - The resident shows the newest three on the thread's card and page while it works, lets its own `find` tool return them, and drops them when the turn's final receipt arrives. A body that carries the runner's token is refused. `workId` and `token` are the work's, as for a receipt (409 `UNKNOWN_WORK` / `INVALID_TOKEN`).
 - The runner needs no answer: a failed or lost send is not repeated, the next list replaces it. An older resident without this address answers 404; the runner ignores it.
 
+## permission
+
+A refusal made by the tier alone is held for the owner (10 minutes; no answer counts as deny). The runner tells the resident, so the request shows in its waiting list with Allow / Deny.
+
+```jsonc
+// held: sent when the runner starts holding a request. Exactly these fields.
+{ "workId": "w_…", "token": "wt_…", "id": "p_0123456789", "state": "held", "title": "scutil --get ComputerName", "kind": "other", "detail": "git push origin main" }
+// closed: sent when the request is settled anywhere (the resident's button, this machine, timeout, stopped turn). Exactly these fields.
+{ "workId": "w_…", "token": "wt_…", "id": "p_0123456789", "state": "closed" }
+// response
+{ "ok": true }            // or { "ok": true, "ignored": true } when that work has already finished
+```
+
+- `id` is the runner's own request id (`p_` and 10 hex digits). `title` is at most 120 characters and required, `kind` is the helper's kind (lower case letters and `_`, at most 20), `detail` is optional: the command from the helper's input, redacted as in **progress** (keys, tokens and passwords hidden, the workspace folder replaced), at most 400 characters. Any other field, a bad `id`, a missing title or one that carries the runner's token is refused (400 `INVALID_PERMISSION`). `workId` and `token` are the work's, as for a receipt (409 `UNKNOWN_WORK` / `INVALID_TOKEN`).
+- Not a receipt: nothing is queued or sent again; a lost report just means the item is not shown (the request still waits on the machine). The resident drops an item that no `closed` came for 11 minutes after it was held, and when the work's final receipt arrives.
+- Only the owner's button answers it. The resident puts the answer in the **poll** response as `answers: [{ "id": "p_…", "allow": true }]`, on every poll until the runner sends `closed` for it. The runner applies an answer only to a request that is still waiting (so a repeat or a late answer changes nothing), writes it in its journal as decided by `web`, and then sends `closed`. A resident never answers a permission by itself, and the runner never takes an answer for a request it does not hold.
+- A runner that does not send this, or a resident without the address (404), loses nothing but the item in the waiting list.
+
 ## poll: claim work
 
 ```jsonc
 // request
 { "claimKey": "ck_…", "accept": ["job", "say", "mail", "cancel"] }
-// response
-{ "work": null }
-{ "work": { /* Work, see below */ } }
+// response (answers is optional: the owner's Allow / Deny on held permissions, see **permission**)
+{ "work": null, "answers": [] }
+{ "work": { /* Work, see below */ }, "answers": [ { "id": "p_0123456789", "allow": true } ] }
 ```
 
 - `claimKey` is a random string the runner makes and saves to disk before each claim. The same `claimKey` again gets the **same** work back from the cloud (so a lost response loses nothing). Only after the work is received and saved does the runner switch to a new `claimKey`.
@@ -134,7 +153,7 @@ A receipt is written to a local outbox before it is sent, so a lost connection o
 ## The runner's local rules (not in the protocol, but the cloud should know)
 
 - Each thread has one fixed workspace, set on first use and never changed.
-- Permission requests (`session/request_permission`) are answered by tier: `read` allows only read / search / think; `edit` adds edits inside the workspace, **and also allows `fetch` (network)**; `full` allows all. Only "allow once" is chosen, never a standing permission. A refused request makes the turn end as `needs_you`, and the `ask` says what was refused.
+- Permission requests (`session/request_permission`) are answered by tier: `read` allows only read / search / think; `edit` adds edits inside the workspace, **and also allows `fetch` (network)**; `full` allows all. In the `edit` tier, a command that only looks at things is also allowed without asking (journal entry decided by `auto`). It is judged from the command itself, not the helper's title: a short list of programs with fixed arguments (`scutil --get`, `sw_vers`, `uname`, `hostname`, `whoami`, `pwd`, `ls`, `cat` / `head` / `tail` / `wc` on paths inside the workspace, `git status|log|diff|show|branch`, `node --version`, `npm --version`, `which`), joined at most by `;`. Pipes, redirects, `&&`, `||`, `&`, substitutions, quotes, env assignments, globs, a path outside the workspace or any argument off the list make it ask as before. The `read` tier always asks. Only "allow once" is chosen, never a standing permission. A refused request makes the turn end as `needs_you`, and the `ask` says what was refused.
 - Except in `full`, a request that carries paths (`locations`) with any path outside the workspace is refused. A symlink that points outside counts as outside.
 - **The limit of this check: it blocks only requests the helper asks for, and only by the kind and paths the helper reports.** If the helper reads without asking (for example reading `~/.ssh` in `read` tier), or the request lists no path, the runner cannot see or stop it. An injected job could use this to read local files and carry them to the cloud. For real isolation, use a dedicated system account or a VPS with no sensitive files, and tighten the helper's own read and write limits.
 - The helper has four ways to speak, each marker alone at the start of a line. Nothing: it carries on (the step can be undone and is inside the job). **`NOTE: ...`** anywhere in the turn: the user should know, no stop. The notes are taken out of the result and sent as the `notice` of the final receipt (`fyi: true`, at most 1000 characters). They arrive with the final receipt, not live. **`BLOCKED: ...`** as the last line: an outside wall. The receipt is `failed` with a summary that starts `Blocked: <reason>` and no `ask`. **`ASK: ...`** as the last line: only the user can decide. The receipt is `needs_you` with an `ask`. The runner adds an English convention after every message sent to the helper that explains these and a short ladder for getting unstuck (a different way, then a way around, then BLOCKED or ASK; do what can be undone and never ask whether to carry on). It holds no person's name or persona. Only `ASK:` and refused permission requests end as `needs_you`. A reply with no marker, even one that ends with a question mark, is treated as normally done.

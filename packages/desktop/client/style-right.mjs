@@ -38,6 +38,7 @@ button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-card-row .sp { flex: 1; }
 .ad-step { font: 11.5px/1.5 var(--mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-card-more { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2); overflow-wrap: anywhere; }
+.ad-perm-detail { margin: 0; padding: 6px 8px; border-radius: 8px; background: rgba(127,127,127,.12); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 7.5em; overflow: auto; }
 .ad-card .ad-hide { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; background: var(--panel-strong); }
 .ad-card:hover .ad-hide, .ad-card:focus-within .ad-hide { opacity: 1; }
 .ad-card:hover .ad-card-time, .ad-card:focus-within .ad-card-time { visibility: hidden; }

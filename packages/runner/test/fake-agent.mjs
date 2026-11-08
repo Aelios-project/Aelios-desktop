@@ -5,7 +5,7 @@
 //   ASKME      ends with the ASK: line
 //   QUESTION   ends with a plain question (no marker)
 //   CRASH      dies mid-turn
-//   PERM:kind[:path]   asks permission first and says what it was told
+//   PERM:kind[:path]   asks permission first and says what it was told; with RAW=<url-encoded command> the request carries it as rawInput
 //   CWD        says the folder it was started in
 // It wears two faces, picked by how it is started: `acp` (Kiro: session/load) or `--profile acp` (DSH: session/resume + close).
 // Everything it is asked is appended to the file in FAKE_STORE, which also keeps its sessions between runs.
@@ -57,7 +57,7 @@ async function prompt(id, params) {
   const perm = /PERM:(\w+)(?::(\S+))?/.exec(text);
   if (perm) {
     const outcome = await ask("session/request_permission", { sessionId,
-      toolCall: { toolCallId: "t2", title: `do ${perm[1]} ${perm[2] ?? ""}`.trim(), kind: perm[1], status: "pending", locations: perm[2] ? [{ path: perm[2] }] : [] },
+      toolCall: { toolCallId: "t2", title: `do ${perm[1]} ${perm[2] ?? ""}`.trim(), kind: perm[1], status: "pending", locations: perm[2] ? [{ path: perm[2] }] : [], ...(/RAW=(\S+)/.test(text) ? { rawInput: { command: decodeURIComponent(/RAW=(\S+)/.exec(text)[1]) } } : {}) },
       options: [{ optionId: "always", name: "Always", kind: "allow_always" }, { optionId: "allow", name: "Allow", kind: "allow_once" }, { optionId: "reject", name: "Reject", kind: "reject_once" }] });
     said = ` perm=${outcome.outcome?.optionId ?? outcome.outcome?.outcome}`;
   }

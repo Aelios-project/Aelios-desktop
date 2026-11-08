@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { choose, loadThread, loadWaiting, markSeen, sayToThread, splitThreads, stateOf, stopThread } from "../client/threads-api.mjs";
+import { choose, decidePermission, loadThread, loadWaiting, markSeen, sayToThread, splitThreads, stateOf, stopThread } from "../client/threads-api.mjs";
 import { PANEL_IDS, tabCounts } from "../client/panel-ids.mjs";
 import { words } from "../client/strings.mjs";
 
@@ -46,6 +46,9 @@ test("waiting: list, read one, read all, and answer an option", async () => {
     ["POST", "/web/waiting/seen", { all: true }],
     ["POST", "/web/task/choose", { id: "task1", text: "Yes" }],
   ]);
+  calls.length = 0;
+  await decidePermission("default", "p_0123456789", false, request);
+  assert.deepEqual(calls.map((c) => [c.method, c.path, c.body]), [["POST", "/web/waiting/permission", { id: "p_0123456789", allow: false }]]);
 });
 
 test("a task that waited and was dealt with is chosen or settled; open threads are split from done ones", () => {

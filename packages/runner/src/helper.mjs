@@ -24,7 +24,7 @@ export const CONVENTION = [
 
 export class Turn {
   /**
-   * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
+   * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function, auto?: Function,
    *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void,
    *          onStep?: (steps: {kind: string, title: string}[]) => void}} o
    */
@@ -58,8 +58,9 @@ export class Turn {
 
   async #request(method, params) {
     if (method !== "session/request_permission") throw new AcpError("method not found", -32601);
-    let { response, denied, hold } = answer(this.tier, params, this.cwd);
-    if (hold?.detail) hold.detail = this.redact(hold.detail); // the folder and the pairing token stay off the owner's screen too
+    let { response, denied, hold, auto } = answer(this.tier, params, this.cwd);
+    for (const shown of [hold, auto]) if (shown?.detail) shown.detail = this.redact(shown.detail); // the folder and the pairing token stay off the owner's screen too
+    if (auto) this.auto?.(auto); // allowed because it only looks at things: written in the journal, never asked
     // A refusal made by the tier alone waits for the owner. Allowing it covers this one request only.
     if (hold && this.hold && await this.hold(hold, () => this.cancelled)) ({ response, denied } = answer("full", params, this.cwd));
     if (denied) this.denied.push(denied);
