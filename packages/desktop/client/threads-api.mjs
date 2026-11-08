@@ -21,6 +21,18 @@ export function splitThreads(list = []) {
   return { open: list.filter(open), done: list.filter((t) => !open(t)) };
 }
 
+/** A thread's chip shows once, under the newest line that names it. Gives { lineId: [task, ...] }. */
+export function cardsByLine(lines = []) {
+  const newest = {};
+  for (const line of lines) for (const task of line.tasks || []) newest[task.thread || task.id] = line.id;
+  const out = {};
+  for (const line of lines) {
+    const own = (line.tasks || []).filter((task) => newest[task.thread || task.id] === line.id);
+    if (own.length) out[line.id] = own;
+  }
+  return out;
+}
+
 const post = (path, resident, body, request) => web(path, { method: "POST", body, resident }, request);
 
 export const loadThreads = (resident, request) => web("/web/threads", { resident }, request);

@@ -9,6 +9,7 @@ import { Md } from "./md.mjs";
 import { MessageActions } from "./message-actions.mjs";
 import { voiceLength } from "./media.mjs";
 import { words } from "./strings.mjs";
+import { ThreadChips } from "./thread-chip.mjs";
 
 const clock = (at) => (at ? new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 
@@ -110,7 +111,7 @@ function Stickers({ stickers }) {
 }
 
 /** `last` marks the newest reply (it can be taken back); `onChanged` reads the conversation again after. */
-export function Message({ line, resident, last = false, onChanged = null }) {
+export function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? (String(line.text || "").trim() ? [line.text] : []) : bubbleTexts(line.text);
@@ -124,5 +125,6 @@ export function Message({ line, resident, last = false, onChanged = null }) {
     (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
     (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }),
+    cards.length > 0 && h(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && h(MessageActions, { line, resident, last, onChanged }));
 }

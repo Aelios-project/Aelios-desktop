@@ -35,13 +35,17 @@ export function Composer({ resident, base, placeholder, say, onError, rich = tru
     if (onCommand && COMMANDS.includes(body.slice(1)) && body.startsWith("/")) { await command(body.slice(1)); return; }
     if ((!body && !pics.length) || busy) return;
     setBusy(true);
-    await run(async () => {
-      const payload = { text: body };
-      if (pics.length) payload.pictures = pics.map((pic) => ({ data: pic.data }));
-      await say(payload);
-      setText("");
-      setPics([]);
-    });
+    const payload = { text: body };
+    if (pics.length) payload.pictures = pics.map((pic) => ({ data: pic.data }));
+    const kept = pics;
+    // The box empties at once; what was written comes back only if the send failed and nothing new was typed.
+    setText("");
+    setPics([]);
+    try { await say(payload); } catch (e) {
+      setText((now) => now || body);
+      setPics((now) => (now.length ? now : kept));
+      onError(e.message);
+    }
     setBusy(false);
   };
   const openStickers = async () => {
