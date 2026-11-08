@@ -39,11 +39,11 @@ export const SPANS = [
   { key: "month", label: "30 days" },
 ];
 
-/** One row per span, ready to draw; a span the answer lacks is left out. */
+/** One line per span, in the size it was before: how much went through, and how much of it was cache. */
 export function usageRows(totals = {}) {
   return SPANS.map(({ key, label }) => {
     const t = totals?.[key];
     if (!t) return null;
-    return { key, label, cost: costText(t), calls: `${t.calls} ${t.calls === 1 ? "call" : "calls"}`, tokens: tokensText(t), hit: hitText(t) };
+    return { key, label, size: compact((t.input || 0) + (t.cacheRead || 0) + (t.cacheWrite || 0)), hit: hitText(t) };
   }).filter(Boolean);
 }

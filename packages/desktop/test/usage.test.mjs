@@ -29,8 +29,11 @@ test("usage: unpriced calls say so instead of pretending zero", () => {
   assert.equal(costText(undefined), "…");
 });
 
-test("usage: three rows, and a span the answer lacks is left out", () => {
-  const rows = usageRows({ today: { calls: 1, unpriced: 0, cost: 0.2, input: 10, cacheRead: 0, cacheWrite: 0, output: 5 }, week: { calls: 3, unpriced: 0, cost: 1.5, input: 100, cacheRead: 100, cacheWrite: 0, output: 2000 } });
-  assert.deepEqual(rows.map((r) => [r.key, r.label, r.cost, r.calls]), [["today", "Today", "$0.200", "1 call"], ["week", "7 days", "$1.50", "3 calls"]]);
-  assert.equal(rows[1].tokens, "in 200 · out 2.0k");
+test("usage: three lines of size and cache only, and a span the answer lacks is left out", () => {
+  const rows = usageRows({
+    today: { calls: 1, input: 10, cacheRead: 0, cacheWrite: 0, output: 5 },
+    week: { calls: 3, input: 100, cacheRead: 100, cacheWrite: 0, output: 2000 },
+  });
+  assert.deepEqual(rows.map((r) => [r.key, r.label, r.size, r.hit]), [["today", "Today", "10", "0%"], ["week", "7 days", "200", "50%"]]);
+  assert.equal(usageRows({ month: { input: 20000, cacheRead: 40000, cacheWrite: 0 } })[0].size, "60k");
 });

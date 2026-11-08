@@ -541,6 +541,9 @@ var WORDS = {
     backToDsh: "Back to DSH",
     showRail: "Residents",
     usage: "Usage",
+    alarms: "Alarms",
+    noAlarms: "No alarms set.",
+    alarmsOff: "Alarms are off.",
     attach: "Send pictures",
     remove: "Remove",
     model: "Model",
@@ -601,6 +604,9 @@ var WORDS = {
     backToDsh: "回到 DSH",
     showRail: "住户",
     usage: "用量",
+    alarms: "闹钟",
+    noAlarms: "没定闹钟。",
+    alarmsOff: "闹钟关着。",
     attach: "发图",
     remove: "拿掉",
     model: "模型",
@@ -772,6 +778,7 @@ var store = createStore({
   threads: [],
   error: "",
   usage: {},
+  alarms: { on: true, alarms: [] },
   rail: true,
   // ours covers DSH's whole left column; false hands it back to DSH
   shown: false,
@@ -952,11 +959,12 @@ function ConnectForm({ defaultWorkspace = "" }) {
 // client/left.mjs
 var import_react8 = require("react");
 
-// client/usage.mjs
-function money(cost) {
-  if (!cost) return "$0";
-  return "$" + (cost >= 1 ? cost.toFixed(2) : cost >= 0.01 ? cost.toFixed(3) : cost.toFixed(4));
+// client/alarms.mjs
+function soonAlarms(alarms = [], limit = 4) {
+  return [...alarms].filter((a) => a && a.next).sort((a, b) => new Date(a.next) - new Date(b.next)).slice(0, limit).map((a) => ({ id: a.id, note: a.note || "", when: a.when || "" }));
 }
+
+// client/usage.mjs
 function compact(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + "M";
   if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + "k";
@@ -965,15 +973,6 @@ function compact(n) {
 function hitText(t) {
   const all = t ? t.input + t.cacheRead + t.cacheWrite : 0;
   return all ? `${Math.round(t.cacheRead / all * 100)}%` : "—";
-}
-function tokensText(t) {
-  if (!t) return "";
-  return `in ${compact(t.input + t.cacheRead + t.cacheWrite)} · out ${compact(t.output)}`;
-}
-function costText(t) {
-  if (!t) return "…";
-  if (t.calls && t.unpriced === t.calls) return "unpriced";
-  return money(t.cost);
 }
 var SPANS = [
   { key: "today", label: "Today" },
@@ -984,7 +983,7 @@ function usageRows(totals = {}) {
   return SPANS.map(({ key, label }) => {
     const t = totals?.[key];
     if (!t) return null;
-    return { key, label, cost: costText(t), calls: `${t.calls} ${t.calls === 1 ? "call" : "calls"}`, tokens: tokensText(t), hit: hitText(t) };
+    return { key, label, size: compact((t.input || 0) + (t.cacheRead || 0) + (t.cacheWrite || 0)), hit: hitText(t) };
   }).filter(Boolean);
 }
 
@@ -992,7 +991,8 @@ function usageRows(totals = {}) {
 var POLL_MS2 = 3e4;
 function Left({ onBack }) {
   const t = words();
-  const { status, residents, usage } = useStore(store);
+  const { status, residents, usage, alarms } = useStore(store);
+  const resident = status?.resident || "default";
   (0, import_react8.useEffect)(() => {
     const load = async () => {
       try {
@@ -1009,7 +1009,8 @@ function Left({ onBack }) {
   (0, import_react8.useEffect)(() => {
     const load = async () => {
       try {
-        store.set({ usage: (await web("/web/usage", { resident: status?.resident || "default" }))?.totals || {} });
+        const [u, a] = await Promise.all([web("/web/usage", { resident }), web("/web/alarms", { resident })]);
+        store.set({ usage: u?.totals || {}, alarms: { on: Boolean(a?.on), alarms: a?.alarms || [] } });
       } catch {
       }
     };
@@ -1018,12 +1019,13 @@ function Left({ onBack }) {
       if (!document.hidden) void load();
     }, POLL_MS2);
     return () => clearInterval(timer);
-  }, [status?.resident]);
+  }, [resident]);
   const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
   const list = residents.length ? residents : [{ id: "default", name: t.title }];
-  const current = list.find((r) => r.id === (status?.resident || "default")) || list[0];
+  const current = list.find((r) => r.id === resident) || list[0];
   const others = list.filter((r) => r.id !== current.id);
   const rows = usageRows(usage);
+  const next = soonAlarms(alarms.alarms);
   return (0, import_react8.createElement)(
     "nav",
     { className: "ad-rail", "aria-label": t.residents },
@@ -1045,17 +1047,26 @@ function Left({ onBack }) {
       (0, import_react8.createElement)(Face, { resident: r, base: status?.url }),
       (0, import_react8.createElement)("span", { className: "ad-txt" }, (0, import_react8.createElement)("span", { className: "ad-label" }, r.name || r.id))
     )),
+    (0, import_react8.createElement)(
+      "div",
+      { className: "ad-alarms" },
+      (0, import_react8.createElement)("p", { className: "ad-group-title" }, t.alarms),
+      !alarms.on ? (0, import_react8.createElement)("p", { className: "ad-hint" }, t.alarmsOff) : next.length ? next.map((a) => (0, import_react8.createElement)(
+        "div",
+        { key: a.id, className: "ad-alarm", title: a.note },
+        (0, import_react8.createElement)("span", { className: "w" }, a.when),
+        (0, import_react8.createElement)("span", { className: "n" }, a.note)
+      )) : (0, import_react8.createElement)("p", { className: "ad-hint" }, t.noAlarms)
+    ),
     rows.length > 0 && (0, import_react8.createElement)(
       "div",
       { className: "ad-usage" },
-      (0, import_react8.createElement)("p", { className: "ad-group-title" }, t.usage),
       rows.map((row) => (0, import_react8.createElement)(
         "div",
-        { key: row.key, className: "ad-urow" },
+        { key: row.key, className: "ad-urow", title: row.label },
         (0, import_react8.createElement)("span", { className: "l" }, row.label),
-        (0, import_react8.createElement)("span", { className: "c" }, row.cost),
-        (0, import_react8.createElement)("span", { className: "d" }, row.calls, (0, import_react8.createElement)("span", { className: "hit" }, ` · ${row.hit}`)),
-        (0, import_react8.createElement)("span", { className: "t" }, row.tokens)
+        (0, import_react8.createElement)("span", { className: "s" }, row.size),
+        (0, import_react8.createElement)("span", { className: "h" }, row.hit)
       ))
     ),
     (0, import_react8.createElement)(
@@ -1647,14 +1658,16 @@ var RAIL = `
 .ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
 .ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
 @keyframes ad-pulse { 50% { opacity: .3; } }
-.ad-usage { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 4px 0 10px; }
-.ad-urow { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 8px; border-radius: 10px; }
-.ad-urow:hover { background: var(--line-soft); }
-.ad-urow .l { font-size: 12px; color: var(--text-3); }
-.ad-urow .c { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-1); }
-.ad-urow .d { grid-column: 1; font-size: 11px; line-height: 1.4; color: var(--text-4); }
-.ad-urow .d .hit { color: var(--text-3); }
-.ad-urow .t { grid-column: 2; text-align: right; font-size: 11px; line-height: 1.4; color: var(--text-4); }
+.ad-alarms { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
+.ad-alarm { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 10px; }
+.ad-alarm:hover { background: var(--line-soft); }
+.ad-alarm .w { flex: none; max-width: 46%; font-size: 12px; line-height: 1.5; color: var(--accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-alarm .n { flex: 1; min-width: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-usage { display: flex; flex-direction: column; gap: 0; margin-top: 2px; padding: 8px 8px 2px; border-top: 1px solid var(--line-soft); }
+.ad-urow { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; font-size: 11.5px; line-height: 1.6; }
+.ad-urow .l { flex: 1; color: var(--text-4); }
+.ad-urow .s { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ad-urow .h { min-width: 3ch; text-align: right; color: var(--text-4); font-variant-numeric: tabular-nums; }
 .ad-rail-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; padding-top: 10px; }
 .ad-side .ad-rail { width: 100%; height: 100%; border-right: 0; border-radius: 0; }
 `;

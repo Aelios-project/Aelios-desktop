@@ -32,14 +32,16 @@ export const RAIL = `
 .ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
 .ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
 @keyframes ad-pulse { 50% { opacity: .3; } }
-.ad-usage { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding: 4px 0 10px; }
-.ad-urow { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; padding: 6px 8px; border-radius: 10px; }
-.ad-urow:hover { background: var(--line-soft); }
-.ad-urow .l { font-size: 12px; color: var(--text-3); }
-.ad-urow .c { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-1); }
-.ad-urow .d { grid-column: 1; font-size: 11px; line-height: 1.4; color: var(--text-4); }
-.ad-urow .d .hit { color: var(--text-3); }
-.ad-urow .t { grid-column: 2; text-align: right; font-size: 11px; line-height: 1.4; color: var(--text-4); }
+.ad-alarms { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
+.ad-alarm { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 10px; }
+.ad-alarm:hover { background: var(--line-soft); }
+.ad-alarm .w { flex: none; max-width: 46%; font-size: 12px; line-height: 1.5; color: var(--accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-alarm .n { flex: 1; min-width: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ad-usage { display: flex; flex-direction: column; gap: 0; margin-top: 2px; padding: 8px 8px 2px; border-top: 1px solid var(--line-soft); }
+.ad-urow { display: flex; align-items: baseline; gap: 6px; padding: 2px 0; font-size: 11.5px; line-height: 1.6; }
+.ad-urow .l { flex: 1; color: var(--text-4); }
+.ad-urow .s { color: var(--text-2); font-variant-numeric: tabular-nums; }
+.ad-urow .h { min-width: 3ch; text-align: right; color: var(--text-4); font-variant-numeric: tabular-nums; }
 .ad-rail-foot { display: flex; align-items: center; gap: 2px; margin-top: auto; padding-top: 10px; }
 .ad-side .ad-rail { width: 100%; height: 100%; border-right: 0; border-radius: 0; }
 `;
