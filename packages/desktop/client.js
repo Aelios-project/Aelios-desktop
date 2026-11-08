@@ -80,6 +80,15 @@ function readSurface(doc = globalThis.document) {
   return { scheme, prefersLight };
 }
 
+// client/platform.mjs
+function shellTopInset(nav = globalThis.navigator, proc = globalThis.process) {
+  const ua = nav?.userAgent || "";
+  const electron = /Electron/i.test(ua) || Boolean(proc?.versions?.electron);
+  if (!electron) return 0;
+  const macOS = /Macintosh|Mac OS X/i.test(ua) || proc?.platform === "darwin";
+  return macOS ? 30 : 0;
+}
+
 // client/chat.mjs
 var import_react6 = require("react");
 
@@ -1610,7 +1619,7 @@ var CHAT = `
 // client/style-rail.mjs
 var RAIL = `
 .ad-rail { flex: none; width: var(--rail-w); display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 10px; overflow-y: auto; background: var(--glass); border-right: 1px solid var(--line-soft); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-.ad-rail-head { display: flex; align-items: center; gap: 2px; padding: 0 0 10px 6px; }
+.ad-rail-head { display: flex; align-items: center; gap: 2px; padding: 0 0 10px 6px; padding-top: var(--ad-top-inset, 0px); }
 .ad-rail-brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-family: var(--serif); font-size: 17px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; overflow: hidden; }
 .ad-rail-mark { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--avatar-bg); box-shadow: 0 0 0 1px var(--avatar-ring); color: var(--moon); font-size: 13px; }
 .ad-current { display: flex; flex-direction: column; align-items: center; gap: 2px; align-self: center; width: 132px; margin: 4px 0 12px; padding: 12px 8px 10px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); color: var(--text-1); }
@@ -1852,7 +1861,8 @@ function Main() {
 }
 function Side({ onBack }) {
   const day = useDay();
-  return (0, import_react15.createElement)("div", { className: `ad-root ad-side${day ? " day" : ""}` }, (0, import_react15.createElement)(Left, { onBack }));
+  const inset = shellTopInset();
+  return (0, import_react15.createElement)("div", { className: `ad-root ad-side${day ? " day" : ""}`, style: inset ? { "--ad-top-inset": `${inset}px` } : void 0 }, (0, import_react15.createElement)(Left, { onBack }));
 }
 var Nav = () => (0, import_react15.createElement)(
   "svg",

@@ -22,6 +22,21 @@ const dark = !day;
 const paper = dark ? "#070a16" : "#F8F5EF";
 document.documentElement.style.background = paper;
 document.body.style.background = paper;
+// ?desktop=1 draws the window the plugin actually lives in: macOS traffic lights over the top-left corner, and the
+// strip the shell leaves for them.
+if (new URLSearchParams(location.search).get("desktop") === "1") {
+  const root = document.getElementById("root");
+  root.style.setProperty("--ad-top-inset", "30px");
+  const lights = document.createElement("div");
+  lights.style.cssText = "position:fixed;top:12px;left:12px;z-index:99;display:flex;gap:8px";
+  for (const colour of ["#ff5f57", "#febc2e", "#28c840"]) {
+    const dot = document.createElement("span");
+    dot.style.cssText = `width:12px;height:12px;border-radius:50%;background:${colour};box-shadow:0 0 0 .5px rgba(0,0,0,.2)`;
+    lights.append(dot);
+  }
+  document.body.append(lights);
+}
+
 // The conversation opens at its end, the way the shell draws it.
 const stream = document.querySelector(".ad-stream");
 if (stream) stream.scrollTop = stream.scrollHeight;

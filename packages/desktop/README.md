@@ -24,7 +24,7 @@ cd packages/desktop
 python3 -m http.server 8917        # then open http://127.0.0.1:8917/preview/index.html
 ```
 
-`?theme=light` or `?theme=dark` forces a palette; without it the page follows the same rule as the plugin: DSH's own `color-scheme` first, the system setting second (client/palette.mjs).
+`?desktop=1` draws the macOS window's traffic lights over the corner and the strip the shell leaves for them. `?theme=light` or `?theme=dark` forces a palette; without it the page follows the same rule as the plugin: DSH's own `color-scheme` first, the system setting second (client/palette.mjs).
 
 `preview/shots/` holds the images the interface was checked against: `before-*` is the previous slice, `after-*` this one, `panels-*` the right column, and `reference-*` the resident's own page rendered from its public `app.css` and markup with the same fake conversation. Every image is fake data; none comes from a real resident.
 

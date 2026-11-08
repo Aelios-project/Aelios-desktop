@@ -3,6 +3,7 @@
 import { createElement as h, useEffect, useRef, useState } from "react";
 import { call } from "./api.mjs";
 import { paletteOf, readSurface } from "./palette.mjs";
+import { shellTopInset } from "./platform.mjs";
 import { Chat } from "./chat.mjs";
 import { ConnectForm } from "./connect-form.mjs";
 import { Left } from "./left.mjs";
@@ -80,7 +81,8 @@ function Main() {
 /** The whole left column while ours is in place; its foot hands the column back to DSH. */
 function Side({ onBack }) {
   const day = useDay();
-  return h("div", { className: `ad-root ad-side${day ? " day" : ""}` }, h(Left, { onBack }));
+  const inset = shellTopInset();
+  return h("div", { className: `ad-root ad-side${day ? " day" : ""}`, style: inset ? { "--ad-top-inset": `${inset}px` } : undefined }, h(Left, { onBack }));
 }
 
 const Nav = () => h("svg", { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true },
