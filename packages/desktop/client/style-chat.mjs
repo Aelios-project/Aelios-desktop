@@ -41,6 +41,11 @@ export const CHAT = `
 .ad-round svg { width: 19px; height: 19px; }
 .ad-round:disabled { opacity: .5; cursor: default; }
 .ad-round.quiet { background: var(--line-soft); color: var(--text-2); }
+.ad-plain { flex: none; width: 34px; height: 34px; margin-bottom: 3px; border: 0; border-radius: 10px; display: grid; place-items: center; background: transparent; color: var(--text-4); }
+.ad-plain:hover { color: var(--text-1); background: var(--line-soft); }
+.ad-plain svg { width: 18px; height: 18px; }
+.ad-plain.on { color: var(--accent-text); }
+.ad-plain.rec { color: var(--err-text); animation: ad-pulse 1.4s infinite ease-in-out; }
 .ad-quote { margin: 0 0 2px; padding: 5px 10px; border-radius: 10px; background: var(--line-soft); font-size: 12px; line-height: 1.5; color: var(--text-3); max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ad-busy { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 100%; }
 .ad-busy > button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px 0 10px; border-radius: 999px; border: 1px dashed var(--line-dash); background: transparent; color: var(--text-3); font-size: 12px; }
@@ -73,13 +78,14 @@ export const CHAT = `
 .ad-thumbs img { width: 100%; height: 100%; object-fit: cover; }
 .ad-thumbs .ad-x { position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; display: grid; place-items: center; }
 .ad-thumbs .ad-x svg { width: 11px; height: 11px; }
-.ad-voice { display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; }
+.ad-voice { display: flex; align-items: center; gap: 10px; padding: 7px 12px 7px 7px; border-radius: 18px 18px 18px 6px; border: 1px solid var(--line); background: var(--panel); }
+.ad-row.me .ad-voice { background: var(--mine); border-color: var(--mine-line); border-radius: 18px 18px 6px 18px; }
 .ad-voice-play { flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--violet); color: #fff; }
 .ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
 .ad-voice-play svg { width: 14px; height: 14px; }
 .ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-.ad-sticker { border-radius: 12px; overflow: hidden; }
+.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
 .ad-sticker img, .ad-sticker video { display: block; width: 120px; height: auto; image-rendering: pixelated; }
 .ad-picker { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; margin: 0 0 8px; padding: 8px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel-strong); box-shadow: var(--shadow); }
 .ad-picker .ad-group-title { margin: 0 4px; }

@@ -149,9 +149,9 @@ export function Chat() {
       h("div", { className: "ad-bar" },
         h("input", { ref: picker, type: "file", accept: "image/*", multiple: true, hidden: true, onChange: attach }),
         h("button", { className: "ad-round quiet", type: "button", title: t.attach, "aria-label": t.attach, onClick: () => picker.current?.click() }, h(Icon, { name: "plus" })),
-        h("button", { className: `ad-round quiet${openPicker ? " on" : ""}`, type: "button", title: t.stickers, "aria-label": t.stickers, onClick: openStickers }, h(Icon, { name: "sticker" })),
-        h("button", { className: `ad-round quiet${recording ? " rec" : ""}`, type: "button", title: recording ? t.recording : t.voice, "aria-label": recording ? t.recording : t.voice, onClick: toggleRecording }, h(Icon, { name: "mic" })),
         h("div", { className: "ad-field" },
           h("textarea", { rows: 1, value: text, placeholder: t.write, "aria-label": t.write, onChange: (e) => setText(e.target.value), onKeyDown: onKey })),
+        h("button", { className: `ad-plain${openPicker ? " on" : ""}`, type: "button", title: t.stickers, "aria-label": t.stickers, onClick: openStickers }, h(Icon, { name: "sticker" })),
+        h("button", { className: `ad-plain${recording ? " rec" : ""}`, type: "button", title: recording ? t.recording : t.voice, "aria-label": recording ? t.recording : t.voice, onClick: toggleRecording }, h(Icon, { name: "mic" })),
         h("button", { className: "ad-round", type: "button", disabled: busy || (!text.trim() && !pics.length), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" })))));
 }

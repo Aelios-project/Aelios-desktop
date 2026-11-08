@@ -104,10 +104,7 @@ export function Message({ line, resident }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? (String(line.text || "").trim() ? [line.text] : []) : bubbleTexts(line.text);
-  // A voice note or a sticker with no words is its own message, and it sits on the right like the owner's own.
-  const mouthful = bubbles.length > 0 || (line.pictures ?? 0) > 0 || (line.files ?? []).length > 0;
-  const onlyVoice = !mouthful && (Boolean(line.voice) || (line.stickers ?? []).length > 0);
-  return h("div", { className: `ad-row ${me || onlyVoice ? "me" : "ai"}` },
+  return h("div", { className: `ad-row ${me ? "me" : "ai"}` },
     busy && h(Busy, { busy }),
     line.quote && h("span", { className: "ad-quote" }, line.quote.text),
     (line.pictures ?? 0) > 0 && h(Pictures, { lineId: line.id, count: line.pictures, resident }),
