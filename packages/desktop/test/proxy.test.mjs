@@ -8,10 +8,12 @@ test("allowed paths pass, with the resident prefix", () => {
   assert.equal(target(BASE, "default", "/web/messages?since=a%20b").href, `${BASE}/web/messages?since=a%20b`);
   assert.equal(target(BASE, "luna", "/web/thread/say", "POST").href, `${BASE}/r/luna/web/thread/say`);
   assert.equal(target(BASE, "default", "/web/residents").href, `${BASE}/web/residents`);
+  assert.equal(target(BASE, "default", "/web/config").href, `${BASE}/web/config`);
+  assert.equal(target(BASE, "luna", "/web/avatar", "POST").href, `${BASE}/r/luna/web/avatar`);
 });
 
 test("everything else is refused", () => {
-  const bad = ["/web/runner/code", "/web/runner/register", "/web/config", "/web/../x", "/web/%2e%2e/x", "/web/messages%2F..", "/other", "//evil.example/web/messages", "/web/messages#x", "/web/mess ages"];
+  const bad = ["/web/runner/code", "/web/runner/register", "/web/secret", "/web/../x", "/web/%2e%2e/x", "/web/messages%2F..", "/other", "//evil.example/web/messages", "/web/messages#x", "/web/mess ages"];
   for (const p of bad) assert.throws(() => target(BASE, "default", p), ProxyError, p);
   assert.throws(() => target(BASE, "default", "/web/messages", "DELETE"), /method/);
   assert.throws(() => target(BASE, "Bad/Id", "/web/messages"), /resident/);

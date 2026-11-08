@@ -1,11 +1,10 @@
-// What each panel of the right column draws (ids in panel-ids.mjs). Board and Tools are only places for now.
+// What each panel of the work column draws (ids, icons and counts in panel-ids.mjs).
 import { createElement as h } from "react";
-import { PANEL_IDS } from "./panel-ids.mjs";
-import { WaitingPanel } from "./panel-waiting.mjs";
+import { PANEL_ICONS, PANEL_IDS } from "./panel-ids.mjs";
+import { AlarmsPanel } from "./panel-alarms.mjs";
 import { ThreadsPanel } from "./panel-threads.mjs";
-import { words } from "./strings.mjs";
+import { WaitingPanel } from "./panel-waiting.mjs";
 
-const Empty = () => h("div", { className: "ad-panel" }, h("div", { className: "ad-slot" }, words().soon));
-const DRAW = { waiting: WaitingPanel, threads: ThreadsPanel };
+const DRAW = { waiting: WaitingPanel, threads: ThreadsPanel, alarms: AlarmsPanel };
 
-export const PANELS = PANEL_IDS.map((id) => ({ id, render: DRAW[id] || Empty }));
+export const PANELS = PANEL_IDS.map((id) => ({ id, icon: PANEL_ICONS[id], render: () => h(DRAW[id]) }));

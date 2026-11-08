@@ -14,7 +14,11 @@ if (command === "start") {
   setInterval(() => {}, 1000);
 } else if (command === "status") {
   console.log(JSON.stringify({ paired: process.env.FAKE_PAIRED !== "0", revoked: process.env.FAKE_REVOKED === "1" }));
+} else if (command === "overview" && process.env.FAKE_WORKSPACE) {
+  console.log(JSON.stringify({ workspace: process.env.FAKE_WORKSPACE, threads: {}, turns: {}, perms: [] }));
 } else if (command === "pair" && process.env.FAKE_PAIR_FAIL) {
+  if (process.env.FAKE_NOISE) console.error("(node:1) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental");
   console.error("aelios-runner: the resident did not accept the key");
+  if (process.env.FAKE_NOISE) console.error("(Use `node --trace-warnings ...` to show where the warning was created)");
   process.exit(1);
 }

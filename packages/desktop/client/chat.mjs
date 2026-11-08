@@ -1,25 +1,27 @@
 // The middle column: the conversation with the resident. Lines come from /web/messages (polled every 5 s).
-// Header, bubbles and composer follow Aelios-resident's chat page (styles in style-chat.mjs).
+// Header (chat-head.mjs), bubbles (message.mjs) and composer (composer.mjs) follow Aelios-resident's chat page.
 import { createElement as h, useEffect, useRef, useState } from "react";
-import { createMessages, web, call } from "./api.mjs";
+import { ChatHead } from "./chat-head.mjs";
+import { Composer } from "./composer.mjs";
+import { createMessages, web } from "./api.mjs";
+import { Face } from "./face.mjs";
 import { Icon } from "./icons.mjs";
 import { Md } from "./md.mjs";
+import { Message } from "./message.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
+import { cardsByLine } from "./threads-api.mjs";
 
 const POLL_MS = 5000;
 
-const clock = (at) => (at ? new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
-
 export function Chat() {
   const t = words();
-  const { status, residents, right } = useStore(store);
+  const { status, residents, around } = useStore(store);
   const resident = status?.resident || "default";
-  const name = residents.find((r) => r.id === resident)?.name || t.title;
+  const me = residents.find((r) => r.id === resident) || { id: resident, name: t.title };
   const [lines, setLines] = useState([]);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const end = useRef(null);
   const reader = useRef(null);
 
@@ -30,51 +32,42 @@ export function Chat() {
       setError("");
     } catch (e) { setError(e.message); }
   };
+  const restart = () => { reader.current = createMessages((path) => web(path, { resident })); };
 
   useEffect(() => {
-    reader.current = createMessages((path) => web(path, { resident }));
+    restart();
     setLines([]);
     void refresh();
     const timer = setInterval(() => { if (!document.hidden) void refresh(); }, POLL_MS);
     return () => clearInterval(timer);
   }, [resident]);
 
-  useEffect(() => { end.current?.scrollIntoView?.({ block: "end" }); }, [lines.length]);
+  useEffect(() => { if (!around) end.current?.scrollIntoView?.({ block: "end" }); }, [lines.length, around]);
 
-  async function send() {
-    const body = text.trim();
-    if (!body || busy) return;
-    setBusy(true);
-    try {
-      const said = await web("/web/say", { method: "POST", body: { text: body }, resident });
-      if (said?.error) throw new Error(said.error);
-      setText("");
-      reader.current = createMessages((path) => web(path, { resident }));
-      await refresh();
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
-  }
+  const say = async (body) => {
+    const said = await web("/web/say", { method: "POST", body, resident });
+    if (said?.error) throw new Error(said.error);
+    restart();
+    await refresh();
+  };
 
-  const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); void send(); } };
-  const runner = status?.runner;
-  const state = runner && (t.runner[runner.state] || runner.state) + (runner.error ? ` · ${runner.error}` : "");
+  // A command's answer (/status, /letter, /handoff) is a note over the box, not a line of the conversation.
+  const onCommand = async (name) => {
+    const d = await web("/web/command", { method: "POST", body: { name }, resident });
+    if (d?.error) throw new Error(d.error);
+    setNotice(d?.text || "");
+  };
 
-  return h("section", { className: "ad-main" },
-    h("div", { className: "ad-top" },
-      h("span", { className: "ad-avatar", "aria-hidden": true }, name.slice(0, 1)),
-      h("div", { className: "ad-who" }, h("span", { className: "ad-name" }, name), state && h("span", { className: "ad-status" }, state)),
-      runner && ["stopped", "crashed", "revoked"].includes(runner.state) && h("button", { className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
-      h("button", { className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("disconnect") }) }, t.disconnect),
-      !right.open && h("button", { className: "ad-icon-btn", type: "button", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, h(Icon, { name: "panel" }))),
+  const cards = cardsByLine(around ? around.lines : lines);
+  return h("section", { className: "ad-main", "aria-label": me.name || me.id },
+    h(ChatHead, { face: h(Face, { resident: me, base: status?.url }), name: me.name || me.id, resident, searchable: true }),
     h("div", { className: "ad-stream", "aria-live": "polite" },
-      lines.length === 0 && h("div", { className: "ad-note" }, t.empty),
-      lines.map((line, i) => h("div", { key: line.id ?? i, className: `ad-row ${line.role === "user" ? "me" : "ai"}` },
-        h("div", { className: "ad-bubble" },
-          line.role === "user" ? line.text : h(Md, { text: line.text }),
-          h("span", { className: "ad-meta" }, clock(line.at))))),
+      h("div", { className: "grow" }),
+      !around && lines.length === 0 && h("div", { className: "ad-note" }, t.empty),
+      (around ? around.lines : lines).map((line, i, all) => h(Message, { key: line.id ?? i, line, resident, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => { restart(); await refresh(); } })),
       h("div", { ref: end })),
-    error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 16px" } }, error),
-    h("div", { className: "ad-compose" }, h("div", { className: "ad-bar" },
-      h("div", { className: "ad-field" },
-        h("textarea", { rows: 1, value: text, placeholder: t.write, "aria-label": t.write, onChange: (e) => setText(e.target.value), onKeyDown: onKey })),
-      h("button", { className: "ad-round", type: "button", disabled: busy || !text.trim(), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" })))));
+    error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 18px 4px", textAlign: "center" } }, error),
+    notice && h("div", { className: "ad-notice", role: "status" }, h("div", { className: "ad-md" }, h(Md, { text: notice })),
+      h("button", { type: "button", className: "ad-icon-btn sm", title: t.close, "aria-label": t.close, onClick: () => setNotice("") }, h(Icon, { name: "close" }))),
+    h(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand }));
 }

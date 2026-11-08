@@ -28,6 +28,9 @@ test("validate: defaults, address, helper, full permission", () => {
   assert.throws(() => validate({ ...good, workspace: "relative" }), ConnectError);
   assert.throws(() => validate({ ...good, access: "full" }), /confirmation/);
   assert.equal(validate({ ...good, access: "full", confirmFull: true }).access, "full");
+  assert.equal(validate(good).resident, "default");
+  assert.equal(validate({ ...good, resident: "ada" }).resident, "ada", "the passed resident is kept");
+  assert.throws(() => validate({ ...good, resident: "../x" }), ConnectError);
 });
 
 test("connect: the key goes in the environment, never in the arguments, and the connection is saved", async () => {
@@ -43,6 +46,7 @@ test("connect: the key goes in the environment, never in the arguments, and the 
     assert.equal(pair.key, "secret-key");
     assert.ok(!JSON.stringify(pair.args).includes("secret-key"));
     assert.equal(store.value.key, "secret-key");
+    assert.equal(pair.args[pair.args.indexOf("--resident") + 1], "default");
     await supervisor.stop();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -53,6 +57,24 @@ test("connect: a failed pairing is a ConnectError with the runner's message, and
   const supervisor = new Supervisor({ entry: ENTRY, node: process.execPath, env });
   await assert.rejects(connect(good, { entry: ENTRY, node: process.execPath, env, store, supervisor }), /did not accept the key/);
   assert.equal(store.value, null);
+});
+
+test("repair: pairs again with the saved resident and keeps it", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "ad-"));
+  const log = path.join(dir, "log");
+  const env = { FAKE_LOG: log, FAKE_PAIRED: "0", FAKE_MODE: "run" };
+  const store = new MemoryStore();
+  store.value = { ...good, url: "https://res.example", resident: "ada", plugin: "dsh", access: "edit" };
+  const supervisor = new Supervisor({ entry: ENTRY, node: process.execPath, env, killAfterMs: 2000 });
+  const route = makeRoute({ entry: ENTRY, node: process.execPath, env, store, supervisor });
+  try {
+    const response = await route(new Request("http://x/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "repair" }) }));
+    assert.equal(response.status, 200);
+    const pair = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)).find((c) => c.command === "pair");
+    assert.equal(pair.args[pair.args.indexOf("--resident") + 1], "ada");
+    assert.equal(store.value.resident, "ada");
+    await supervisor.stop();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("route: no answer holds the key, unknown actions and runner paths are refused", async () => {

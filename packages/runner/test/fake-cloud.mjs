@@ -3,6 +3,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 
+import { REASONS } from "../src/reason.mjs";
 const STATUSES = ["done", "failed", "needs_you", "cancelled"];
 
 export class FakeCloud {
@@ -52,7 +53,16 @@ export class FakeCloud {
       if (this.drops[action] > 0) { this.drops[action]--; return req.socket.destroy(); } // the cloud did it; the runner never hears
       send(status, value);
     };
-    if (action === "heartbeat") { this.beats++; return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
+    if (action === "file") { // files handed along with a message: this.files[key] = {name, type, bytes}
+      const file = this.files?.[body.key];
+      return file ? reply(200, { name: file.name, type: file.type, data: Buffer.from(file.bytes).toString("base64") }) : reply(404, { error: "no file", code: "UNKNOWN_FILE" });
+    }
+    if (action === "progress") { // not a receipt: the latest steps of a working thread
+      if (JSON.stringify(body).includes(this.deviceToken)) return reply(400, { error: "credential in progress", code: "INVALID_PROGRESS" });
+      (this.progresses ??= []).push(body);
+      return reply(200, { ok: true });
+    }
+    if (action === "heartbeat") { this.beats++; (this.beatBodies ??= []).push(body); return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
     if (action === "poll") {
       this.polls.push(body);
       const known = this.claims.get(body.claimKey);
@@ -71,6 +81,7 @@ export class FakeCloud {
       if (!["started", "queued", "final"].includes(body.type) || body.receiptId !== `${body.workId}:${body.type}`) return reply(400, { error: "type", code: "INVALID_RECEIPT" });
       if (body.type === "final") {
         if (!STATUSES.includes(body.status) || typeof body.summary !== "string" || body.summary.length > 4000) return reply(400, { error: "final", code: "INVALID_RECEIPT" });
+        if (body.reason !== undefined && (body.status !== "failed" || !REASONS.includes(body.reason))) return reply(400, { error: "reason", code: "INVALID_RECEIPT" });
         if (body.status === "needs_you" && !body.ask?.key) return reply(400, { error: "ask", code: "INVALID_RECEIPT" });
       }
       const fingerprint = JSON.stringify(body);
