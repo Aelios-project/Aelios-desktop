@@ -33,8 +33,8 @@ function redactor(secrets, places) {
 
 export class Runner {
   /** @param {{config: object, state: import("./state.mjs").StateFile, cloud?: Cloud, log?: Function, request?: Function}} o */
-  constructor({ config, state, cloud, log = () => {}, request = fetch }) {
-    this.config = config; this.state = state; this.log = log; this.request = request;
+  constructor({ config, state, cloud, journal = null, log = () => {}, request = fetch }) {
+    this.config = config; this.state = state; this.log = log; this.request = request; this.journal = journal;
     this.cloud = cloud ?? null;
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
@@ -161,6 +161,7 @@ export class Runner {
 
   async #execute(work) {
     const state = await this.state.read();
+    this.journal?.turn(work);
     const record = state.threads[work.thread];
     let cwd = record?.cwd;
     if (!cwd) { mkdirSync(this.config.workspace, { recursive: true }); cwd = realpathSync(this.config.workspace); }
@@ -169,6 +170,7 @@ export class Runner {
     const turn = new Turn({
       launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
+      hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped)),
       onSession: async (sessionId, how) => {
         // The thread's folder and session are fixed from the first time it has one.
         await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
@@ -191,6 +193,7 @@ export class Runner {
     if (outcome.sessionId) receipt.sessionId = safeId(outcome.sessionId);
     if (outcome.ask) receipt.ask = outcome.ask;
     if (outcome.notice) receipt.notice = outcome.notice;
+    this.journal?.end(work, receipt.status, receipt.summary);
     await this.#queueReceipts([this.#receipt(work, "final", receipt)]);
   }
 

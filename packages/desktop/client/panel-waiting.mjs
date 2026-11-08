@@ -1,7 +1,7 @@
 // The waiting list: what needs the person, or has news, in the resident's fixed format (GET /web/waiting).
 // A card is its title, its time, and one status word; an open question keeps its answers in sight. A press on the
 // title opens the rest: the resident's line about it and the way to its thread. Updates can be dismissed one by
-// one (on hover) or all at once. Layout follows the 线程 page of Aelios-resident (AGPL-3.0, same author).
+// one (on hover) or all at once. Layout follows the threads page of Aelios-resident (AGPL-3.0, same author).
 import { createElement as h, useState } from "react";
 import { web } from "./api.mjs";
 import { Icon } from "./icons.mjs";

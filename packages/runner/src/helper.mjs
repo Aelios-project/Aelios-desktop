@@ -21,7 +21,7 @@ export const CONVENTION = [
 
 export class Turn {
   /**
-   * @param {{launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number,
+   * @param {{launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
    *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void}} o
    */
   constructor(o) {
@@ -49,7 +49,9 @@ export class Turn {
 
   async #request(method, params) {
     if (method !== "session/request_permission") throw new AcpError("method not found", -32601);
-    const { response, denied } = answer(this.tier, params, this.cwd);
+    let { response, denied, hold } = answer(this.tier, params, this.cwd);
+    // A refusal made by the tier alone waits for the owner. Allowing it covers this one request only.
+    if (hold && this.hold && await this.hold(hold, () => this.cancelled)) ({ response, denied } = answer("full", params, this.cwd));
     if (denied) this.denied.push(denied);
     return response;
   }

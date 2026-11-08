@@ -1,7 +1,9 @@
 // Starts, watches and stops `aelios-runner start` as a child process.
 // States: unpaired, stopped, starting, running, crashed, locked (another runner holds the lock), revoked.
 import { spawn } from "node:child_process";
-import { nodeBin, runnerStatus } from "./runner.mjs";
+import { childEnv, nodeBin, runnerStatus } from "./runner.mjs";
+
+const LOG_LINES = 40;
 
 const KILL_AFTER_MS = 5000;
 const RESTART_GAP_MS = 60000;
@@ -14,18 +16,26 @@ export class Supervisor {
     this.child = null;
     this.lastRestart = 0;
     this.stopping = false;
+    this.since = 0;
+    this.log = [];
   }
 
   snapshot() { return { state: this.state, error: this.error }; }
 
-  #set(state, error = "") { this.state = state; this.error = error; this.onChange(this.snapshot()); }
+  /** What the This machine view shows: the state, since when, the process, and the runner's last lines. */
+  detail() { return { ...this.snapshot(), since: this.since || null, pid: this.child?.pid ?? null, log: this.log }; }
+
+  #set(state, error = "") { if (state !== this.state) this.since = this.now(); this.state = state; this.error = error; this.onChange(this.snapshot()); }
+
+  /** A failure that stops the runner before it starts (pairing, for one): a short line for the owner. */
+  fail(state, error) { this.#set(state, String(error).slice(0, 200)); }
 
   start({ auto = false } = {}) {
     if (this.child) return;
     this.stopping = false;
     if (auto) this.lastRestart = this.now();
     this.#set("starting");
-    const child = spawn(this.node, [this.entry, "start"], { env: { ...process.env, ...this.env }, stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(this.node, [this.entry, "start"], { env: childEnv(this.node, this.env), stdio: ["ignore", "ignore", "pipe"] });
     this.child = child;
     let last = "";
     let buffer = "";
@@ -33,7 +43,7 @@ export class Supervisor {
       buffer += chunk;
       const lines = buffer.split("\n");
       buffer = lines.pop();
-      for (const line of lines.filter(Boolean)) last = line;
+      for (const line of lines.filter(Boolean)) { last = line; this.log = [...this.log, { at: this.now(), text: line }].slice(-LOG_LINES); }
       if (this.state === "starting" && last) this.#set("running");
     });
     child.on("error", (e) => { this.child = null; this.#set("crashed", e.message); });

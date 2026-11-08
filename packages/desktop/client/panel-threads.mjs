@@ -1,6 +1,6 @@
 // The threads panel: the work the resident handed out, and one thread opened in its place. The old Board panel is
 // folded in here: it listed the same work task by task, so all that is kept of it is the line over the list (where
-// threads run and how many of the day's quota are used). Rows follow the 线程 page of Aelios-resident (AGPL-3.0).
+// threads run and how many of the day's quota are used). Rows follow the threads page of Aelios-resident (AGPL-3.0).
 import { createElement as h, useEffect, useState } from "react";
 import { Icon } from "./icons.mjs";
 import { Empty, Explained } from "./info.mjs";

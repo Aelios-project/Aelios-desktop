@@ -1,5 +1,6 @@
 // The one route the client half calls: POST /api/aelios-desktop { action, ... }. It never returns the key.
-import { ConnectError, connect, defaultWorkspace, disconnect } from "./connect.mjs";
+import { ConnectError, connect, defaultWorkspace, disconnect, ensurePaired } from "./connect.mjs";
+import { makeLocal } from "./local.mjs";
 import { ProxyError, forward, forwardBytes, forwardRaw } from "./proxy.mjs";
 
 export const ROUTE = "/api/aelios-desktop";
@@ -9,6 +10,7 @@ const json = (value, status = 200) => Response.json(value, { status, headers: HE
 
 export function makeRoute(deps) {
   const { store, supervisor } = deps;
+  const local = makeLocal(deps);
 
   async function status() {
     const c = await store.get();
@@ -26,7 +28,13 @@ export function makeRoute(deps) {
       await connect({ url: c.url, key: c.key, helper: c.plugin, access: c.access, workspace: c.workspace, resident: c.resident, confirmFull: true }, deps);
       return status();
     },
-    async start() { supervisor.start(); return status(); },
+    async start() { await ensurePaired(deps); return status(); },
+    machine: () => local.machine(),
+    sessions: () => local.sessions(),
+    session: (input) => local.session(input),
+    permit: (input) => local.permit(input),
+    open: (input) => local.open(input),
+    present: () => local.present(),
     async stop() { await supervisor.stop(); return status(); },
     async select({ resident }) {
       const c = await store.get();
