@@ -16,6 +16,13 @@ export async function web(path, { method = "GET", body, resident } = {}, request
   return data;
 }
 
+/** A raw body to the resident: the picture that becomes its face. Returns what the resident answered. */
+export async function upload(path, data, type, { resident } = {}, request = fetch) {
+  const out = await call("upload", { path, data, type, resident }, request);
+  if (out.status >= 400) throw new Error(out.data?.error || `the resident answered ${out.status}`);
+  return out.data;
+}
+
 /** The resident's bytes (a picture, a handed-over file, a sticker) as an object URL, fetched once per path. */
 const blobs = new Map();
 export async function blobUrl(path, { resident } = {}, request = fetch) {

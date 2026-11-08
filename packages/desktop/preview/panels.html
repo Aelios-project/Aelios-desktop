@@ -48,7 +48,7 @@
       <div class="ad-tabs" role="tablist">
         <button type="button" role="tab" class="ad-tab" ${title === "Waiting" ? 'aria-selected="true"' : ""}>Waiting ${badge ? '<span class="ad-badge">2</span>' : ""}</button>
         <button type="button" role="tab" class="ad-tab" ${title === "Threads" ? 'aria-selected="true"' : ""}>Threads</button>
-        <button type="button" role="tab" class="ad-tab" ${title === "Me" ? 'aria-selected="true"' : ""}>Me</button>
+        <button type="button" role="tab" class="ad-tab" ${title === "Settings" ? 'aria-selected="true"' : ""}>Settings</button>
         <button type="button" role="tab" class="ad-tab" ${title === "Board" ? 'aria-selected="true"' : ""}>Board</button>
         <button type="button" role="tab" class="ad-tab">Tools</button>
       </div>
@@ -97,24 +97,35 @@
   const me = `
     <div class="ad-panel">
       <div class="ad-me-head"><span class="ad-avatar" aria-hidden="true"><img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Crect width='96' height='96' fill='%23241c42'/%3E%3Ccircle cx='48' cy='38' r='17' fill='%23F6DDAE'/%3E%3Cpath d='M18 96c6-20 17-30 30-30s24 10 30 30z' fill='%23F6DDAE'/%3E%3C/svg%3E" alt=""></span>
-        <div><b>Aster</b><span class="ad-sub">default</span></div></div>
-      <p class="ad-me-line"><span>Model</span><code>auto/gpt-6.1-terra</code></p>
-      <div class="ad-me-block">
-        <label class="ad-me-label" for="ad-persona">Persona</label>
-        <textarea id="ad-persona" class="ad-me-text" rows="6">A quiet resident who keeps the days in order and says less than it knows.</textarea>
-        <div class="ad-links"><button type="button" class="ad-btn small" disabled>Save the persona</button></div>
-      </div>
-      <div class="ad-me-block">
-        <p class="ad-me-label">Runner</p>
+        <div><b>Aster</b><span class="ad-sub">default</span></div>
+        <button type="button" class="ad-icon-btn sm" aria-label="Put up a picture"><span class="ad-plus">+</span></button>
+        <button type="button" class="ad-icon-btn sm" aria-label="Take the picture down">×</button></div>
+      <div class="ad-set-row"><label class="ad-me-label">Name</label>
+        <div class="ad-set-line"><input type="text" value="Aster"><button type="button" class="ad-btn quiet small" disabled>Save</button></div></div>
+      <div class="ad-set-row"><label class="ad-me-label">Model</label>
+        <div class="ad-set-line"><select><option>auto/gpt-6.1-terra</option><option>claude-code/claude-opus-5-5</option></select><button type="button" class="ad-btn quiet small" disabled>Save</button></div></div>
+      <div class="ad-me-block"><label class="ad-me-label" for="ad-persona">Persona</label>
+        <textarea id="ad-persona" class="ad-me-text" rows="5">A quiet resident who keeps the days in order and says less than it knows.</textarea>
+        <div class="ad-links"><button type="button" class="ad-btn small" disabled>Save the persona</button></div></div>
+      <button type="button" class="ad-set-fold"><span>More settings · 52</span><span>▸</span></button>
+      <div class="ad-me-block"><p class="ad-me-label">Letter</p>
+        <p class="ad-hint">Older chat is packed into a letter (written)</p></div>
+      <div class="ad-me-block"><p class="ad-me-label">Runner</p>
         <p class="ad-me-state s-unpaired">runner not paired</p>
         <p class="ad-hint">The runner is the helper on this machine. Without a pairing the resident cannot hand it work; the chat itself keeps working.</p>
-        <div class="ad-links"><button type="button" class="ad-btn quiet small">Pair it again</button><button type="button" class="ad-btn quiet small">Start runner</button><button type="button" class="ad-btn quiet small">Disconnect</button></div>
-      </div>
+        <div class="ad-links"><button type="button" class="ad-btn quiet small">Pair it again</button><button type="button" class="ad-btn quiet small">Start runner</button><button type="button" class="ad-btn quiet small">Disconnect</button></div></div>
     </div>`;
-
   const board = `
     <div class="ad-panel">
-      <div class="ad-slot"><span class="ad-slot-mark">${gear}</span><span>Left open for the next slice</span></div>
+      <p class="ad-hint">Runs on GitHub Actions · 4/10 today</p>
+      <div class="ad-trow working"><span class="top-line"><span class="t">Sort the morning mail</span><span class="ad-pill warn">Working</span></span>
+        <span class="ad-track" aria-hidden="true"><span></span></span>
+        <span class="sub"><span>Runs at the resident</span><span>10:24</span></span></div>
+      <div class="ad-trow ask"><span class="top-line"><span class="t">Draft the weekly note</span><span class="ad-pill hot">Needs you</span></span>
+        <span class="sub"><span>Runs on GitHub Actions</span><span>09:58</span></span></div>
+      <p class="ad-group">Done</p>
+      <div class="ad-trow"><span class="top-line"><span class="t">Check the build numbers</span><span class="ad-pill ok">Done</span></span>
+        <span class="sub"><span>Runs at the resident</span><span>Yesterday 18:40</span></span></div>
     </div>`;
   const tools = `
     <div class="ad-panel">
@@ -123,7 +134,7 @@
 
   const stage = document.getElementById("stage");
   const panel = (title, body, badge) => `<aside class="ad-right" aria-label="${title}">${head(title, badge)}${body}</aside>`;
-  stage.innerHTML = [panel("Threads", threads), panel("Threads", thread), panel("Me", me), panel("Board", board)].join("") + `<aside class="ad-right" aria-label="Tools">${head("Tools")}${tools}</aside>`;
+  stage.innerHTML = [panel("Threads", threads), panel("Threads", thread), panel("Settings", me), panel("Board", board)].join("") + `<aside class="ad-right" aria-label="Tools">${head("Tools")}${tools}</aside>`;
 
   const bar = document.querySelector(".frame-bar");
   const dark = wanted !== "light";

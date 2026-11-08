@@ -28,7 +28,7 @@ __export(index_exports, {
   inject: () => inject
 });
 module.exports = __toCommonJS(index_exports);
-var import_react15 = require("react");
+var import_react16 = require("react");
 
 // client/api.mjs
 var ROUTE = "/api/aelios-desktop";
@@ -43,6 +43,11 @@ async function web(path, { method = "GET", body, resident } = {}, request = fetc
   const { status, data } = await call("web", { path, method, body, resident }, request);
   if (status >= 400) throw Object.assign(new Error(data?.error || `The resident answered ${status}`), { status });
   return data;
+}
+async function upload(path, data, type, { resident } = {}, request = fetch) {
+  const out = await call("upload", { path, data, type, resident }, request);
+  if (out.status >= 400) throw new Error(out.data?.error || `the resident answered ${out.status}`);
+  return out.data;
 }
 var blobs = /* @__PURE__ */ new Map();
 async function blobUrl(path, { resident } = {}, request = fetch) {
@@ -111,6 +116,17 @@ var base64Of = (bytes) => {
   for (let i = 0; i < bytes.length; i += 32768) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
   return btoa(out);
 };
+async function readFace(file, edge = 512) {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = edge;
+  canvas.height = edge;
+  canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, edge, edge);
+  bitmap.close?.();
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.86);
+  return { data: bareBase64(dataUrl), type: "image/jpeg", url: dataUrl };
+}
 async function readPicture(file) {
   if (file.type === "image/gif" && file.size < KEEP_GIF_BYTES) {
     return { url: URL.createObjectURL(file), data: base64Of(new Uint8Array(await file.arrayBuffer())) };
@@ -549,7 +565,7 @@ var WORDS = {
     disconnect: "Disconnect",
     empty: "Nothing yet. Say hello.",
     sending: "Sending…",
-    panels: { threads: "Threads", waiting: "Waiting", me: "Me", board: "Board", tools: "Tools" },
+    panels: { threads: "Threads", waiting: "Waiting", settings: "Settings", board: "Board", tools: "Tools" },
     soon: "Left open for the next slice",
     openNow: "At work",
     backToDsh: "Back to DSH",
@@ -557,6 +573,22 @@ var WORDS = {
     usage: "Usage",
     alarms: "Alarms",
     search: "Search the conversation",
+    save: "Save",
+    name: "Name",
+    setFace: "Put up a picture",
+    dropFace: "Take the picture down",
+    moreSettings: "More settings",
+    letter: "Letter",
+    written: "Older chat is packed into a letter",
+    noLetter: "No letter yet",
+    onItsWay: "on its way",
+    failedToSend: "could not be sent",
+    blocked: "blocked",
+    retryLetter: "Send it again",
+    tasksOff: "Background help is off, so nothing is handed out.",
+    where: "Runs in ",
+    today: "today",
+    noTasks: "Nothing has been handed out yet.",
     stickers: "Stickers",
     voice: "Record a voice note",
     play: "Play it",
@@ -626,7 +658,7 @@ var WORDS = {
     disconnect: "断开",
     empty: "还没有消息，先打个招呼吧。",
     sending: "正在发送…",
-    panels: { threads: "线程", waiting: "等你", me: "我", board: "看板", tools: "小工具" },
+    panels: { threads: "线程", waiting: "等你", settings: "设置", board: "看板", tools: "小工具" },
     soon: "先留个位置",
     openNow: "在做",
     backToDsh: "回到 DSH",
@@ -634,6 +666,22 @@ var WORDS = {
     usage: "用量",
     alarms: "闹钟",
     search: "搜聊天记录",
+    save: "保存",
+    name: "名字",
+    setFace: "换头像",
+    dropFace: "撤下头像",
+    moreSettings: "更多设置",
+    letter: "交接信",
+    written: "更早的聊天收进了一封信",
+    noLetter: "还没有交接信",
+    onItsWay: "在路上",
+    failedToSend: "没发出去",
+    blocked: "卡住了",
+    retryLetter: "再发一次",
+    tasksOff: "后台帮忙关着，没有活派出去。",
+    where: "在 ",
+    today: "今天",
+    noTasks: "还没有派出去的活。",
     stickers: "表情包",
     voice: "录一段语音",
     play: "听",
@@ -1353,36 +1401,46 @@ function Left({ onBack }) {
 }
 
 // client/right.mjs
-var import_react14 = require("react");
+var import_react15 = require("react");
 
 // client/panels.mjs
-var import_react13 = require("react");
+var import_react14 = require("react");
 
 // client/panel-ids.mjs
-var PANEL_IDS = ["waiting", "threads", "me", "board", "tools"];
+var PANEL_IDS = ["waiting", "threads", "settings", "board", "tools"];
 
-// client/panel-me.mjs
+// client/panel-board.mjs
 var import_react9 = require("react");
+
+// client/board.mjs
+var WORKING = /* @__PURE__ */ new Set(["sent", "working"]);
+var FINISHED = /* @__PURE__ */ new Set(["done", "failed", "quiet", "stopped", "cancelled"]);
+function splitTasks(tasks = []) {
+  const at = (t) => new Date(t?.updatedAt || t?.createdAt || 0).getTime();
+  const list = [...tasks].filter(Boolean).sort((a, b) => at(b) - at(a));
+  return { working: list.filter((t) => WORKING.has(t.status)), done: list.filter((t) => FINISHED.has(t.status) || !WORKING.has(t.status)) };
+}
+function runsText(runs) {
+  return { local: "Runs at the resident", linux: "Runs on GitHub Actions", machine: "Runs on a machine", external: "Runs elsewhere" }[runs] || "";
+}
+function stateWord(status) {
+  return { sent: "Sent out", working: "Working", done: "Done", failed: "Failed", quiet: "No reply", stopped: "Stopped", needs_you: "Needs you", cancelled: "Stopped" }[status] || status || "";
+}
+
+// client/panel-board.mjs
 var POLL_MS3 = 15e3;
-function MePanel() {
+var PILL = { working: "warn", sent: "warn", needs_you: "hot", done: "ok", failed: "bad", quiet: "bad" };
+function BoardPanel() {
   const t = words();
-  const { status, residents } = useStore(store);
+  const { status } = useStore(store);
   const resident = status?.resident || "default";
-  const me = residents.find((r) => r.id === resident) || { id: resident, name: t.title };
-  const runner = status?.runner || { state: "unpaired", error: "" };
-  const [model, setModel] = (0, import_react9.useState)(null);
-  const [persona, setPersona] = (0, import_react9.useState)("");
-  const [draft, setDraft] = (0, import_react9.useState)("");
-  const [busy, setBusy] = (0, import_react9.useState)("");
-  const [note, setNote] = (0, import_react9.useState)("");
+  const [data, setData] = (0, import_react9.useState)(null);
   const [error, setError] = (0, import_react9.useState)("");
   (0, import_react9.useEffect)(() => {
     const load = async () => {
       try {
-        const [m, p] = await Promise.all([web("/web/model", { resident }), web("/web/persona", { resident })]);
-        setModel(m);
-        setPersona(p?.text || "");
-        setDraft((was) => was || p?.text || "");
+        setData(await web("/web/tasks", { resident }));
+        setError("");
       } catch (e) {
         setError(e.message);
       }
@@ -1391,6 +1449,164 @@ function MePanel() {
     const timer = setInterval(() => {
       if (!document.hidden) void load();
     }, POLL_MS3);
+    return () => clearInterval(timer);
+  }, [resident]);
+  const card = (task) => (0, import_react9.createElement)(
+    "div",
+    { key: task.id, className: `ad-trow${task.status === "needs_you" ? " ask" : task.status === "middle" ? "" : ""}` },
+    (0, import_react9.createElement)(
+      "span",
+      { className: "top-line" },
+      (0, import_react9.createElement)("span", { className: "t" }, task.title || t.thread),
+      (0, import_react9.createElement)("span", { className: `ad-pill ${PILL[task.status] || ""}` }, stateWord(task.status))
+    ),
+    task.summary && (0, import_react9.createElement)("span", { className: "sub" }, (0, import_react9.createElement)("span", null, task.summary)),
+    (0, import_react9.createElement)("span", { className: "sub" }, (0, import_react9.createElement)("span", null, runsText(task.runs)), (0, import_react9.createElement)("span", null, task.updatedAt ? new Date(task.updatedAt).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "")),
+    task.sessionUrl && (0, import_react9.createElement)("span", { className: "ad-links" }, (0, import_react9.createElement)("a", { className: "ad-btn quiet small", href: task.sessionUrl, target: "_blank", rel: "noopener noreferrer" }, t.open))
+  );
+  const { working, done } = splitTasks(data?.tasks);
+  return (0, import_react9.createElement)(
+    "div",
+    { className: "ad-panel" },
+    error && (0, import_react9.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    data && !data.configured && (0, import_react9.createElement)("p", { className: "ad-hint" }, t.tasksOff),
+    data?.configured && (0, import_react9.createElement)("p", { className: "ad-hint" }, `${runsText(data.mode)} · ${data.today ?? 0}/${data.limit ?? 0} ${t.today}`),
+    working.map(card),
+    done.length > 0 && (0, import_react9.createElement)("p", { className: "ad-group" }, t.done),
+    done.map(card),
+    data && (data.tasks || []).length === 0 && (0, import_react9.createElement)("div", { className: "ad-slot" }, t.noTasks)
+  );
+}
+
+// client/panel-settings.mjs
+var import_react10 = require("react");
+
+// client/settings.mjs
+var LABELS = {
+  RESIDENT_NAME: "Name",
+  MODEL: "Model",
+  WEB_PUSH: "What to push",
+  RESIDENT_TZ: "Time zone",
+  HEARTBEAT: "Check-ins",
+  ALARMS: "Alarms",
+  STICKERS: "Stickers",
+  VOICE_REPLY: "Voice replies",
+  BG_TASK: "Background help",
+  TASK_EXECUTION: "Where threads run",
+  THINKING: "Thinking"
+};
+var humanKey = (key) => String(key || "").toLowerCase().split("_").filter(Boolean).map((word, i) => i === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word).join(" ");
+var labelOf = (key) => LABELS[key] || humanKey(key);
+function shownValue(field) {
+  if (!field) return "";
+  if (field.kind === "secret") return field.saved ? "saved" : field.workerHas ? "from the Worker" : "";
+  return field.value || field.fromWorker || "";
+}
+function settingRows(config) {
+  const fields = Array.isArray(config?.fields) ? config.fields : [];
+  return fields.map((field) => ({
+    key: field.key,
+    label: labelOf(field.key),
+    kind: field.kind,
+    choices: field.choices || [],
+    value: shownValue(field),
+    secret: field.kind === "secret"
+  }));
+}
+function modelRows(models = []) {
+  return models.filter((m) => m && (m.id || m.name)).map((m) => ({ id: String(m.id || m.name), name: String(m.name || m.id), note: m.group || m.provider || "" }));
+}
+
+// client/panel-settings.mjs
+var POLL_MS4 = 2e4;
+function letterNote(letter, t) {
+  if (!letter) return "";
+  const d = letter.delivery || {};
+  const wrote = letter.write ? `${t.written}${letter.write.state ? ` (${letter.write.state})` : ""}` : t.noLetter;
+  const parts = [wrote];
+  if (d.pending) parts.push(`${d.pending} ${t.onItsWay}`);
+  if (d.failed) parts.push(`${d.failed} ${t.failedToSend}`);
+  if (d.blocked) parts.push(`${d.blocked} ${t.blocked}`);
+  if (d.latest?.lastError) parts.push(d.latest.lastError);
+  return parts.join(" · ");
+}
+function Row({ row, resident }) {
+  const t = words();
+  const [draft, setDraft] = (0, import_react10.useState)(row.value);
+  const [state, setState] = (0, import_react10.useState)("");
+  (0, import_react10.useEffect)(() => setDraft(row.value), [row.value]);
+  const changed = draft !== row.value;
+  const save = async () => {
+    setState("…");
+    try {
+      await web("/web/config", { method: "POST", body: { key: row.key, text: draft === row.value ? "" : draft }, resident });
+      setState(t.personaSaved);
+    } catch (e) {
+      setState(e.message);
+    }
+  };
+  const field = row.choices.length ? (0, import_react10.createElement)("select", { value: draft, onChange: (e) => setDraft(e.target.value) }, ["", ...row.choices].map((c) => (0, import_react10.createElement)("option", { key: c, value: c }, c || "—"))) : (0, import_react10.createElement)("input", { type: row.secret ? "password" : "text", value: draft, placeholder: row.secret ? "saved on the resident" : "", onChange: (e) => setDraft(e.target.value) });
+  return (0, import_react10.createElement)(
+    "div",
+    { className: "ad-set-row" },
+    (0, import_react10.createElement)("label", { className: "ad-me-label" }, row.label),
+    (0, import_react10.createElement)(
+      "div",
+      { className: "ad-set-line" },
+      field,
+      (0, import_react10.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: !changed, onClick: save }, t.save)
+    ),
+    state && (0, import_react10.createElement)("span", { className: "ad-hint" }, state)
+  );
+}
+function SettingsPanel() {
+  const t = words();
+  const { status, residents } = useStore(store);
+  const resident = status?.resident || "default";
+  const me = residents.find((r) => r.id === resident) || { id: resident, name: t.title };
+  const [name, setName] = (0, import_react10.useState)("");
+  const [models, setModels] = (0, import_react10.useState)(null);
+  const [model, setModel] = (0, import_react10.useState)("");
+  const [savedModel, setSavedModel] = (0, import_react10.useState)("");
+  const [rows, setRows] = (0, import_react10.useState)([]);
+  const [letter, setLetter] = (0, import_react10.useState)(null);
+  const [persona, setPersona] = (0, import_react10.useState)("");
+  const [draft, setDraft] = (0, import_react10.useState)("");
+  const [open, setOpen] = (0, import_react10.useState)(false);
+  const [busy, setBusy] = (0, import_react10.useState)("");
+  const [note, setNote] = (0, import_react10.useState)("");
+  const [error, setError] = (0, import_react10.useState)("");
+  const face = (0, import_react10.useRef)(null);
+  const load = async () => {
+    const [c, m, p, md, lt] = await Promise.allSettled([
+      web("/web/config", { resident }),
+      web("/web/models", { resident }),
+      web("/web/persona", { resident }),
+      web("/web/model", { resident }),
+      web("/web/letter", { resident })
+    ]);
+    if (lt.status === "fulfilled") setLetter(lt.value);
+    if (c.status === "fulfilled") {
+      const list = settingRows(c.value);
+      setRows(list);
+      setName(list.find((r) => r.key === "RESIDENT_NAME")?.value || "");
+    }
+    if (m.status === "fulfilled") setModels(modelRows(m.value?.models));
+    if (p.status === "fulfilled") {
+      setPersona(p.value?.text || "");
+      setDraft((was) => was || p.value?.text || "");
+    }
+    if (md.status === "fulfilled") {
+      const now = md.value?.model || md.value?.fallback || "";
+      setModel((was) => was || now);
+      setSavedModel(now);
+    }
+  };
+  (0, import_react10.useEffect)(() => {
+    void load();
+    const timer = setInterval(() => {
+      if (!document.hidden) void load();
+    }, POLL_MS4);
     return () => clearInterval(timer);
   }, [resident]);
   const act = (key, job) => async () => {
@@ -1407,55 +1623,108 @@ function MePanel() {
       setBusy("");
     }
   };
+  const saveName = act("name", async () => {
+    await web("/web/config", { method: "POST", body: { key: "RESIDENT_NAME", text: name }, resident });
+    await load();
+  });
+  const saveModel = act("model", async () => {
+    await web("/web/model", { method: "POST", body: { text: model }, resident });
+  });
   const savePersona = act("persona", async () => {
     const saved = await web("/web/persona", { method: "POST", body: { text: draft }, resident });
     setPersona(saved?.text ?? draft);
   });
-  const pair = act("pair", async () => store.set({ status: await call("repair") }));
-  const start = act("start", async () => store.set({ status: await call("start") }));
-  const off = act("off", async () => store.set({ status: await call("disconnect") }));
-  return (0, import_react9.createElement)(
+  const pickFace = act("face", async () => {
+    const file = face.current?.files?.[0];
+    if (!file) return;
+    const picture = await readFace(file);
+    await upload("/web/avatar", picture.data, picture.type, { resident });
+    store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] });
+  });
+  const dropFace = act("drop", async () => {
+    await upload("/web/avatar/remove", "", "application/json", { resident });
+  });
+  const runner = status?.runner || { state: "unpaired", error: "" };
+  return (0, import_react10.createElement)(
     "div",
     { className: "ad-panel" },
-    (0, import_react9.createElement)(
+    (0, import_react10.createElement)(
       "div",
       { className: "ad-me-head" },
-      (0, import_react9.createElement)(Face, { resident: me, base: status?.url }),
-      (0, import_react9.createElement)("div", null, (0, import_react9.createElement)("b", null, me.name || me.id), (0, import_react9.createElement)("span", { className: "ad-sub" }, me.id))
+      (0, import_react10.createElement)(Face, { resident: me, base: status?.url }),
+      (0, import_react10.createElement)("div", null, (0, import_react10.createElement)("b", null, me.name || me.id), (0, import_react10.createElement)("span", { className: "ad-sub" }, me.id)),
+      (0, import_react10.createElement)("input", { ref: face, type: "file", accept: "image/*", hidden: true, onChange: () => pickFace() }),
+      (0, import_react10.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.setFace, "aria-label": t.setFace, onClick: () => face.current?.click() }, (0, import_react10.createElement)("span", { className: "ad-plus" }, "+")),
+      me.avatar && (0, import_react10.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.dropFace, "aria-label": t.dropFace, onClick: dropFace }, "×")
     ),
-    (0, import_react9.createElement)("p", { className: "ad-me-line" }, (0, import_react9.createElement)("span", null, t.model), (0, import_react9.createElement)("code", null, model?.model || model?.fallback || "—")),
-    (0, import_react9.createElement)(
+    (0, import_react10.createElement)(
       "div",
-      { className: "ad-me-block" },
-      (0, import_react9.createElement)("label", { className: "ad-me-label", htmlFor: "ad-persona" }, t.persona),
-      (0, import_react9.createElement)("textarea", { id: "ad-persona", className: "ad-me-text", rows: 6, value: draft, placeholder: persona || "…", onChange: (e) => setDraft(e.target.value) }),
-      (0, import_react9.createElement)(
+      { className: "ad-set-row" },
+      (0, import_react10.createElement)("label", { className: "ad-me-label" }, t.name),
+      (0, import_react10.createElement)(
         "div",
-        { className: "ad-links" },
-        (0, import_react9.createElement)("button", { type: "button", className: "ad-btn small", disabled: Boolean(busy) || draft === persona, onClick: savePersona }, t.savePersona)
+        { className: "ad-set-line" },
+        (0, import_react10.createElement)("input", { type: "text", value: name, onChange: (e) => setName(e.target.value) }),
+        (0, import_react10.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy) || name === (me.name || ""), onClick: saveName }, t.save)
       )
     ),
-    (0, import_react9.createElement)(
+    (0, import_react10.createElement)(
       "div",
-      { className: "ad-me-block" },
-      (0, import_react9.createElement)("p", { className: "ad-me-label" }, t.runnerTitle),
-      (0, import_react9.createElement)("p", { className: `ad-me-state s-${runner.state}` }, t.runner[runner.state] || runner.state, runner.error ? ` · ${runner.error}` : ""),
-      (0, import_react9.createElement)("p", { className: "ad-hint" }, t.whyRunner),
-      (0, import_react9.createElement)(
+      { className: "ad-set-row" },
+      (0, import_react10.createElement)("label", { className: "ad-me-label" }, t.model),
+      (0, import_react10.createElement)(
         "div",
-        { className: "ad-links" },
-        (0, import_react9.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy), onClick: pair }, t.pair),
-        runner.state !== "running" && (0, import_react9.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy), onClick: start }, t.start),
-        (0, import_react9.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy), onClick: off }, t.disconnect)
+        { className: "ad-set-line" },
+        models && models.length ? (0, import_react10.createElement)("select", { value: model, onChange: (e) => setModel(e.target.value) }, models.map((m) => (0, import_react10.createElement)("option", { key: m.id, value: m.id }, m.name))) : (0, import_react10.createElement)("input", { type: "text", value: model, onChange: (e) => setModel(e.target.value) }),
+        (0, import_react10.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy) || model === savedModel, onClick: saveModel }, t.save)
       )
     ),
-    note && (0, import_react9.createElement)("p", { className: "ad-hint" }, note),
-    error && (0, import_react9.createElement)("div", { className: "ad-error", role: "alert" }, error)
+    (0, import_react10.createElement)(
+      "div",
+      { className: "ad-me-block" },
+      (0, import_react10.createElement)("label", { className: "ad-me-label", htmlFor: "ad-persona" }, t.persona),
+      (0, import_react10.createElement)("textarea", { id: "ad-persona", className: "ad-me-text", rows: 5, value: draft, onChange: (e) => setDraft(e.target.value) }),
+      (0, import_react10.createElement)("div", { className: "ad-links" }, (0, import_react10.createElement)("button", { type: "button", className: "ad-btn small", disabled: Boolean(busy) || draft === persona, onClick: savePersona }, t.savePersona))
+    ),
+    (0, import_react10.createElement)("button", { type: "button", className: "ad-set-fold", "aria-expanded": open, onClick: () => setOpen((v) => !v) }, `${t.moreSettings} · ${rows.length}`, (0, import_react10.createElement)("span", null, open ? "▾" : "▸")),
+    open && rows.filter((row) => row.key !== "RESIDENT_NAME").map((row) => (0, import_react10.createElement)(Row, { key: row.key, row, resident })),
+    (0, import_react10.createElement)(
+      "div",
+      { className: "ad-me-block" },
+      (0, import_react10.createElement)("p", { className: "ad-me-label" }, t.letter),
+      (0, import_react10.createElement)("p", { className: "ad-hint" }, letterNote(letter, t)),
+      letter?.canRetry && (0, import_react10.createElement)(
+        "div",
+        { className: "ad-links" },
+        (0, import_react10.createElement)("button", {
+          type: "button",
+          className: "ad-btn quiet small",
+          disabled: Boolean(busy),
+          onClick: act("letter", async () => setLetter(await web("/web/letter/retry", { method: "POST", body: {}, resident })))
+        }, t.retryLetter)
+      )
+    ),
+    (0, import_react10.createElement)(
+      "div",
+      { className: "ad-me-block" },
+      (0, import_react10.createElement)("p", { className: "ad-me-label" }, t.runnerTitle),
+      (0, import_react10.createElement)("p", { className: `ad-me-state s-${runner.state}` }, t.runner[runner.state] || runner.state, runner.error ? ` · ${runner.error}` : ""),
+      (0, import_react10.createElement)("p", { className: "ad-hint" }, t.whyRunner),
+      (0, import_react10.createElement)(
+        "div",
+        { className: "ad-links" },
+        (0, import_react10.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy), onClick: act("pair", async () => store.set({ status: await call("repair") })) }, t.pair),
+        runner.state !== "running" && (0, import_react10.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy), onClick: act("start", async () => store.set({ status: await call("start") })) }, t.start),
+        (0, import_react10.createElement)("button", { type: "button", className: "ad-btn quiet small", disabled: Boolean(busy), onClick: act("off", async () => store.set({ status: await call("disconnect") })) }, t.disconnect)
+      )
+    ),
+    note && (0, import_react10.createElement)("p", { className: "ad-hint" }, note),
+    error && (0, import_react10.createElement)("div", { className: "ad-error", role: "alert" }, error)
   );
 }
 
 // client/panel-waiting.mjs
-var import_react10 = require("react");
+var import_react11 = require("react");
 
 // client/threads-api.mjs
 function stateOf(task) {
@@ -1485,8 +1754,8 @@ function WaitingPanel() {
   const t = words();
   const { status, waiting, right } = useStore(store);
   const resident = status?.resident || "default";
-  const [busy, setBusy] = (0, import_react10.useState)("");
-  const [error, setError] = (0, import_react10.useState)("");
+  const [busy, setBusy] = (0, import_react11.useState)("");
+  const [error, setError] = (0, import_react11.useState)("");
   const run = (key, job) => async () => {
     if (busy) return;
     setBusy(key);
@@ -1508,65 +1777,65 @@ function WaitingPanel() {
     if (item.kind !== "ask") await read(item)();
     store.set({ focus: item.thread, right: { ...right, panel: "threads" } });
   };
-  return (0, import_react10.createElement)(
+  return (0, import_react11.createElement)(
     "div",
     { className: "ad-panel" },
-    error && (0, import_react10.createElement)("div", { className: "ad-error", role: "alert" }, error),
-    waiting.items.length === 0 && (0, import_react10.createElement)("div", { className: "ad-note" }, t.nothingWaiting),
-    waiting.items.map((item) => (0, import_react10.createElement)(
+    error && (0, import_react11.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    waiting.items.length === 0 && (0, import_react11.createElement)("div", { className: "ad-note" }, t.nothingWaiting),
+    waiting.items.map((item) => (0, import_react11.createElement)(
       "div",
       { key: item.id, className: `ad-trow${item.kind === "ask" && !item.expired ? " ask" : ""}${item.expired ? " dim" : ""}` },
-      (0, import_react10.createElement)(
+      (0, import_react11.createElement)(
         "span",
         { className: "top-line" },
-        (0, import_react10.createElement)("span", { className: "t" }, item.title),
-        (0, import_react10.createElement)("span", { className: `ad-pill ${item.kind === "ask" && !item.expired ? "hot" : item.kind === "stuck" ? "bad" : item.kind === "done" ? "ok" : ""}` }, t.kind[item.kind] + (item.expired ? ` · ${t.expired}` : ""))
+        (0, import_react11.createElement)("span", { className: "t" }, item.title),
+        (0, import_react11.createElement)("span", { className: `ad-pill ${item.kind === "ask" && !item.expired ? "hot" : item.kind === "stuck" ? "bad" : item.kind === "done" ? "ok" : ""}` }, t.kind[item.kind] + (item.expired ? ` · ${t.expired}` : ""))
       ),
-      (0, import_react10.createElement)("span", { className: "sub" }, (0, import_react10.createElement)("span", null, item.line), (0, import_react10.createElement)("span", null, when(item.at))),
-      (0, import_react10.createElement)(
+      (0, import_react11.createElement)("span", { className: "sub" }, (0, import_react11.createElement)("span", null, item.line), (0, import_react11.createElement)("span", null, when(item.at))),
+      (0, import_react11.createElement)(
         "span",
         { className: "ad-links" },
-        (item.options || []).map((option, i) => (0, import_react10.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: answer(item, option) }, option)),
-        (0, import_react10.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.open, "aria-label": t.open, onClick: open(item) }, (0, import_react10.createElement)(Icon, { name: "open" })),
-        item.kind !== "ask" && (0, import_react10.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.markRead, "aria-label": t.markRead, onClick: read(item) }, (0, import_react10.createElement)(Icon, { name: "close" }))
+        (item.options || []).map((option, i) => (0, import_react11.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: answer(item, option) }, option)),
+        (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.open, "aria-label": t.open, onClick: open(item) }, (0, import_react11.createElement)(Icon, { name: "open" })),
+        item.kind !== "ask" && (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.markRead, "aria-label": t.markRead, onClick: read(item) }, (0, import_react11.createElement)(Icon, { name: "close" }))
       )
     ))
   );
 }
 
 // client/panel-threads.mjs
-var import_react12 = require("react");
+var import_react13 = require("react");
 
 // client/thread-view.mjs
-var import_react11 = require("react");
-var POLL_MS4 = 5e3;
+var import_react12 = require("react");
+var POLL_MS5 = 5e3;
 function Line({ line, thread, t, onChoose, busy }) {
   const task = line.role === "result" ? (thread.tasks || []).find((x) => x.id === line.task && x.waiting) : null;
   const shown = (thread.tasks || []).find((x) => x.id === line.task);
   const state = shown && shown.status === line.status ? stateOf(shown) : line.status;
   const who = line.role === "user" ? line.direct ? t.mine : t.given : line.role === "result" ? t.result : t.thread;
   const links = (line.links || []).filter(safeLink);
-  return (0, import_react11.createElement)(
+  return (0, import_react12.createElement)(
     "div",
     { className: `ad-tline r-${line.role}` },
-    (0, import_react11.createElement)("div", { className: "who-l" }, (0, import_react11.createElement)("span", null, who), line.role === "result" && (0, import_react11.createElement)("span", { className: `ad-pill ${pillOf(state)}` }, t.task[state] || state)),
-    (line.steps || []).map((step, i) => (0, import_react11.createElement)("div", { key: i, className: "step-l" }, step)),
-    line.text && (line.direct ? (0, import_react11.createElement)("div", { className: "text" }, line.text) : (0, import_react11.createElement)("div", { className: "text" }, (0, import_react11.createElement)(Md, { text: line.text }))),
-    (line.files?.length > 0 || links.length > 0 || task) && (0, import_react11.createElement)(
+    (0, import_react12.createElement)("div", { className: "who-l" }, (0, import_react12.createElement)("span", null, who), line.role === "result" && (0, import_react12.createElement)("span", { className: `ad-pill ${pillOf(state)}` }, t.task[state] || state)),
+    (line.steps || []).map((step, i) => (0, import_react12.createElement)("div", { key: i, className: "step-l" }, step)),
+    line.text && (line.direct ? (0, import_react12.createElement)("div", { className: "text" }, line.text) : (0, import_react12.createElement)("div", { className: "text" }, (0, import_react12.createElement)(Md, { text: line.text }))),
+    (line.files?.length > 0 || links.length > 0 || task) && (0, import_react12.createElement)(
       "div",
       { className: "ad-links" },
-      (line.files || []).map((f) => (0, import_react11.createElement)("span", { key: f.path, className: "ad-pill", title: f.path }, f.path.split("/").pop())),
-      links.map((l) => (0, import_react11.createElement)("a", { key: l, className: "ad-btn quiet small", href: l, target: "_blank", rel: "noopener noreferrer" }, new URL(l).host)),
-      task && (task.choices || []).map((c, i) => (0, import_react11.createElement)("button", { key: c, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: busy, onClick: () => onChoose(task, c) }, c))
+      (line.files || []).map((f) => (0, import_react12.createElement)("span", { key: f.path, className: "ad-pill", title: f.path }, f.path.split("/").pop())),
+      links.map((l) => (0, import_react12.createElement)("a", { key: l, className: "ad-btn quiet small", href: l, target: "_blank", rel: "noopener noreferrer" }, new URL(l).host)),
+      task && (task.choices || []).map((c, i) => (0, import_react12.createElement)("button", { key: c, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: busy, onClick: () => onChoose(task, c) }, c))
     )
   );
 }
 function ThreadView({ resident, id, onBack }) {
   const t = words();
-  const [thread, setThread] = (0, import_react11.useState)(null);
-  const [draft, setDraft] = (0, import_react11.useState)("");
-  const [busy, setBusy] = (0, import_react11.useState)(false);
-  const [error, setError] = (0, import_react11.useState)("");
+  const [thread, setThread] = (0, import_react12.useState)(null);
+  const [draft, setDraft] = (0, import_react12.useState)("");
+  const [busy, setBusy] = (0, import_react12.useState)(false);
+  const [error, setError] = (0, import_react12.useState)("");
   const reload = async () => {
     try {
       setThread(await loadThread(resident, id));
@@ -1575,12 +1844,12 @@ function ThreadView({ resident, id, onBack }) {
       setError(e.message);
     }
   };
-  (0, import_react11.useEffect)(() => {
+  (0, import_react12.useEffect)(() => {
     setThread(null);
     void reload();
     const timer = setInterval(() => {
       if (!document.hidden) void reload();
-    }, POLL_MS4);
+    }, POLL_MS5);
     return () => clearInterval(timer);
   }, [resident, id]);
   const act = async (job) => {
@@ -1612,55 +1881,55 @@ function ThreadView({ resident, id, onBack }) {
       void say();
     }
   };
-  return (0, import_react11.createElement)(
+  return (0, import_react12.createElement)(
     "div",
     { className: "ad-panel" },
-    (0, import_react11.createElement)(
+    (0, import_react12.createElement)(
       "div",
       { className: "ad-links" },
-      (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.back, "aria-label": t.back, onClick: onBack }, (0, import_react11.createElement)(Icon, { name: "back" })),
-      (0, import_react11.createElement)("strong", { style: { flex: 1, minWidth: 0, overflowWrap: "anywhere" } }, thread?.title || t.thread),
-      thread && thread.runs === "machine" && thread.status === "working" && (0, import_react11.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.stop, "aria-label": t.stop, disabled: busy, onClick: () => act(() => stopThread(resident, id)) }, (0, import_react11.createElement)(Icon, { name: "stop" }))
+      (0, import_react12.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.back, "aria-label": t.back, onClick: onBack }, (0, import_react12.createElement)(Icon, { name: "back" })),
+      (0, import_react12.createElement)("strong", { style: { flex: 1, minWidth: 0, overflowWrap: "anywhere" } }, thread?.title || t.thread),
+      thread && thread.runs === "machine" && thread.status === "working" && (0, import_react12.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.stop, "aria-label": t.stop, disabled: busy, onClick: () => act(() => stopThread(resident, id)) }, (0, import_react12.createElement)(Icon, { name: "stop" }))
     ),
-    thread && (0, import_react11.createElement)("span", { className: "ad-hint" }, t.runs[thread.runs] || ""),
-    (thread?.lines || []).map((line) => (0, import_react11.createElement)(Line, { key: line.id, line, thread, t, onChoose, busy })),
-    (thread?.files || []).length > 0 && (0, import_react11.createElement)("div", { className: "ad-tline" }, (0, import_react11.createElement)("div", { className: "who-l" }, t.files), thread.files.map((f) => (0, import_react11.createElement)("div", { key: f.path, className: "step-l" }, f.path))),
-    error && (0, import_react11.createElement)("div", { className: "ad-error", role: "alert" }, error),
-    thread?.canSay && (0, import_react11.createElement)(
+    thread && (0, import_react12.createElement)("span", { className: "ad-hint" }, t.runs[thread.runs] || ""),
+    (thread?.lines || []).map((line) => (0, import_react12.createElement)(Line, { key: line.id, line, thread, t, onChoose, busy })),
+    (thread?.files || []).length > 0 && (0, import_react12.createElement)("div", { className: "ad-tline" }, (0, import_react12.createElement)("div", { className: "who-l" }, t.files), thread.files.map((f) => (0, import_react12.createElement)("div", { key: f.path, className: "step-l" }, f.path))),
+    error && (0, import_react12.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    thread?.canSay && (0, import_react12.createElement)(
       "div",
       { className: "ad-say" },
-      (0, import_react11.createElement)("textarea", { rows: 2, value: draft, placeholder: t.sayTo, "aria-label": t.sayTo, onChange: (e) => setDraft(e.target.value), onKeyDown: onKey }),
-      (0, import_react11.createElement)("button", { type: "button", className: "ad-round", disabled: busy || !draft.trim(), title: t.sendTo, "aria-label": t.sendTo, onClick: say }, (0, import_react11.createElement)(Icon, { name: "send" }))
+      (0, import_react12.createElement)("textarea", { rows: 2, value: draft, placeholder: t.sayTo, "aria-label": t.sayTo, onChange: (e) => setDraft(e.target.value), onKeyDown: onKey }),
+      (0, import_react12.createElement)("button", { type: "button", className: "ad-round", disabled: busy || !draft.trim(), title: t.sendTo, "aria-label": t.sendTo, onClick: say }, (0, import_react12.createElement)(Icon, { name: "send" }))
     )
   );
 }
 
 // client/panel-threads.mjs
-var POLL_MS5 = 1e4;
-function Row({ item, t, onOpen }) {
+var POLL_MS6 = 1e4;
+function Row2({ item, t, onOpen }) {
   const working = isWorking(item);
-  return (0, import_react12.createElement)(
+  return (0, import_react13.createElement)(
     "button",
     { type: "button", className: `ad-trow${working ? " working" : ""}${item.waiting ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
-    (0, import_react12.createElement)("span", { className: "top-line" }, (0, import_react12.createElement)("span", { className: "t" }, item.title), (0, import_react12.createElement)("span", { className: `ad-pill ${pillOf(stateOf(item))}` }, t.task[stateOf(item)] || item.status)),
-    working && (0, import_react12.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react12.createElement)("span")),
-    (0, import_react12.createElement)("span", { className: "sub" }, (0, import_react12.createElement)("span", null, `${t.runs[item.runs] || ""} · ${item.tasks} ${t.tasksN}`), (0, import_react12.createElement)("span", null, when(item.updatedAt)))
+    (0, import_react13.createElement)("span", { className: "top-line" }, (0, import_react13.createElement)("span", { className: "t" }, item.title), (0, import_react13.createElement)("span", { className: `ad-pill ${pillOf(stateOf(item))}` }, t.task[stateOf(item)] || item.status)),
+    working && (0, import_react13.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react13.createElement)("span")),
+    (0, import_react13.createElement)("span", { className: "sub" }, (0, import_react13.createElement)("span", null, `${t.runs[item.runs] || ""} · ${item.tasks} ${t.tasksN}`), (0, import_react13.createElement)("span", null, when(item.updatedAt)))
   );
 }
 function ThreadsPanel() {
   const t = words();
   const { status, focus } = useStore(store);
   const resident = status?.resident || "default";
-  const [data, setData] = (0, import_react12.useState)({ loaded: false, on: true, threads: [] });
-  const [error, setError] = (0, import_react12.useState)("");
-  const [id, setId] = (0, import_react12.useState)("");
-  (0, import_react12.useEffect)(() => {
+  const [data, setData] = (0, import_react13.useState)({ loaded: false, on: true, threads: [] });
+  const [error, setError] = (0, import_react13.useState)("");
+  const [id, setId] = (0, import_react13.useState)("");
+  (0, import_react13.useEffect)(() => {
     if (focus) {
       setId(focus);
       store.set({ focus: "" });
     }
   }, [focus]);
-  (0, import_react12.useEffect)(() => {
+  (0, import_react13.useEffect)(() => {
     const load = async () => {
       try {
         const d = await loadThreads(resident);
@@ -1673,47 +1942,47 @@ function ThreadsPanel() {
     void load();
     const timer = setInterval(() => {
       if (!document.hidden) void load();
-    }, POLL_MS5);
+    }, POLL_MS6);
     return () => clearInterval(timer);
   }, [resident]);
-  if (id) return (0, import_react12.createElement)(ThreadView, { resident, id, onBack: () => setId("") });
+  if (id) return (0, import_react13.createElement)(ThreadView, { resident, id, onBack: () => setId("") });
   const { open, done } = splitThreads(data.threads);
-  return (0, import_react12.createElement)(
+  return (0, import_react13.createElement)(
     "div",
     { className: "ad-panel" },
-    error && (0, import_react12.createElement)("div", { className: "ad-error", role: "alert" }, error),
-    data.loaded && !data.on && (0, import_react12.createElement)("p", { className: "ad-hint" }, t.threadsOff),
-    open.map((item) => (0, import_react12.createElement)(Row, { key: item.id, item, t, onOpen: setId })),
-    done.length > 0 && (0, import_react12.createElement)("p", { className: "ad-group" }, t.done),
-    done.map((item) => (0, import_react12.createElement)(Row, { key: item.id, item, t, onOpen: setId })),
-    data.loaded && data.threads.length === 0 && (0, import_react12.createElement)("div", { className: "ad-note" }, t.noThreads)
+    error && (0, import_react13.createElement)("div", { className: "ad-error", role: "alert" }, error),
+    data.loaded && !data.on && (0, import_react13.createElement)("p", { className: "ad-hint" }, t.threadsOff),
+    open.map((item) => (0, import_react13.createElement)(Row2, { key: item.id, item, t, onOpen: setId })),
+    done.length > 0 && (0, import_react13.createElement)("p", { className: "ad-group" }, t.done),
+    done.map((item) => (0, import_react13.createElement)(Row2, { key: item.id, item, t, onOpen: setId })),
+    data.loaded && data.threads.length === 0 && (0, import_react13.createElement)("div", { className: "ad-note" }, t.noThreads)
   );
 }
 
 // client/panels.mjs
 var MARK = { board: "grid", tools: "wrench" };
 function Empty({ id }) {
-  return (0, import_react13.createElement)(
+  return (0, import_react14.createElement)(
     "div",
     { className: "ad-panel" },
-    (0, import_react13.createElement)(
+    (0, import_react14.createElement)(
       "div",
       { className: "ad-slot" },
-      (0, import_react13.createElement)("span", { className: "ad-slot-mark", "aria-hidden": true }, (0, import_react13.createElement)(Icon, { name: MARK[id] || "grid" })),
-      (0, import_react13.createElement)("span", null, words().soon)
+      (0, import_react14.createElement)("span", { className: "ad-slot-mark", "aria-hidden": true }, (0, import_react14.createElement)(Icon, { name: MARK[id] || "grid" })),
+      (0, import_react14.createElement)("span", null, words().soon)
     )
   );
 }
-var DRAW = { waiting: WaitingPanel, threads: ThreadsPanel, me: MePanel };
-var PANELS = PANEL_IDS.map((id) => ({ id, render: () => DRAW[id] ? (0, import_react13.createElement)(DRAW[id]) : (0, import_react13.createElement)(Empty, { id }) }));
+var DRAW = { waiting: WaitingPanel, threads: ThreadsPanel, settings: SettingsPanel, board: BoardPanel };
+var PANELS = PANEL_IDS.map((id) => ({ id, render: () => DRAW[id] ? (0, import_react14.createElement)(DRAW[id]) : (0, import_react14.createElement)(Empty, { id }) }));
 
 // client/right.mjs
-var POLL_MS6 = 1e4;
+var POLL_MS7 = 1e4;
 function Right() {
   const t = words();
   const { status, waiting, right } = useStore(store);
   const resident = status?.resident || "default";
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     const load = async () => {
       try {
         store.set({ waiting: await loadWaiting(resident) });
@@ -1723,32 +1992,32 @@ function Right() {
     void load();
     const timer = setInterval(() => {
       if (!document.hidden) void load();
-    }, POLL_MS6);
+    }, POLL_MS7);
     return () => clearInterval(timer);
   }, [resident]);
   if (!right.open) return null;
   const panel = PANELS.find((p) => p.id === right.panel) || PANELS[0];
   const pick = (id) => store.set({ right: { ...right, panel: id } });
-  return (0, import_react14.createElement)(
+  return (0, import_react15.createElement)(
     "aside",
     { className: `ad-right${right.overlay ? " overlay" : ""}`, "aria-label": t.panels[panel.id] },
-    (0, import_react14.createElement)(
+    (0, import_react15.createElement)(
       "div",
       { className: "ad-right-head" },
-      (0, import_react14.createElement)(
+      (0, import_react15.createElement)(
         "div",
         { className: "ad-right-line" },
-        (0, import_react14.createElement)("h2", { className: "ad-right-title" }, t.panels[panel.id]),
-        (0, import_react14.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.collapse, "aria-label": t.collapse, onClick: () => store.set({ right: { ...right, open: false } }) }, (0, import_react14.createElement)(Icon, { name: "close" }))
+        (0, import_react15.createElement)("h2", { className: "ad-right-title" }, t.panels[panel.id]),
+        (0, import_react15.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.collapse, "aria-label": t.collapse, onClick: () => store.set({ right: { ...right, open: false } }) }, (0, import_react15.createElement)(Icon, { name: "close" }))
       ),
-      (0, import_react14.createElement)("div", { className: "ad-tabs", role: "tablist" }, PANELS.map((p) => (0, import_react14.createElement)(
+      (0, import_react15.createElement)("div", { className: "ad-tabs", role: "tablist" }, PANELS.map((p) => (0, import_react15.createElement)(
         "button",
         { key: p.id, type: "button", role: "tab", className: "ad-tab", "aria-selected": p.id === panel.id, onClick: () => pick(p.id) },
         t.panels[p.id],
-        p.id === "waiting" && waiting.open > 0 && (0, import_react14.createElement)("span", { className: "ad-badge" }, waiting.open)
+        p.id === "waiting" && waiting.open > 0 && (0, import_react15.createElement)("span", { className: "ad-badge" }, waiting.open)
       )))
     ),
-    (0, import_react14.createElement)(panel.render)
+    (0, import_react15.createElement)(panel.render)
   );
 }
 
@@ -2031,6 +2300,13 @@ button.ad-trow:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-say textarea { flex: 1; min-width: 0; min-height: 40px; max-height: 30vh; padding: 9px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel-strong); outline: 0; resize: vertical; font-size: 14px; }
 .ad-say textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .ad-say .ad-round { width: 40px; height: 40px; }
+.ad-set-row { display: flex; flex-direction: column; gap: 4px; }
+.ad-set-line { display: flex; align-items: center; gap: 6px; }
+.ad-set-line input, .ad-set-line select { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--input-bg); color: var(--text-1); font-size: 13px; outline: 0; }
+.ad-set-line input:focus, .ad-set-line select:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ad-set-fold { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text-2); font-size: 12.5px; text-align: left; }
+.ad-set-fold:hover { border-color: var(--line-dash); }
+.ad-plus { font-size: 14px; line-height: 1; color: var(--text-3); }
 .ad-me-head { display: flex; align-items: center; gap: 10px; }
 .ad-me-head .ad-avatar { width: 44px; height: 44px; }
 .ad-me-head b { display: block; font-size: 15px; font-weight: 600; }
@@ -2129,10 +2405,10 @@ color-scheme: light;
 var inject = ["slots", "layout"];
 var PANEL = "aelios-desktop";
 var SHADOW_PRIORITY = -100;
-var POLL_MS7 = 5e3;
+var POLL_MS8 = 5e3;
 function useStatus() {
   const { status } = useStore(store);
-  (0, import_react15.useEffect)(() => {
+  (0, import_react16.useEffect)(() => {
     const load = async () => {
       try {
         store.set({ status: await call("status") });
@@ -2143,15 +2419,15 @@ function useStatus() {
     void load();
     const timer = setInterval(() => {
       if (!document.hidden) void load();
-    }, POLL_MS7);
+    }, POLL_MS8);
     return () => clearInterval(timer);
   }, []);
   return status;
 }
 var NARROW = 980;
 function useDay() {
-  const [day, setDay] = (0, import_react15.useState)(() => paletteOf(readSurface()) === "day");
-  (0, import_react15.useEffect)(() => {
+  const [day, setDay] = (0, import_react16.useState)(() => paletteOf(readSurface()) === "day");
+  (0, import_react16.useEffect)(() => {
     const update = () => setDay(paletteOf(readSurface()) === "day");
     update();
     const observer = new MutationObserver(update);
@@ -2169,8 +2445,8 @@ function Main() {
   const status = useStatus();
   const t = words();
   const day = useDay();
-  const root = (0, import_react15.useRef)(null);
-  (0, import_react15.useEffect)(() => {
+  const root = (0, import_react16.useRef)(null);
+  (0, import_react16.useEffect)(() => {
     const el = root.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const fit = () => {
@@ -2184,22 +2460,22 @@ function Main() {
     fit();
     return () => observer.disconnect();
   }, []);
-  return (0, import_react15.createElement)(
+  return (0, import_react16.createElement)(
     "div",
     { className: `ad-root${day ? " day" : ""}`, ref: root },
-    (0, import_react15.createElement)("div", { className: "ad-sky", "aria-hidden": true }),
-    !status ? (0, import_react15.createElement)("div", { className: "ad-note" }, t.connecting) : status.connected ? [(0, import_react15.createElement)(Chat, { key: "chat" }), (0, import_react15.createElement)(Right, { key: "right" })] : (0, import_react15.createElement)(ConnectForm, { defaultWorkspace: status.defaultWorkspace })
+    (0, import_react16.createElement)("div", { className: "ad-sky", "aria-hidden": true }),
+    !status ? (0, import_react16.createElement)("div", { className: "ad-note" }, t.connecting) : status.connected ? [(0, import_react16.createElement)(Chat, { key: "chat" }), (0, import_react16.createElement)(Right, { key: "right" })] : (0, import_react16.createElement)(ConnectForm, { defaultWorkspace: status.defaultWorkspace })
   );
 }
 function Side({ onBack }) {
   const day = useDay();
   const inset = shellTopInset();
-  return (0, import_react15.createElement)("div", { className: `ad-root ad-side${day ? " day" : ""}`, style: inset ? { "--ad-top-inset": `${inset}px` } : void 0 }, (0, import_react15.createElement)(Left, { onBack }));
+  return (0, import_react16.createElement)("div", { className: `ad-root ad-side${day ? " day" : ""}`, style: inset ? { "--ad-top-inset": `${inset}px` } : void 0 }, (0, import_react16.createElement)(Left, { onBack }));
 }
-var Nav = () => (0, import_react15.createElement)(
+var Nav = () => (0, import_react16.createElement)(
   "svg",
   { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, "aria-hidden": true },
-  (0, import_react15.createElement)("path", { d: "M3 11 12 3l9 8M6 10v11h12V10M10 21v-7h4v7" })
+  (0, import_react16.createElement)("path", { d: "M3 11 12 3l9 8M6 10v11h12V10M10 21v-7h4v7" })
 );
 function apply(ctx) {
   const t = words();
@@ -2225,7 +2501,7 @@ function apply(ctx) {
   let release = null;
   const sync = () => {
     const on = Boolean(store.get().status?.connected) && store.get().rail && store.get().shown;
-    if (on && !release) release = ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar", priority: SHADOW_PRIORITY }, () => (0, import_react15.createElement)(Side, { onBack: back })));
+    if (on && !release) release = ctx.slots.inject("sidebar", () => ctx.slots.register({ name: "sidebar", priority: SHADOW_PRIORITY }, () => (0, import_react16.createElement)(Side, { onBack: back })));
     if (!on && release) {
       release();
       release = null;

@@ -29,6 +29,19 @@ const base64Of = (bytes) => {
   return btoa(out);
 };
 
+/** Read a file as the resident's face: a 512 px square, cropped to the middle, as base64 JPEG. */
+export async function readFace(file, edge = 512) {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = edge;
+  canvas.height = edge;
+  canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, edge, edge);
+  bitmap.close?.();
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.86);
+  return { data: bareBase64(dataUrl), type: "image/jpeg", url: dataUrl };
+}
+
 /** Read one file into a picture the resident accepts. A small GIF is sent as it is; everything else is redrawn. */
 export async function readPicture(file) {
   if (file.type === "image/gif" && file.size < KEEP_GIF_BYTES) {

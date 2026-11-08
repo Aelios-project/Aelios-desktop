@@ -1,6 +1,6 @@
 // The one route the client half calls: POST /api/aelios-desktop { action, ... }. It never returns the key.
 import { ConnectError, connect, defaultWorkspace, disconnect } from "./connect.mjs";
-import { ProxyError, forward, forwardBytes } from "./proxy.mjs";
+import { ProxyError, forward, forwardBytes, forwardRaw } from "./proxy.mjs";
 
 export const ROUTE = "/api/aelios-desktop";
 const MAX_BODY = 8 * 1024 * 1024; // a message may carry four pictures, base64
@@ -33,6 +33,11 @@ export function makeRoute(deps) {
       if (!c) throw new ProxyError("not connected", 409);
       await store.set({ ...c, resident: String(resident) });
       return status();
+    },
+    async upload({ path, type, data, resident }) {
+      const c = await store.get();
+      if (!c) throw new ProxyError("not connected", 409);
+      return forwardRaw(c, { path, type, data, resident });
     },
     async blob({ path, resident }) {
       const c = await store.get();

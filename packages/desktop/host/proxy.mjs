@@ -3,10 +3,12 @@
 // supervisor and never from the page.
 const ALLOWED = [
   "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
-  "waiting", "waiting/seen", "task/choose", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers",
+  "waiting", "waiting/seen", "task/choose", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
 ];
 // Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.
 const BYTES = ["picture", "file", "media"];
+// Raw posts: a picture the reader puts up as the resident's face.
+const RAW = ["avatar"];
 const RESIDENT = /^[a-z][a-z0-9-]{0,23}$/;
 const MAX_BYTES = 4 * 1024 * 1024;
 
@@ -26,6 +28,20 @@ export function target(base, resident, path, method = "GET") {
   const url = new URL((resident === "default" ? "" : `/r/${resident}`) + pathname + (query ? `?${query}` : ""), base);
   if (url.origin !== new URL(base).origin) throw new ProxyError("path not allowed");
   return url;
+}
+
+/** A raw body (a picture) to one of the resident's write routes. */
+export async function forwardRaw(connection, { resident = connection.resident, path = "", type = "application/octet-stream", data = "" }, request = fetch) {
+  const name = path.split("?")[0].slice("/web/".length);
+  if (!RAW.includes(name)) throw new ProxyError("path not allowed", 403);
+  const url = target(connection.url, resident, path, "POST");
+  const body = Buffer.from(String(data || ""), "base64");
+  if (body.length > 4 * 1024 * 1024) throw new ProxyError("picture too large", 413);
+  const response = await request(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(30000), headers: { "x-web-key": connection.key, "content-type": type }, body });
+  const text = await response.text();
+  let answer = null;
+  try { answer = text ? JSON.parse(text) : null; } catch { throw new ProxyError("the resident did not answer with JSON", 502); }
+  return { status: response.status, data: answer };
 }
 
 /** One of the resident's byte routes: its pictures, a handed-over file, a sticker. Read only. */
