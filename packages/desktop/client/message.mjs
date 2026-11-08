@@ -28,6 +28,7 @@ function Busy({ busy }) {
   return h("div", { className: `ad-busy${open ? " open" : ""}` },
     h("button", { type: "button", className: busy.live ? "live" : "", "aria-expanded": open, "aria-label": busy.label, title: busy.label, onClick: () => setOpen((v) => !v) },
       busy.thoughts > 0 && h("span", { className: "spark" }, h(Icon, { name: "spark" })),
+      busy.thoughts > 0 && h("span", null, t.thinking),
       busy.thoughts > 0 && busy.tools > 0 && h("span", { className: "sep", "aria-hidden": true }),
       busy.tools > 0 && h(Icon, { name: "wrench" }),
       busy.tools > 0 && h("span", null, busy.tools),
