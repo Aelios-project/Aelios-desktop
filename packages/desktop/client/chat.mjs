@@ -13,7 +13,7 @@ const POLL_MS = 5000;
 
 export function Chat() {
   const t = words();
-  const { status, residents, right } = useStore(store);
+  const { status, residents, right, around } = useStore(store);
   const resident = status?.resident || "default";
   const name = residents.find((r) => r.id === resident)?.name || t.title;
   const [lines, setLines] = useState([]);
@@ -84,9 +84,12 @@ export function Chat() {
       h("div", { className: "ad-act" },
         down && h("button", { type: "button", className: "ad-btn quiet small", onClick: async () => store.set({ status: await call("start") }) }, t.start),
         !right.open && h("button", { type: "button", className: "ad-icon-btn", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, h(Icon, { name: "panel" })))),
+    around && h("div", { className: "ad-around" },
+      h("span", null, t.around),
+      h("button", { type: "button", className: "ad-btn quiet small", onClick: () => store.set({ around: null }) }, t.backToChat)),
     h("div", { className: "ad-stream", "aria-live": "polite" },
-      lines.length === 0 && h("div", { className: "ad-note" }, t.empty),
-      lines.map((line, i) => h(Message, { key: line.id ?? i, line, resident })),
+      !around && lines.length === 0 && h("div", { className: "ad-note" }, t.empty),
+      (around ? around.lines : lines).map((line, i) => h(Message, { key: line.id ?? i, line, resident })),
       h("div", { ref: end, className: "grow" })),
     error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 16px" } }, error),
     h("div", { className: "ad-compose" },

@@ -7,5 +7,5 @@ export function soonAlarms(alarms = [], limit = 4) {
     .filter((a) => a && a.next)
     .sort((a, b) => new Date(a.next) - new Date(b.next))
     .slice(0, limit)
-    .map((a) => ({ id: a.id, note: a.note || "", when: a.when || "" }));
+    .map((a) => ({ id: a.id, note: a.note || "", when: a.when || "", edit: a.edit || null }));
 }

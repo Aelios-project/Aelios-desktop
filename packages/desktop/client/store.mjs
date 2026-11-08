@@ -16,6 +16,8 @@ export const useStore = (store) => useSyncExternalStore(store.subscribe, store.g
 
 export const store = createStore({
   status: null, residents: [], threads: [], error: "", usage: {}, alarms: { on: true, alarms: [] },
+  search: { q: "", results: [], busy: false, done: false },
+  around: null, // { lines, id } while the chat shows one search result
   rail: true, // ours covers DSH's whole left column; false hands it back to DSH
   shown: false, // whether our own panel is the one DSH is drawing
   waiting: { items: [], open: 0 },

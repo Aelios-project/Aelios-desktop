@@ -5,6 +5,7 @@
 export const CHAT = `
 .ad-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .ad-top, .ad-stream, .ad-compose { width: 100%; }
+.ad-around { display: flex; align-items: center; gap: 8px; justify-content: space-between; width: min(100% - 36px, 768px); margin: 6px auto 0; padding: 6px 10px 6px 14px; border-radius: 12px; border: 1px dashed var(--line-dash); background: var(--panel); font-size: 12px; color: var(--text-3); }
 .ad-stream { padding-inline: max(18px, calc((100% - 768px) / 2)); }
 .ad-compose { padding-inline: max(18px, calc((100% - 780px) / 2)); }
 .ad-top { position: relative; display: flex; align-items: center; justify-content: center; min-height: 64px; padding: 8px 56px 4px 16px; }
@@ -14,6 +15,7 @@ export const CHAT = `
 .ad-name { font-size: 15px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-status { font-size: 11px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-top .ad-act { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 2px; }
+.ad-around { display: flex; align-items: center; gap: 8px; justify-content: space-between; width: min(100% - 36px, 768px); margin: 6px auto 0; padding: 6px 10px 6px 14px; border-radius: 12px; border: 1px dashed var(--line-dash); background: var(--panel); font-size: 12px; color: var(--text-3); }
 .ad-stream { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
 .ad-stream > .grow { flex: 1; }
 .ad-row { display: flex; flex-direction: column; gap: 4px; max-width: 78%; }

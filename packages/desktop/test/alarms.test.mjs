@@ -15,5 +15,5 @@ test("alarms: soonest first, and no more than the limit", () => {
 test("alarms: an alarm with no next time is left out, and an empty answer is fine", () => {
   assert.deepEqual(soonAlarms([{ id: "x", note: "gone", next: null }]), []);
   assert.deepEqual(soonAlarms(), []);
-  assert.deepEqual(soonAlarms([{ id: "a", note: "", next: "2026-11-08T13:00:00Z" }]), [{ id: "a", note: "", when: "" }]);
+  assert.deepEqual(soonAlarms([{ id: "a", note: "", next: "2026-11-08T13:00:00Z" }]), [{ id: "a", note: "", when: "", edit: null }]);
 });

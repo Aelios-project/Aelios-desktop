@@ -3,9 +3,10 @@
 //   the alarms still to ring — the room that is left in this column goes here
 //   the usage line at the very foot, then the two buttons that leave this column
 // Styles in style-rail.mjs; drawn from the resident's own rail.
-import { createElement as h, useEffect } from "react";
+import { createElement as h, useCallback, useEffect, useState } from "react";
 import { call, web } from "./api.mjs";
 import { soonAlarms } from "./alarms.mjs";
+import { askedFor, hitRows, searchPath, snippetOf } from "./search.mjs";
 import { Face } from "./face.mjs";
 import { Icon } from "./icons.mjs";
 import { store, useStore } from "./store.mjs";
@@ -16,8 +17,20 @@ const POLL_MS = 30000;
 
 export function Left({ onBack }) {
   const t = words();
-  const { status, residents, usage, alarms } = useStore(store);
+  const { status, residents, usage, alarms, search } = useStore(store);
   const resident = status?.resident || "default";
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+
+  // Read separately: a route the resident refuses (or an older host that has not been restarted) must not hide the
+  // numbers that did arrive.
+  const loadAll = useCallback(async () => {
+    const [u, a] = await Promise.allSettled([web("/web/usage", { resident }), web("/web/alarms", { resident })]);
+    const patch = {};
+    if (u.status === "fulfilled") patch.usage = u.value?.totals || {};
+    if (a.status === "fulfilled") patch.alarms = { on: Boolean(a.value?.on), alarms: a.value?.alarms || [] };
+    if (Object.keys(patch).length) store.set(patch);
+  }, [resident]);
 
   useEffect(() => {
     const load = async () => {
@@ -29,17 +42,36 @@ export function Left({ onBack }) {
   }, []);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [u, a] = await Promise.all([web("/web/usage", { resident }), web("/web/alarms", { resident })]);
-        store.set({ usage: u?.totals || {}, alarms: { on: Boolean(a?.on), alarms: a?.alarms || [] } });
-      } catch { /* keep the last numbers */ }
-    };
-    void load();
-    const timer = setInterval(() => { if (!document.hidden) void load(); }, POLL_MS);
+    void loadAll();
+    const timer = setInterval(() => { if (!document.hidden) void loadAll(); }, POLL_MS);
     return () => clearInterval(timer);
-  }, [resident]);
-
+  }, [loadAll]);
+  const move = async (alarm) => {
+    const when = window.prompt(t.moveAlarm, alarm.when);
+    if (!when) return;
+    setBusy(true);
+    try { await web("/web/alarms/edit", { method: "POST", body: { id: alarm.id, when }, resident }); await loadAll(); } catch (e) { store.set({ error: e.message }); } finally { setBusy(false); }
+  };
+  const drop = async (alarm) => {
+    setBusy(true);
+    try { await web("/web/alarms/remove", { method: "POST", body: { id: alarm.id }, resident }); await loadAll(); } catch (e) { store.set({ error: e.message }); } finally { setBusy(false); }
+  };
+  const find = async (event) => {
+    event.preventDefault();
+    const asked = askedFor(q);
+    if (asked.error) { store.set({ search: { q, results: [], done: true, busy: false } }); return; }
+    store.set({ search: { q: asked.query, results: [], busy: true, done: false } });
+    try {
+      const found = await web(searchPath(asked.query), { resident });
+      store.set({ search: { q: asked.query, results: hitRows(found?.results || []), busy: false, done: true } });
+    } catch (e) { store.set({ error: e.message, search: { q: asked.query, results: [], busy: false, done: true } }); }
+  };
+  const openHit = async (hit) => {
+    try {
+      const around = await web(`/web/search/around?id=${encodeURIComponent(hit.id)}`, { resident });
+      store.set({ around: { lines: around?.lines || [], id: hit.id } });
+    } catch (e) { store.set({ error: e.message }); }
+  };
   const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
   const list = residents.length ? residents : [{ id: "default", name: t.title }];
   const current = list.find((r) => r.id === resident) || list[0];
@@ -58,11 +90,25 @@ export function Left({ onBack }) {
       h(Face, { resident: r, base: status?.url }),
       h("span", { className: "ad-txt" }, h("span", { className: "ad-label" }, r.name || r.id)))),
 
-    h("div", { className: "ad-alarms" },
+    h("form", { className: "ad-find", onSubmit: find },
+      h("input", { type: "search", value: q, placeholder: t.searchHint, "aria-label": t.search, onChange: (e) => setQ(e.target.value) }),
+      search.q && h("button", { type: "button", className: "ad-find-x", "aria-label": t.backToChat, title: t.backToChat, onClick: () => { setQ(""); store.set({ search: { q: "", results: [], done: false, busy: false } }); } }, h(Icon, { name: "close" }))),
+    search.q && h("div", { className: "ad-finds" },
+      search.busy && h("p", { className: "ad-hint" }, "…"),
+      !search.busy && search.done && !search.results.length && h("p", { className: "ad-hint" }, t.noHits),
+      search.results.map((hit) => h("button", { key: hit.id, type: "button", className: "ad-find-hit", onClick: () => openHit(hit) },
+        h("span", { className: "t" }, snippetOf(hit).before, h("b", null, snippetOf(hit).match), snippetOf(hit).after),
+        h("span", { className: "s" }, hit.role === "user" ? t.mine : t.given)))),
+    h("div", { className: `ad-alarms${search.q ? " quiet" : ""}` },
       h("p", { className: "ad-group-title" }, t.alarms),
       !alarms.on ? h("p", { className: "ad-hint" }, t.alarmsOff)
         : next.length ? next.map((a) => h("div", { key: a.id, className: "ad-alarm", title: a.note },
-          h("span", { className: "w" }, a.when), h("span", { className: "n" }, a.note)))
+          h("button", { type: "button", className: "ad-alarm-main", disabled: !a.edit || Boolean(busy),
+            title: a.edit ? t.moveAlarm : a.note,
+            onClick: () => a.edit && move(a) },
+            h("span", { className: "w" }, a.when), h("span", { className: "n" }, a.note)),
+          h("button", { type: "button", className: "ad-alarm-x", title: t.dropAlarm, "aria-label": t.dropAlarm, disabled: Boolean(busy),
+            onClick: () => drop(a) }, h(Icon, { name: "close" }))))
         : h("p", { className: "ad-hint" }, t.noAlarms)),
 
     rows.length > 0 && h("div", { className: "ad-usage" },

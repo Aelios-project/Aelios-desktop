@@ -32,9 +32,29 @@ export const RAIL = `
 .ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
 .ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
 @keyframes ad-pulse { 50% { opacity: .3; } }
+.ad-find { position: relative; display: flex; align-items: center; margin: 4px 2px 6px; }
+.ad-find input { width: 100%; height: 32px; padding: 0 30px 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--input-bg); color: var(--text-1); font-size: 13px; outline: 0; }
+.ad-find input:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ad-find input::placeholder { color: var(--text-4); }
+.ad-find-x { position: absolute; right: 4px; width: 24px; height: 24px; border: 0; border-radius: 7px; background: transparent; color: var(--text-4); display: grid; place-items: center; }
+.ad-find-x:hover { color: var(--text-1); background: var(--line-soft); }
+.ad-find-x svg { width: 12px; height: 12px; }
+.ad-finds { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.ad-find-hit { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; }
+.ad-find-hit:hover { background: var(--line-soft); }
+.ad-find-hit .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ad-find-hit .t b { color: var(--accent-text); font-weight: 600; }
+.ad-find-hit .s { font-size: 11px; color: var(--text-4); }
+.ad-alarms.quiet { display: none; }
 .ad-alarms { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
-.ad-alarm { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 10px; }
+.ad-alarm { display: flex; align-items: center; gap: 2px; border-radius: 10px; }
+.ad-alarm-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; }
 .ad-alarm:hover { background: var(--line-soft); }
+.ad-alarm-main:hover, .ad-alarm:hover { background: var(--line-soft); }
+.ad-alarm-x { flex: none; width: 22px; height: 22px; border: 0; border-radius: 7px; background: transparent; color: var(--text-4); display: grid; place-items: center; opacity: 0; }
+.ad-alarm:hover .ad-alarm-x { opacity: 1; }
+.ad-alarm-x:hover { color: var(--err-text); background: var(--line-soft); }
+.ad-alarm-x svg { width: 12px; height: 12px; }
 .ad-alarm .w { flex: none; max-width: 46%; font-size: 12px; line-height: 1.5; color: var(--accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-alarm .n { flex: 1; min-width: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-usage { display: flex; flex-direction: column; gap: 0; margin-top: 2px; padding: 8px 8px 2px; border-top: 1px solid var(--line-soft); }

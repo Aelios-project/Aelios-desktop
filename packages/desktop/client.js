@@ -542,7 +542,14 @@ var WORDS = {
     showRail: "Residents",
     usage: "Usage",
     alarms: "Alarms",
+    search: "Search the conversation",
+    searchHint: "Find a message",
+    noHits: "No message has that.",
+    around: "Showing one message from the search",
+    backToChat: "Back to the conversation",
     noAlarms: "No alarms set.",
+    moveAlarm: "New time, e.g. 07:30 or 2026-11-09 08:00",
+    dropAlarm: "Drop this alarm",
     alarmsOff: "Alarms are off.",
     attach: "Send pictures",
     remove: "Remove",
@@ -605,7 +612,14 @@ var WORDS = {
     showRail: "住户",
     usage: "用量",
     alarms: "闹钟",
+    search: "搜聊天记录",
+    searchHint: "找一句话",
+    noHits: "没有哪条消息有这句。",
+    around: "这是搜索结果里的那段",
+    backToChat: "回到聊天",
     noAlarms: "没定闹钟。",
+    moveAlarm: "新的时间，比如 07:30 或 2026-11-09 08:00",
+    dropAlarm: "删掉这个闹钟",
     alarmsOff: "闹钟关着。",
     attach: "发图",
     remove: "拿掉",
@@ -779,6 +793,9 @@ var store = createStore({
   error: "",
   usage: {},
   alarms: { on: true, alarms: [] },
+  search: { q: "", results: [], busy: false, done: false },
+  around: null,
+  // { lines, id } while the chat shows one search result
   rail: true,
   // ours covers DSH's whole left column; false hands it back to DSH
   shown: false,
@@ -793,7 +810,7 @@ var store = createStore({
 var POLL_MS = 5e3;
 function Chat() {
   const t = words();
-  const { status, residents, right } = useStore(store);
+  const { status, residents, right, around } = useStore(store);
   const resident = status?.resident || "default";
   const name = residents.find((r) => r.id === resident)?.name || t.title;
   const [lines, setLines] = (0, import_react6.useState)([]);
@@ -887,11 +904,17 @@ function Chat() {
         !right.open && (0, import_react6.createElement)("button", { type: "button", className: "ad-icon-btn", title: t.expand, "aria-label": t.expand, onClick: () => store.set({ right: { ...right, open: true } }) }, (0, import_react6.createElement)(Icon, { name: "panel" }))
       )
     ),
+    around && (0, import_react6.createElement)(
+      "div",
+      { className: "ad-around" },
+      (0, import_react6.createElement)("span", null, t.around),
+      (0, import_react6.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: () => store.set({ around: null }) }, t.backToChat)
+    ),
     (0, import_react6.createElement)(
       "div",
       { className: "ad-stream", "aria-live": "polite" },
-      lines.length === 0 && (0, import_react6.createElement)("div", { className: "ad-note" }, t.empty),
-      lines.map((line, i) => (0, import_react6.createElement)(Message, { key: line.id ?? i, line, resident })),
+      !around && lines.length === 0 && (0, import_react6.createElement)("div", { className: "ad-note" }, t.empty),
+      (around ? around.lines : lines).map((line, i) => (0, import_react6.createElement)(Message, { key: line.id ?? i, line, resident })),
       (0, import_react6.createElement)("div", { ref: end, className: "grow" })
     ),
     error && (0, import_react6.createElement)("div", { className: "ad-error", role: "alert", style: { padding: "0 16px" } }, error),
@@ -961,7 +984,24 @@ var import_react8 = require("react");
 
 // client/alarms.mjs
 function soonAlarms(alarms = [], limit = 4) {
-  return [...alarms].filter((a) => a && a.next).sort((a, b) => new Date(a.next) - new Date(b.next)).slice(0, limit).map((a) => ({ id: a.id, note: a.note || "", when: a.when || "" }));
+  return [...alarms].filter((a) => a && a.next).sort((a, b) => new Date(a.next) - new Date(b.next)).slice(0, limit).map((a) => ({ id: a.id, note: a.note || "", when: a.when || "", edit: a.edit || null }));
+}
+
+// client/search.mjs
+function askedFor(raw) {
+  const query = String(raw || "").trim().replace(/\s+/g, " ");
+  if (!query) return { error: "empty" };
+  if ([...query].length > 80) return { error: "long" };
+  return { query };
+}
+var searchPath = (query) => `/web/search?q=${encodeURIComponent(query)}`;
+function snippetOf(hit) {
+  const tidy = (text) => String(text || "").replace(/\s+/g, " ").trim();
+  return { before: tidy(hit?.before), match: tidy(hit?.match), after: tidy(hit?.after) };
+}
+function hitRows(results = [], limit = 8) {
+  const seen = /* @__PURE__ */ new Set();
+  return results.filter((hit) => hit && hit.id && !seen.has(hit.id) && seen.add(hit.id)).slice(0, limit);
 }
 
 // client/usage.mjs
@@ -991,8 +1031,17 @@ function usageRows(totals = {}) {
 var POLL_MS2 = 3e4;
 function Left({ onBack }) {
   const t = words();
-  const { status, residents, usage, alarms } = useStore(store);
+  const { status, residents, usage, alarms, search } = useStore(store);
   const resident = status?.resident || "default";
+  const [busy, setBusy] = (0, import_react8.useState)(false);
+  const [q, setQ] = (0, import_react8.useState)("");
+  const loadAll = (0, import_react8.useCallback)(async () => {
+    const [u, a] = await Promise.allSettled([web("/web/usage", { resident }), web("/web/alarms", { resident })]);
+    const patch = {};
+    if (u.status === "fulfilled") patch.usage = u.value?.totals || {};
+    if (a.status === "fulfilled") patch.alarms = { on: Boolean(a.value?.on), alarms: a.value?.alarms || [] };
+    if (Object.keys(patch).length) store.set(patch);
+  }, [resident]);
   (0, import_react8.useEffect)(() => {
     const load = async () => {
       try {
@@ -1007,19 +1056,59 @@ function Left({ onBack }) {
     return () => clearInterval(timer);
   }, []);
   (0, import_react8.useEffect)(() => {
-    const load = async () => {
-      try {
-        const [u, a] = await Promise.all([web("/web/usage", { resident }), web("/web/alarms", { resident })]);
-        store.set({ usage: u?.totals || {}, alarms: { on: Boolean(a?.on), alarms: a?.alarms || [] } });
-      } catch {
-      }
-    };
-    void load();
+    void loadAll();
     const timer = setInterval(() => {
-      if (!document.hidden) void load();
+      if (!document.hidden) void loadAll();
     }, POLL_MS2);
     return () => clearInterval(timer);
-  }, [resident]);
+  }, [loadAll]);
+  const move = async (alarm) => {
+    const when2 = window.prompt(t.moveAlarm, alarm.when);
+    if (!when2) return;
+    setBusy(true);
+    try {
+      await web("/web/alarms/edit", { method: "POST", body: { id: alarm.id, when: when2 }, resident });
+      await loadAll();
+    } catch (e) {
+      store.set({ error: e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const drop = async (alarm) => {
+    setBusy(true);
+    try {
+      await web("/web/alarms/remove", { method: "POST", body: { id: alarm.id }, resident });
+      await loadAll();
+    } catch (e) {
+      store.set({ error: e.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const find = async (event) => {
+    event.preventDefault();
+    const asked = askedFor(q);
+    if (asked.error) {
+      store.set({ search: { q, results: [], done: true, busy: false } });
+      return;
+    }
+    store.set({ search: { q: asked.query, results: [], busy: true, done: false } });
+    try {
+      const found = await web(searchPath(asked.query), { resident });
+      store.set({ search: { q: asked.query, results: hitRows(found?.results || []), busy: false, done: true } });
+    } catch (e) {
+      store.set({ error: e.message, search: { q: asked.query, results: [], busy: false, done: true } });
+    }
+  };
+  const openHit = async (hit) => {
+    try {
+      const around = await web(`/web/search/around?id=${encodeURIComponent(hit.id)}`, { resident });
+      store.set({ around: { lines: around?.lines || [], id: hit.id } });
+    } catch (e) {
+      store.set({ error: e.message });
+    }
+  };
   const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
   const list = residents.length ? residents : [{ id: "default", name: t.title }];
   const current = list.find((r) => r.id === resident) || list[0];
@@ -1048,14 +1137,53 @@ function Left({ onBack }) {
       (0, import_react8.createElement)("span", { className: "ad-txt" }, (0, import_react8.createElement)("span", { className: "ad-label" }, r.name || r.id))
     )),
     (0, import_react8.createElement)(
+      "form",
+      { className: "ad-find", onSubmit: find },
+      (0, import_react8.createElement)("input", { type: "search", value: q, placeholder: t.searchHint, "aria-label": t.search, onChange: (e) => setQ(e.target.value) }),
+      search.q && (0, import_react8.createElement)("button", { type: "button", className: "ad-find-x", "aria-label": t.backToChat, title: t.backToChat, onClick: () => {
+        setQ("");
+        store.set({ search: { q: "", results: [], done: false, busy: false } });
+      } }, (0, import_react8.createElement)(Icon, { name: "close" }))
+    ),
+    search.q && (0, import_react8.createElement)(
       "div",
-      { className: "ad-alarms" },
+      { className: "ad-finds" },
+      search.busy && (0, import_react8.createElement)("p", { className: "ad-hint" }, "…"),
+      !search.busy && search.done && !search.results.length && (0, import_react8.createElement)("p", { className: "ad-hint" }, t.noHits),
+      search.results.map((hit) => (0, import_react8.createElement)(
+        "button",
+        { key: hit.id, type: "button", className: "ad-find-hit", onClick: () => openHit(hit) },
+        (0, import_react8.createElement)("span", { className: "t" }, snippetOf(hit).before, (0, import_react8.createElement)("b", null, snippetOf(hit).match), snippetOf(hit).after),
+        (0, import_react8.createElement)("span", { className: "s" }, hit.role === "user" ? t.mine : t.given)
+      ))
+    ),
+    (0, import_react8.createElement)(
+      "div",
+      { className: `ad-alarms${search.q ? " quiet" : ""}` },
       (0, import_react8.createElement)("p", { className: "ad-group-title" }, t.alarms),
       !alarms.on ? (0, import_react8.createElement)("p", { className: "ad-hint" }, t.alarmsOff) : next.length ? next.map((a) => (0, import_react8.createElement)(
         "div",
         { key: a.id, className: "ad-alarm", title: a.note },
-        (0, import_react8.createElement)("span", { className: "w" }, a.when),
-        (0, import_react8.createElement)("span", { className: "n" }, a.note)
+        (0, import_react8.createElement)(
+          "button",
+          {
+            type: "button",
+            className: "ad-alarm-main",
+            disabled: !a.edit || Boolean(busy),
+            title: a.edit ? t.moveAlarm : a.note,
+            onClick: () => a.edit && move(a)
+          },
+          (0, import_react8.createElement)("span", { className: "w" }, a.when),
+          (0, import_react8.createElement)("span", { className: "n" }, a.note)
+        ),
+        (0, import_react8.createElement)("button", {
+          type: "button",
+          className: "ad-alarm-x",
+          title: t.dropAlarm,
+          "aria-label": t.dropAlarm,
+          disabled: Boolean(busy),
+          onClick: () => drop(a)
+        }, (0, import_react8.createElement)(Icon, { name: "close" }))
       )) : (0, import_react8.createElement)("p", { className: "ad-hint" }, t.noAlarms)
     ),
     rows.length > 0 && (0, import_react8.createElement)(
@@ -1555,6 +1683,7 @@ var BASE = `
 var CHAT = `
 .ad-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .ad-top, .ad-stream, .ad-compose { width: 100%; }
+.ad-around { display: flex; align-items: center; gap: 8px; justify-content: space-between; width: min(100% - 36px, 768px); margin: 6px auto 0; padding: 6px 10px 6px 14px; border-radius: 12px; border: 1px dashed var(--line-dash); background: var(--panel); font-size: 12px; color: var(--text-3); }
 .ad-stream { padding-inline: max(18px, calc((100% - 768px) / 2)); }
 .ad-compose { padding-inline: max(18px, calc((100% - 780px) / 2)); }
 .ad-top { position: relative; display: flex; align-items: center; justify-content: center; min-height: 64px; padding: 8px 56px 4px 16px; }
@@ -1564,6 +1693,7 @@ var CHAT = `
 .ad-name { font-size: 15px; font-weight: 600; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-status { font-size: 11px; line-height: 1.4; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-top .ad-act { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 2px; }
+.ad-around { display: flex; align-items: center; gap: 8px; justify-content: space-between; width: min(100% - 36px, 768px); margin: 6px auto 0; padding: 6px 10px 6px 14px; border-radius: 12px; border: 1px dashed var(--line-dash); background: var(--panel); font-size: 12px; color: var(--text-3); }
 .ad-stream { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
 .ad-stream > .grow { flex: 1; }
 .ad-row { display: flex; flex-direction: column; gap: 4px; max-width: 78%; }
@@ -1658,9 +1788,29 @@ var RAIL = `
 .ad-thread .ad-s { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; color: var(--text-4); }
 .ad-thread .ad-s .ad-live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ad-pulse 1.6s infinite ease-in-out; }
 @keyframes ad-pulse { 50% { opacity: .3; } }
+.ad-find { position: relative; display: flex; align-items: center; margin: 4px 2px 6px; }
+.ad-find input { width: 100%; height: 32px; padding: 0 30px 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--input-bg); color: var(--text-1); font-size: 13px; outline: 0; }
+.ad-find input:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.ad-find input::placeholder { color: var(--text-4); }
+.ad-find-x { position: absolute; right: 4px; width: 24px; height: 24px; border: 0; border-radius: 7px; background: transparent; color: var(--text-4); display: grid; place-items: center; }
+.ad-find-x:hover { color: var(--text-1); background: var(--line-soft); }
+.ad-find-x svg { width: 12px; height: 12px; }
+.ad-finds { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.ad-find-hit { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; }
+.ad-find-hit:hover { background: var(--line-soft); }
+.ad-find-hit .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ad-find-hit .t b { color: var(--accent-text); font-weight: 600; }
+.ad-find-hit .s { font-size: 11px; color: var(--text-4); }
+.ad-alarms.quiet { display: none; }
 .ad-alarms { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
-.ad-alarm { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border-radius: 10px; }
+.ad-alarm { display: flex; align-items: center; gap: 2px; border-radius: 10px; }
+.ad-alarm-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; }
 .ad-alarm:hover { background: var(--line-soft); }
+.ad-alarm-main:hover, .ad-alarm:hover { background: var(--line-soft); }
+.ad-alarm-x { flex: none; width: 22px; height: 22px; border: 0; border-radius: 7px; background: transparent; color: var(--text-4); display: grid; place-items: center; opacity: 0; }
+.ad-alarm:hover .ad-alarm-x { opacity: 1; }
+.ad-alarm-x:hover { color: var(--err-text); background: var(--line-soft); }
+.ad-alarm-x svg { width: 12px; height: 12px; }
 .ad-alarm .w { flex: none; max-width: 46%; font-size: 12px; line-height: 1.5; color: var(--accent-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-alarm .n { flex: 1; min-width: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ad-usage { display: flex; flex-direction: column; gap: 0; margin-top: 2px; padding: 8px 8px 2px; border-top: 1px solid var(--line-soft); }
