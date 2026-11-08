@@ -1,5 +1,9 @@
 # Design: waiting list
 
+## Amendment (Waiting holds only decisions and actions)
+
+Overrides older lines below. `build()` in `src/waiting.ts` returns `{ items, news }`. `items` are the `ask` and `stuck` items, asks first, then newest first. An ask without question text, and an ask older than 7 days, give no item. A failed thread gives a `stuck` item only through `stuckAction(summary, choices)`: a choice gives `action ""` with its options; text about a key, token or login gives `"settings"`; text about a permission gives `"open"`; anything else gives none. `news` are the unread `done` and `note` items; `WaitingStore.list()` turns them into `unread[thread]` counts, and `read(thread)` marks a thread's news seen (`res_waiting_seen`, as before). The web page shows a count on the thread row; the desktop shows it on the row and as the Threads tab badge (it comes before the plain count of threads at work), and opening a thread reads it.
+
 ## Overview
 
 The list is a read model. It is computed when asked for, from data the resident already keeps. Only two small things are stored: which `done` / `stuck` items the owner has read, and which asks were already pushed.

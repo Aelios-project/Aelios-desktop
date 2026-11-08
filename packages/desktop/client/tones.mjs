@@ -10,8 +10,7 @@ export const runnerDown = (state) => ["stopped", "crashed", "revoked"].includes(
 
 /** A waiting item: an open question is hot, a stuck one bad, a finished one ok, progress violet; expired is grey. */
 export function waitTone(item) {
-  if (!item || item.expired) return "idle";
-  return { ask: "hot", stuck: "bad", done: "ok", note: "info" }[item.kind] || "idle";
+  return { ask: "hot", stuck: "bad" }[item?.kind] || "idle";
 }
 
 /** A thread or task state. */

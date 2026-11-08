@@ -42,7 +42,8 @@ export const stopThread = (resident, id, request) => post("/web/thread/stop", re
 
 export const loadWaiting = (resident, request) => web("/web/waiting", { resident }, request);
 /** One item, or every item when none is given. Gives the list as it stands after. */
-export const markSeen = (resident, item, request) => post("/web/waiting/seen", resident, item ? { id: item.id } : { all: true }, request);
+/** Opening a thread reads its news: the thread id, or nothing for all of it. */
+export const markSeen = (resident, thread, request) => post("/web/waiting/seen", resident, thread ? { id: thread } : { all: true }, request);
 /** A choice on a task: the same call from the waiting list and from a card in a thread. */
 export const choose = (resident, task, text, request) => post("/web/task/choose", resident, { id: task, text }, request);
 

@@ -10,7 +10,7 @@ import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
 import { Item } from "./thread-items.mjs";
 import { HELPER_ICON, countsOf, helperOf, timeline } from "./thread-model.mjs";
-import { choose, loadThread, loadWaiting, sayToThread, stateOf, stopThread } from "./threads-api.mjs";
+import { choose, loadThread, loadWaiting, markSeen, sayToThread, stateOf, stopThread } from "./threads-api.mjs";
 import { taskTone } from "./tones.mjs";
 
 const POLL_MS = 4000;
@@ -30,6 +30,8 @@ export function ThreadView({ resident, id, onBack }) {
     if (local.wired !== false) setSession(await loadSession(id));
   };
   useEffect(() => {
+    // Opening a thread reads its news.
+    if (store.get().waiting?.unread?.[id]) markSeen(resident, id).then((waiting) => store.set({ waiting })).catch(() => {});
     setThread(null);
     setSession(null);
     void reload();

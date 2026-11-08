@@ -224,7 +224,7 @@ var store = createStore({
   // ours covers DSH's whole left column; false hands it back to DSH
   shown: false,
   // whether our own panel is the one DSH is drawing
-  waiting: { items: [], open: 0 },
+  waiting: { items: [], open: 0, unread: {} },
   threads: { open: 0 },
   // how many threads are at work or wait for the person: the Threads tab's number
   right: { open: true, panel: "waiting", overlay: false, width: 0 },
@@ -314,12 +314,10 @@ var WORDS = {
     copied: "Copied",
     commands: "Commands",
     cmd: { status: "Status report", letter: "Write the letter now", handoff: "Hand off to a new window" },
-    kind: { ask: "Ask", note: "Update", done: "Done", stuck: "Stuck" },
-    expired: "Expired",
-    nothingWaiting: "All clear",
+    kind: { ask: "Ask", stuck: "Stuck" },
+    openSettings: "Open settings",
+    nothingWaiting: "Nothing needs you",
     open: "Open thread",
-    markRead: "Dismiss",
-    markAll: "Dismiss all updates",
     settle: "Dismiss without answering",
     task: { sent: "Sent", working: "Working", done: "Done", failed: "Failed", needs_you: "Ask", quiet: "Silent", stopped: "Stopped", chosen: "Chosen", settled: "Settled", cancelled: "Stopped" },
     runs: { local: "At the resident", linux: "GitHub Actions", machine: "On a machine", retired: "Retired route" },
@@ -522,12 +520,10 @@ var WORDS = {
     copied: "复制了",
     commands: "命令",
     cmd: { status: "状态", letter: "现在写交接信", handoff: "交接到新窗口" },
-    kind: { ask: "等你", note: "进展", done: "做完", stuck: "卡住" },
-    expired: "过期",
-    nothingWaiting: "都处理完了",
+    kind: { ask: "等你", stuck: "卡住" },
+    openSettings: "去设置",
+    nothingWaiting: "没有要你处理的",
     open: "打开线程",
-    markRead: "已读",
-    markAll: "进展全部已读",
     settle: "不回答，直接收起",
     task: { sent: "派出", working: "在干", done: "做完", failed: "失败", needs_you: "等你", quiet: "没回音", stopped: "停下", chosen: "拍板", settled: "处理过", cancelled: "停下" },
     runs: { local: "在住户这里", linux: "GitHub Actions", machine: "在机器上", retired: "旧线路" },
@@ -724,7 +720,7 @@ var loadThread = (resident, id, request) => web(`/web/thread?id=${encodeURICompo
 var sayToThread = (resident, id, text, extra = {}, request) => post("/web/thread/say", resident, { id, text, ...extra }, request);
 var stopThread = (resident, id, request) => post("/web/thread/stop", resident, { id }, request);
 var loadWaiting = (resident, request) => web("/web/waiting", { resident }, request);
-var markSeen = (resident, item, request) => post("/web/waiting/seen", resident, item ? { id: item.id } : { all: true }, request);
+var markSeen = (resident, thread, request) => post("/web/waiting/seen", resident, thread ? { id: thread } : { all: true }, request);
 var choose = (resident, task, text, request) => post("/web/task/choose", resident, { id: task, text }, request);
 var when = (at) => shortWhen(at);
 var safeLink = (url) => /^https?:\/\/[^\s<>"'`]+$/i.test(url || "");
@@ -1616,8 +1612,7 @@ var RUNNER = { running: "ok", starting: "warn", unpaired: "warn", locked: "warn"
 var runnerTone = (state) => RUNNER[state] || "idle";
 var runnerDown = (state) => ["stopped", "crashed", "revoked"].includes(state);
 function waitTone(item) {
-  if (!item || item.expired) return "idle";
-  return { ask: "hot", stuck: "bad", done: "ok", note: "info" }[item.kind] || "idle";
+  return { ask: "hot", stuck: "bad" }[item?.kind] || "idle";
 }
 var taskTone = (state) => ({ working: "warn", sent: "warn", needs_you: "hot", done: "ok", chosen: "ok", settled: "idle", failed: "bad", quiet: "bad", stopped: "idle" })[state] || "idle";
 
@@ -3270,9 +3265,11 @@ var import_react32 = require("react");
 var PANEL_IDS = ["waiting", "threads", "alarms"];
 var PANEL_ICONS = { waiting: "inbox", threads: "threads", alarms: "alarm" };
 function tabCounts({ waiting, threads, alarms } = {}) {
+  const unread = Object.values(waiting?.unread || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
   return {
     waiting: { n: Number(waiting?.open) || 0, hot: true },
-    threads: { n: Number(threads?.open) || 0, hot: false },
+    // News on a thread (accent badge) comes before the plain count of threads at work.
+    threads: unread ? { n: unread, hot: true } : { n: Number(threads?.open) || 0, hot: false },
     alarms: { n: alarms?.on === false ? 0 : (alarms?.alarms || []).filter((a) => a?.next).length, hot: false }
   };
 }
@@ -3540,6 +3537,8 @@ function ThreadView({ resident, id, onBack }) {
     if (local.wired !== false) setSession(await loadSession(id));
   };
   (0, import_react28.useEffect)(() => {
+    if (store.get().waiting?.unread?.[id]) markSeen(resident, id).then((waiting) => store.set({ waiting })).catch(() => {
+    });
     setThread(null);
     setSession(null);
     void reload();
@@ -3637,7 +3636,7 @@ function ThreadView({ resident, id, onBack }) {
 
 // client/panel-threads.mjs
 var RUN_ICON = { local: "spark", linux: "cloud", machine: "laptop", retired: "exit" };
-function Row2({ item, t, local, onOpen }) {
+function Row2({ item, t, local, unread = 0, onOpen }) {
   const state = stateOf(item);
   const tone = taskTone(state);
   const helper = helperOf(item, local);
@@ -3656,6 +3655,7 @@ function Row2({ item, t, local, onOpen }) {
       "span",
       { className: "ad-card-row" },
       (0, import_react29.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react29.createElement)("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
+      unread > 0 && (0, import_react29.createElement)("span", { className: "ad-pill hot", title: t.unread }, unread),
       pending > 0 && (0, import_react29.createElement)("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, (0, import_react29.createElement)(Icon, { name: "shield" }), pending),
       (0, import_react29.createElement)("span", { className: "sp" }),
       (0, import_react29.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react29.createElement)(Icon, { name: "stack" }), item.tasks)
@@ -3674,7 +3674,7 @@ function Quota({ q, t }) {
 }
 function ThreadsPanel() {
   const t = words();
-  const { status, focus, threads: quota, local } = useStore(store);
+  const { status, focus, threads: quota, local, waiting } = useStore(store);
   const resident = status?.resident || "default";
   const [data, setData] = (0, import_react29.useState)({ loaded: false, on: true, threads: [] });
   const [error, setError] = (0, import_react29.useState)("");
@@ -3704,7 +3704,7 @@ function ThreadsPanel() {
     (0, import_react29.createElement)(Quota, { q: quota, t }),
     data.loaded && !data.on && data.threads.length === 0 && (0, import_react29.createElement)(Empty, { icon: "threads", text: t.threadsOff }),
     data.loaded && data.on && data.threads.length === 0 && (0, import_react29.createElement)(Empty, { icon: "threads", text: t.noThreads, why: t.threadsInfo }),
-    open.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, onOpen: setId })),
+    open.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })),
     done.length > 0 && (0, import_react29.createElement)(
       "button",
       { type: "button", className: "ad-fold ad-label", "aria-expanded": showDone, onClick: () => setShowDone((v) => !v) },
@@ -3712,33 +3712,34 @@ function ThreadsPanel() {
       t.done,
       (0, import_react29.createElement)("span", { className: "ad-badge" }, done.length)
     ),
-    showDone && done.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, onOpen: setId }))
+    showDone && done.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId }))
   );
 }
 
 // client/panel-waiting.mjs
 var import_react30 = require("react");
 function Card({ item, t, busy, open, onToggle, act }) {
-  const asking = item.kind === "ask" && !item.expired;
   const tone = waitTone(item);
-  const word = item.expired ? t.expired : t.kind[item.kind] || item.kind;
+  const options = item.options || [];
   return (0, import_react30.createElement)(
     "div",
-    { className: `ad-card${asking ? " ask" : ""}${item.expired ? " dim" : ""}` },
+    { className: `ad-card${item.kind === "ask" ? " ask" : ""}` },
     (0, import_react30.createElement)(
       "button",
       { type: "button", className: "ad-card-top", "aria-expanded": open, title: open ? "" : t.details, onClick: onToggle },
       (0, import_react30.createElement)("span", { className: "ad-card-title" }, item.title),
       (0, import_react30.createElement)("span", { className: "ad-card-time" }, when(item.at))
     ),
+    (0, import_react30.createElement)("p", { className: "ad-card-more" }, item.line),
     (0, import_react30.createElement)(
       "div",
       { className: "ad-card-row" },
-      (0, import_react30.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react30.createElement)("span", { className: `ad-dot ${tone}`, "aria-hidden": true }), word),
-      asking && (item.options || []).map((option, i) => (0, import_react30.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
-      asking ? (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, (0, import_react30.createElement)(Icon, { name: "close" })) : (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.markRead, "aria-label": t.markRead, disabled: Boolean(busy), onClick: act.read(item) }, (0, import_react30.createElement)(Icon, { name: "check" }))
+      (0, import_react30.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react30.createElement)("span", { className: `ad-dot ${tone}`, "aria-hidden": true }), t.kind[item.kind] || item.kind),
+      options.map((option, i) => (0, import_react30.createElement)("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
+      // One action on a stuck item that has no choices: the settings, or the thread where a permission is given.
+      item.kind === "stuck" && !options.length && (0, import_react30.createElement)("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
+      item.kind === "ask" && (0, import_react30.createElement)("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, (0, import_react30.createElement)(Icon, { name: "close" }))
     ),
-    open && item.line && (0, import_react30.createElement)("p", { className: "ad-card-more" }, item.line),
     open && item.thread && (0, import_react30.createElement)(
       "div",
       { className: "ad-card-row" },
@@ -3770,36 +3771,19 @@ function WaitingPanel() {
       await choose(resident, item.task, option);
       store.set({ waiting: await loadWaiting(resident) });
     }),
-    read: (item) => run(item.id, async () => store.set({ waiting: await markSeen(resident, item) })),
     // An ask put away without an answer (the web page's "dealt with"): /web/task/settle.
     settle: (item) => run(item.task, async () => {
       await web("/web/task/settle", { method: "POST", body: { id: item.task }, resident });
       store.set({ waiting: await loadWaiting(resident) });
     }),
-    open: (item) => async () => {
-      if (item.kind !== "ask") await act.read(item)();
-      store.set({ focus: item.thread, right: { ...right, panel: "threads" } });
-    }
+    open: (item) => async () => store.set({ focus: item.thread, right: { ...right, panel: "threads" } }),
+    fix: (item) => async () => item.action === "settings" ? store.set({ sheet: "resident" }) : act.open(item)()
   };
   const items = waiting.items || [];
-  const updates = items.filter((item) => item.kind !== "ask" || item.expired).length;
   return (0, import_react30.createElement)(
     "div",
     { className: "ad-panel" },
     error && (0, import_react30.createElement)("div", { className: "ad-error", role: "alert" }, error),
-    updates > 1 && (0, import_react30.createElement)(
-      "div",
-      { className: "ad-panel-bar" },
-      (0, import_react30.createElement)("span", { className: "sp" }),
-      (0, import_react30.createElement)("button", {
-        type: "button",
-        className: "ad-icon-btn sm",
-        title: t.markAll,
-        "aria-label": t.markAll,
-        disabled: Boolean(busy),
-        onClick: run("all", async () => store.set({ waiting: await markSeen(resident) }))
-      }, (0, import_react30.createElement)(Icon, { name: "checks" }))
-    ),
     items.length === 0 && (0, import_react30.createElement)(Empty, { icon: "check", text: t.nothingWaiting }),
     items.map((item) => (0, import_react30.createElement)(Card, { key: item.id, item, t, busy, act, open: opened === item.id, onToggle: () => setOpened((was) => was === item.id ? "" : item.id) }))
   );
