@@ -15,7 +15,7 @@ import { HELPER_ICON, helperOf } from "./thread-model.mjs";
 
 export const RUN_ICON = { local: "spark", linux: "cloud", machine: "laptop", retired: "exit" };
 
-/** A thread card: its helper's icon, title and time; one status word; how many tasks; a bar while it works. */
+/** A thread card: its helper's icon, title (a dot before it when there is news not read yet) and time; one status word; how many tasks; a bar while it works. */
 function Row({ item, t, local, unread = 0, onOpen }) {
   const state = stateOf(item);
   const tone = taskTone(state);
@@ -24,10 +24,10 @@ function Row({ item, t, local, unread = 0, onOpen }) {
   return h("button", { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
     h("span", { className: "ad-card-top" },
       h("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, h(Icon, { name: HELPER_ICON[helper] })),
-      h("span", { className: "ad-card-title" }, item.title), h("span", { className: "ad-card-time" }, when(item.updatedAt))),
+      h("span", { className: "ad-card-title" }, unread > 0 && h("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
+      h("span", { className: "ad-card-time" }, when(item.updatedAt))),
     h("span", { className: "ad-card-row" },
       h("span", { className: `ad-pill ${tone}` }, h("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
-      unread > 0 && h("span", { className: "ad-pill hot", title: t.unread }, unread),
       pending > 0 && h("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, h(Icon, { name: "shield" }), pending),
       h("span", { className: "sp" }),
       h("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, h(Icon, { name: "stack" }), item.tasks)),

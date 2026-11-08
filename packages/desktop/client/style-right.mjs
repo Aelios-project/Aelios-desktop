@@ -32,6 +32,7 @@ button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-s
 .ad-card.dim { opacity: .6; }
 .ad-card-top { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; color: inherit; }
 .ad-card-title { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13.5px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.ad-card-title .ad-new { width: 7px; height: 7px; margin-right: 6px; box-shadow: none; vertical-align: middle; position: relative; top: -1px; }
 .ad-card-time { flex: none; padding-top: 1px; font-size: 11.5px; color: var(--text-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ad-card-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ad-card-row .sp { flex: 1; }

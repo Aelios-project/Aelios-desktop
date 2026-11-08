@@ -10,7 +10,7 @@
 //                                       items: say | thought | tool { id, kind, title, status, input, output, paths, diffs }
 //                                              | plan { steps: [{ text, status }] } | perm { id, title, kind, paths, detail, decided, by }
 //   call("permit", { id, allow })   → the owner's answer to a held permission request
-//   call("open", { path })          → the workspace (or a file in it) in the system's file manager
+//   call("open", { path })          → the workspace (or a folder in it; for a file, its folder) in the system's file manager
 //   call("present")                 → the window is open and looked at
 import { call } from "./api.mjs";
 import { store } from "./store.mjs";

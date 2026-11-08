@@ -1,6 +1,6 @@
 // The waiting list: only what needs the person's decision or action, in the resident's fixed format (GET /web/waiting).
 // When it is empty, nothing needs them. A card is its title, its time, the question or problem in one line, and its
-// answers or one action in sight. News (a thread finished) is not here: it is an unread count on the Threads tab. Layout follows the threads page of Aelios-resident (AGPL-3.0, same author).
+// answers or one action in sight. News (a thread finished) is not here: it is a dot on its thread and a count on the Threads tab. Layout follows the threads page of Aelios-resident (AGPL-3.0, same author).
 import { createElement as h, useState } from "react";
 import { web } from "./api.mjs";
 import { Icon } from "./icons.mjs";
@@ -23,7 +23,8 @@ function Card({ item, t, busy, open, onToggle, act }) {
       item.kind === "ask" && options.map((option, i) => h("button", { key: option, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: Boolean(busy), onClick: act.answer(item, option) }, option)),
       // One action on a stuck item (it never carries choices): the settings, or the thread where a permission is given.
       item.kind === "stuck" && h("button", { type: "button", className: "ad-btn small", onClick: act.fix(item) }, item.action === "settings" ? t.openSettings : t.open),
-      item.kind === "ask" && h("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, h(Icon, { name: "close" }))),
+      item.kind === "ask" && h("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.settle, "aria-label": t.settle, disabled: Boolean(busy), onClick: act.settle(item) }, h(Icon, { name: "close" })),
+      item.kind === "stuck" && h("button", { type: "button", className: "ad-icon-btn sm ad-hide", title: t.putAside, "aria-label": t.putAside, disabled: Boolean(busy), onClick: act.putAside(item) }, h(Icon, { name: "close" }))),
     open && item.thread && h("div", { className: "ad-card-row" },
       h("button", { type: "button", className: "ad-btn quiet small", onClick: act.open(item) }, h(Icon, { name: "open" }), t.open)));
 }
@@ -45,6 +46,8 @@ export function WaitingPanel() {
     answer: (item, option) => run(item.task, async () => { await choose(resident, item.task, option); store.set({ waiting: await loadWaiting(resident) }); }),
     // An ask put away without an answer (the web page's "dealt with"): /web/task/settle.
     settle: (item) => run(item.task, async () => { await web("/web/task/settle", { method: "POST", body: { id: item.task }, resident }); store.set({ waiting: await loadWaiting(resident) }); }),
+    // A stuck item put away: it comes back only when the thread fails again (/web/waiting/seen {item}).
+    putAside: (item) => run(item.id, async () => { store.set({ waiting: await web("/web/waiting/seen", { method: "POST", body: { item: item.id }, resident }) }); }),
     open: (item) => async () => store.set({ focus: item.thread, right: { ...right, panel: "threads" } }),
     fix: (item) => async () => (item.action === "settings" ? store.set({ sheet: "resident" }) : act.open(item)()),
   };
