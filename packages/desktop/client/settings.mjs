@@ -16,7 +16,32 @@ const LABELS = {
   BG_TASK: "Background help",
   TASK_EXECUTION: "Where threads run",
   THINKING: "Thinking",
+  TIME_ZONE: "Time zone",
+  TG_BOT_TOKEN: "Telegram bot token",
+  TG_ALLOWED: "Telegram: who may talk",
+  WECOM_ALLOWED: "WeCom: who may talk",
+  AELIOS_URL: "Aelios address",
+  AELIOS_API_KEY: "Aelios key",
+  CLOUD_TASKS: "Background help",
+  CLOUD_TASK_GITHUB_TOKEN: "GitHub token",
+  CLOUD_TASK_MODEL: "Model for threads",
+  THINKING_EFFORT: "Thinking effort",
 };
+
+/**
+ * The settings sheet's section for a key, by its prefix. Keys the list does not know go with the resident, so a
+ * new setting is never lost. Order matters: WEB_PUSH is a channel, the other WEB_ keys are web tools.
+ */
+const SECTIONS = [
+  ["channels", /^(TG_|WECOM_|WEB_PUSH$)/],
+  ["model", /^(CUSTOM_|CLAUDE_|AI_GATEWAY)/],
+  ["memory", /^AELIOS_/],
+  ["time", /^(TIME_ZONE|CHECKIN_SCHEDULE|HEARTBEAT|QUIET_HOURS|ALARMS)$/],
+  ["web", /^(WEB_|TAVILY_|BRAVE_|PERPLEXITY_)/],
+  ["voice", /^(VOICE_|STICKERS$)/],
+  ["work", /^CLOUD_TASK/],
+];
+export const sectionOf = (key) => SECTIONS.find(([, rule]) => rule.test(String(key || "")))?.[0] || "resident";
 
 /** `RESIDENT_TZ` as `Resident tz` when there is no label. */
 export const humanKey = (key) => String(key || "")

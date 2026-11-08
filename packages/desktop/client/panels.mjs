@@ -1,23 +1,10 @@
-// What each panel of the right column draws (ids in panel-ids.mjs). Board and Tools are only places for now.
+// What each panel of the work column draws (ids, icons and counts in panel-ids.mjs).
 import { createElement as h } from "react";
-import { Icon } from "./icons.mjs";
-import { PANEL_IDS } from "./panel-ids.mjs";
-import { BoardPanel } from "./panel-board.mjs";
-import { SettingsPanel } from "./panel-settings.mjs";
-import { WaitingPanel } from "./panel-waiting.mjs";
+import { PANEL_ICONS, PANEL_IDS } from "./panel-ids.mjs";
+import { AlarmsPanel } from "./panel-alarms.mjs";
 import { ThreadsPanel } from "./panel-threads.mjs";
-import { words } from "./strings.mjs";
+import { WaitingPanel } from "./panel-waiting.mjs";
 
-const MARK = { board: "grid", tools: "wrench" };
+const DRAW = { waiting: WaitingPanel, threads: ThreadsPanel, alarms: AlarmsPanel };
 
-/** A panel that is only a place for a later slice: a dashed mark and one line saying so. */
-function Empty({ id }) {
-  return h("div", { className: "ad-panel" },
-    h("div", { className: "ad-slot" },
-      h("span", { className: "ad-slot-mark", "aria-hidden": true }, h(Icon, { name: MARK[id] || "grid" })),
-      h("span", null, words().soon)));
-}
-
-const DRAW = { waiting: WaitingPanel, threads: ThreadsPanel, settings: SettingsPanel, board: BoardPanel };
-
-export const PANELS = PANEL_IDS.map((id) => ({ id, render: () => (DRAW[id] ? h(DRAW[id]) : h(Empty, { id })) }));
+export const PANELS = PANEL_IDS.map((id) => ({ id, icon: PANEL_ICONS[id], render: () => h(DRAW[id]) }));

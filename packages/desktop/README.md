@@ -1,8 +1,12 @@
-# Desktop app (first slice)
+# Desktop app
 
 The resident's desktop is a plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH), pinned to 0.2.2-rc.1. The plan is in `.kiro/specs/desktop-shell/`.
 
-This slice has: the plugin skeleton, the connect form (address and web key, kept in DSH's credential store), the runner started in the background, the left column (the residents with their own avatars, a search over the conversation, the alarms still to ring (each one movable or droppable), and one usage line per span at the foot, covering DSH's whole sidebar, with a button that hands it back to DSH), the middle column (the conversation, with the resident's thinking and tool calls, its pictures and the files it hands over, and a composer that sends pictures, stickers and voice notes; a group chat opens in the same column when one is picked), and the right column (Waiting, Threads, Settings — face, name, model, persona, every setting behind the web door, the letter and the local helper — Board with the tasks it handed out, and a place kept for tools).
+Three columns, each with one job. The left column says who and where: the residents and the group chats (a dot when one has news, a + to add one) and **This machine**, the one place the runner's state shows; its foot holds the settings and the way back to DSH. The middle column is the conversation (bubbles, the resident's thinking and tools as a small chip of icons and numbers, pictures, files, voice notes, stickers, a composer with `/` commands, and on hover each reply can be read aloud, kept in memory, copied, taken back or answered again), a group chat, or this machine's own view. The right column is the work: **Waiting** (what needs you, each card a title, one status word and a time, the rest on a click), **Threads** (the old Board folded in: one list, a helper icon on each card, and one thread opened in place with its timeline of messages, tool calls, plan and permission requests; the column widens by a button or by dragging its edge) and **Alarms** (a dot for a one-time alarm, a loop for a repeating one, edited in place). Counts are badges on the tabs. Settings, usage and tools live in a settings sheet with a section for each part of the resident: everything its web page offers, so the web page is never needed.
+
+The UI is English; 中文 is one switch away in Settings → App, and every word is in `client/strings.mjs`.
+
+**Local views.** This machine, and a thread's local session in the thread view, call six host actions that `host/route.mjs` answers: `machine`, `sessions`, `session`, `permit`, `open` and `present`. They read the runner's own `overview` and `permit` commands, the supervisor, and the helper's session file (DSH's is cached while its mtime and size are unchanged). Their shapes are at the top of `client/local-api.mjs`. A permission card shows the command or arguments the helper asked to run (shortened, secrets hidden), not only the helper's title. Uploaded files are saved in the workspace under `.aelios-inbox/`, which is added to `.git/info/exclude` when the workspace is a git repository, and the helper is told not to commit it. If the host does not know an action (an older host half), those views say so. Several web routes the new screens use also still need to be allowed in `host/proxy.mjs` (take-back, speak, command, task/settle, residents/remove, group/config, group/stop, group/remove, group/icon/remove, stickers/*, sites, sites/remove, telegram/connect, tasks/test, tasks/roles, tasks/roles/remove, tasks/github, runner, alarms/edit, alarms/remove, and thread/file for bytes); until then those buttons show the proxy's refusal. Both are left to the host and runner work.
 
 It draws its own interface from the resident's `/web/` routes. It does not embed the resident's page. Styles and the Markdown reader are copied from Aelios-resident (AGPL-3.0, same author); each copied file says so in its header, naming the resident commit the copy came from. `npm test` fails when those headers disagree, so the two repositories cannot drift apart unnoticed.
 
@@ -17,16 +21,16 @@ The copy is from Aelios-resident main at `b118dfb` (2026-11-07). Against the ear
 
 ## Preview without DSH
 
-`preview/index.html` draws the three columns with fake data, using the very style modules the browser half ships (`client/style-*.mjs`, `client/theme.mjs`), so what the page shows is what DSH draws. `preview/panels.html` does the same for the right column alone: the thread list, one thread opened, Me, and the two panels kept for later slices. Neither page reads the resident, and nothing outside `preview/` is written.
+`preview/index.html` draws the plugin's real browser half (`client/index.mjs` `Main` and `Side`, with every style it injects) against a fake host route (`preview/fake-host.mjs`) and made-up data (`preview/fake-data.mjs`), so what the page shows is what DSH draws. React comes from a CDN in the preview; DSH hands it over in the plugin. Nothing reads a resident and nothing outside `preview/` is written.
 
 ```sh
 cd packages/desktop
 python3 -m http.server 8917        # then open http://127.0.0.1:8917/preview/index.html
 ```
 
-`?desktop=1` draws the macOS window's traffic lights over the corner and the strip the shell leaves for them. `?theme=light` or `?theme=dark` forces a palette; without it the page follows the same rule as the plugin: DSH's own `color-scheme` first, the system setting second (client/palette.mjs).
+The query picks the scene: `?panel=waiting|threads|alarms`, `?thread=t3` (one thread opened), `?wide=1`, `?view=machine`, `?sheet=resident|usage|web|…`, `?group=g1`. `?theme=light` or `?theme=dark` forces a palette; without it the page follows the same rule as the plugin: DSH's own `color-scheme` first, the system setting second (client/palette.mjs). `?desktop=1` draws the macOS window's traffic lights and the strip the shell leaves for them.
 
-`preview/shots/` holds the images the interface was checked against: `before-*` is the previous slice, `after-*` this one, `panels-*` the right column, and `reference-*` the resident's own page rendered from its public `app.css` and markup with the same fake conversation. Every image is fake data; none comes from a real resident.
+`preview/shots/` holds the images the interface was checked against, light and dark: `after-*` the conversation with Waiting, `thread-*` a thread opened with its tool calls and a permission request, `threads-*` the list, `alarms-*`, `machine-*`, `settings-*` the sheet; `before-*` is the previous slice and `reference-*` the resident's own page. Every image is fake data; none comes from a real resident.
 
 ## What was checked in a real DSH
 

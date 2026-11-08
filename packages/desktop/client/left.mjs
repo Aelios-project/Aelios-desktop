@@ -1,121 +1,93 @@
-// The left column: who this is, what it has coming, and what it costs.
-//   the residents (a card for the current one, a row for the others)
-//   the alarms still to ring — the room that is left in this column goes here
-//   the usage line at the very foot, then the two buttons that leave this column
-// Styles in style-rail.mjs; drawn from the resident's own rail.
-import { createElement as h, useCallback, useEffect, useState } from "react";
+// The left column: who and where. The residents and the group chats as rows of one kind (the one open is marked,
+// a resident with something new has a dot), each list with a + to add one; then "Here": this machine, the one place
+// its runner's state shows (a dot on its icon, a play button when it is down), opening the machine view. The foot
+// holds the settings and the way back to DSH. Search lives in the chat header, alarms in the work panel, usage in
+// the settings sheet. Styles in style-rail.mjs; drawn from the resident's own rail.
+import { createElement as h, useEffect, useState } from "react";
+import { avatarUrl } from "./avatar.mjs";
 import { call, web } from "./api.mjs";
-import { soonAlarms } from "./alarms.mjs";
-import { askedFor, hitRows, searchPath, snippetOf } from "./search.mjs";
 import { Face } from "./face.mjs";
 import { groupList } from "./group.mjs";
 import { Icon } from "./icons.mjs";
+import { usePoll } from "./poll.mjs";
+import { keepSeen, newsOf, readSeen } from "./seen.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
-import { usageRows } from "./usage.mjs";
+import { runnerDown, runnerTone } from "./tones.mjs";
 
 const POLL_MS = 30000;
+const ID = /^[a-z][a-z0-9-]{0,23}$/;
+const loadResidents = async () => { store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] }); };
+
+/** A section label with a + at its end. */
+const Label = ({ text, add, onAdd, open }) => h("p", { className: "ad-label ad-rail-label" }, h("span", null, text),
+  onAdd && h("button", { type: "button", className: "ad-icon-btn sm", title: add, "aria-label": add, "aria-expanded": open, onClick: onAdd }, h(Icon, { name: "plus" })));
+
+function NewResident({ t, onDone }) {
+  const [form, setForm] = useState({ id: "", name: "", error: "" });
+  const save = async (e) => {
+    e.preventDefault();
+    const id = form.id.trim().toLowerCase();
+    if (!ID.test(id) || id === "default") { setForm({ ...form, error: t.residentId }); return; }
+    try { await web("/web/residents", { method: "POST", body: { id, name: form.name.trim() }, resident: "default" }); await loadResidents(); onDone(); } catch (err) { setForm({ ...form, error: err.message }); }
+  };
+  return h("form", { className: "ad-rail-form", onSubmit: save },
+    h("input", { autoFocus: true, value: form.name, placeholder: t.name, "aria-label": t.name, onChange: (e) => setForm({ ...form, name: e.target.value }) }),
+    h("input", { value: form.id, placeholder: t.residentId, "aria-label": t.residentId, onChange: (e) => setForm({ ...form, id: e.target.value }) }),
+    form.error && h("span", { className: "ad-error" }, form.error),
+    h("div", { className: "ad-card-row" }, h("button", { type: "submit", className: "ad-btn small" }, t.create), h("button", { type: "button", className: "ad-btn quiet small", onClick: onDone }, t.cancel)));
+}
 
 export function Left({ onBack }) {
   const t = words();
-  const { status, residents, usage, alarms, search, groups, group } = useStore(store);
+  const { status, residents, groups, group, view } = useStore(store);
   const resident = status?.resident || "default";
-  const [busy, setBusy] = useState(false);
-  const [q, setQ] = useState("");
+  const [adding, setAdding] = useState(false);
 
-  // Read separately: a route the resident refuses (or an older host that has not been restarted) must not hide the
-  // numbers that did arrive.
-  const loadAll = useCallback(async () => {
-    const [u, a] = await Promise.allSettled([web("/web/usage", { resident }), web("/web/alarms", { resident })]);
-    const patch = {};
-    if (u.status === "fulfilled") patch.usage = u.value?.totals || {};
-    if (a.status === "fulfilled") patch.alarms = { on: Boolean(a.value?.on), alarms: a.value?.alarms || [] };
-    if (Object.keys(patch).length) store.set(patch);
-  }, [resident]);
+  usePoll(async () => { try { await loadResidents(); } catch { /* keep the last list */ } }, POLL_MS, []);
+  usePoll(async () => { try { store.set({ groups: (await web("/web/groups"))?.groups || [] }); } catch { /* groups are off, or an older resident */ } }, POLL_MS, []);
 
-  useEffect(() => {
-    const load = async () => {
-      try { store.set({ residents: (await web("/web/residents", { resident: "default" }))?.residents || [] }); } catch { /* keep the last list */ }
-    };
-    void load();
-    const timer = setInterval(() => { if (!document.hidden) void load(); }, POLL_MS);
-    return () => clearInterval(timer);
-  }, []);
+  const list = residents.length ? residents : [{ id: resident, name: t.title }];
+  const { news, seen } = newsOf(list, resident, readSeen());
+  useEffect(() => keepSeen(seen), [residents, resident]);
 
-  useEffect(() => {
-    void loadAll();
-    const timer = setInterval(() => { if (!document.hidden) void loadAll(); }, POLL_MS);
-    return () => clearInterval(timer);
-  }, [loadAll]);
-  const move = async (alarm) => {
-    const when = window.prompt(t.moveAlarm, alarm.when);
-    if (!when) return;
-    setBusy(true);
-    try { await web("/web/alarms/edit", { method: "POST", body: { id: alarm.id, when }, resident }); await loadAll(); } catch (e) { store.set({ error: e.message }); } finally { setBusy(false); }
+  const pick = async (id) => {
+    if (id === resident) { store.set({ group: "", around: null, view: "chat" }); return; }
+    try { store.set({ group: "", around: null, view: "chat", status: await call("select", { resident: id }) }); } catch (e) { store.set({ error: e.message }); }
   };
-  const drop = async (alarm) => {
-    setBusy(true);
-    try { await web("/web/alarms/remove", { method: "POST", body: { id: alarm.id }, resident }); await loadAll(); } catch (e) { store.set({ error: e.message }); } finally { setBusy(false); }
-  };
-  const find = async (event) => {
-    event.preventDefault();
-    const asked = askedFor(q);
-    if (asked.error) { store.set({ search: { q, results: [], done: true, busy: false } }); return; }
-    store.set({ search: { q: asked.query, results: [], busy: true, done: false } });
-    try {
-      const found = await web(searchPath(asked.query), { resident });
-      store.set({ search: { q: asked.query, results: hitRows(found?.results || []), busy: false, done: true } });
-    } catch (e) { store.set({ error: e.message, search: { q: asked.query, results: [], busy: false, done: true } }); }
-  };
-  const openHit = async (hit) => {
-    try {
-      const around = await web(`/web/search/around?id=${encodeURIComponent(hit.id)}`, { resident });
-      store.set({ around: { lines: around?.lines || [], id: hit.id } });
-    } catch (e) { store.set({ error: e.message }); }
-  };
-  const pick = async (id) => store.set({ status: await call("select", { resident: id }) });
-  const list = residents.length ? residents : [{ id: "default", name: t.title }];
-  const current = list.find((r) => r.id === resident) || list[0];
-  const others = list.filter((r) => r.id !== current.id);
-  const rows = usageRows(usage);
-  const next = soonAlarms(alarms.alarms);
+  const start = async () => { try { store.set({ status: await call("start") }); } catch (e) { store.set({ error: e.message }); } };
+  const runner = status?.runner || { state: "unpaired", error: "" };
+  const word = t.runner[runner.state] || runner.state;
+  const chat = view !== "machine";
 
   return h("nav", { className: "ad-rail", "aria-label": t.residents },
     h("div", { className: "ad-rail-head" },
-      h("span", { className: "ad-rail-brand" }, h("span", { className: "ad-rail-mark", "aria-hidden": true }, "✦"), t.residents)),
-    h("button", { type: "button", className: "ad-current on", title: current.name, onClick: () => pick(current.id) },
-      h(Face, { resident: current, base: status?.url }),
-      h("span", { className: "ad-name" }, current.name || current.id),
-      h("span", { className: "ad-tag" }, status?.runner?.state ? (t.runner[status.runner.state] || status.runner.state) : t.title)),
-    others.map((r) => h("button", { key: r.id, type: "button", className: "ad-rail-item", title: r.name, onClick: () => pick(r.id) },
-      h(Face, { resident: r, base: status?.url }),
-      h("span", { className: "ad-txt" }, h("span", { className: "ad-label" }, r.name || r.id)))),
-
-    h("form", { className: "ad-find", onSubmit: find },
-      h("input", { type: "search", value: q, placeholder: t.searchHint, "aria-label": t.search, onChange: (e) => setQ(e.target.value) }),
-      search.q && h("button", { type: "button", className: "ad-find-x", "aria-label": t.backToChat, title: t.backToChat, onClick: () => { setQ(""); store.set({ search: { q: "", results: [], done: false, busy: false } }); } }, h(Icon, { name: "close" }))),
-    search.q && h("div", { className: "ad-finds" },
-      search.busy && h("p", { className: "ad-hint" }, "…"),
-      !search.busy && search.done && !search.results.length && h("p", { className: "ad-hint" }, t.noHits),
-      search.results.map((hit) => h("button", { key: hit.id, type: "button", className: "ad-find-hit", onClick: () => openHit(hit) },
-        h("span", { className: "t" }, snippetOf(hit).before, h("b", null, snippetOf(hit).match), snippetOf(hit).after),
-        h("span", { className: "s" }, hit.role === "user" ? t.mine : t.given)))),
-    h("div", { className: `ad-alarms${search.q ? " quiet" : ""}` },
-      h("p", { className: "ad-group-title" }, t.alarms),
-      !alarms.on ? h("p", { className: "ad-hint" }, t.alarmsOff)
-        : next.length ? next.map((a) => h("div", { key: a.id, className: "ad-alarm", title: a.note },
-          h("button", { type: "button", className: "ad-alarm-main", disabled: !a.edit || Boolean(busy),
-            title: a.edit ? t.moveAlarm : a.note,
-            onClick: () => a.edit && move(a) },
-            h("span", { className: "w" }, a.when), h("span", { className: "n" }, a.note)),
-          h("button", { type: "button", className: "ad-alarm-x", title: t.dropAlarm, "aria-label": t.dropAlarm, disabled: Boolean(busy),
-            onClick: () => drop(a) }, h(Icon, { name: "close" }))))
-        : h("p", { className: "ad-hint" }, t.noAlarms)),
-
-    rows.length > 0 && h("div", { className: "ad-usage" },
-      rows.map((row) => h("div", { key: row.key, className: "ad-urow", title: row.label },
-        h("span", { className: "l" }, row.label), h("span", { className: "s" }, row.size), h("span", { className: "h" }, row.hit)))),
+      h("span", { className: "ad-rail-mark", "aria-hidden": true }, "✦"),
+      h("span", { className: "ad-rail-brand" }, t.brand)),
+    h("div", { className: "ad-rail-list" },
+      h(Label, { text: t.residents, add: t.addResident, open: adding, onAdd: () => setAdding((v) => !v) }),
+      adding && h(NewResident, { t, onDone: () => setAdding(false) }),
+      list.map((r) => h("button", { key: r.id, type: "button", className: "ad-row-btn", title: r.name || r.id,
+        "aria-current": chat && r.id === resident && !group ? "page" : undefined, onClick: () => pick(r.id) },
+        h(Face, { resident: r, base: status?.url }),
+        h("span", { className: "n" }, r.name || r.id),
+        news.has(r.id) && h("span", { className: "ad-dot hot", title: t.unread, "aria-label": t.unread }))),
+      h(Label, { text: t.groups, add: t.newGroup, onAdd: () => store.set({ groupSheet: { id: "" } }) }),
+      groupList(groups).map((g) => h("button", { key: g.id, type: "button", className: "ad-row-btn", title: g.name,
+        "aria-current": chat && g.id === group ? "page" : undefined, onClick: () => store.set({ group: g.id, around: null, view: "chat" }) },
+        h("span", { className: "ad-avatar", "aria-hidden": true }, g.icon ? h("img", { src: avatarUrl(status?.url, g.icon), alt: "" }) : h(Icon, { name: "people" })),
+        h("span", { className: "n" }, g.name),
+        g.running && h("span", { className: "ad-dot ok live", title: t.answering, "aria-label": t.answering }))),
+      h(Label, { text: t.here }),
+      h("div", { className: "ad-row-wrap" },
+        h("button", { type: "button", className: "ad-row-btn", title: `${t.runnerTitle}: ${word}${runner.error ? ` · ${runner.error}` : ""}`,
+          "aria-current": view === "machine" ? "page" : undefined, onClick: () => store.set({ view: "machine" }) },
+          h("span", { className: "ad-avatar machine", "aria-hidden": true }, h(Icon, { name: "laptop" }),
+            h("span", { className: `ad-dot ${runnerTone(runner.state)}${runner.state === "starting" ? " live" : ""}` })),
+          h("span", { className: "n" }, t.thisMachine, h("small", null, word))),
+        runnerDown(runner.state) && h("button", { type: "button", className: "ad-machine-go", title: t.start, "aria-label": t.start, onClick: start }, h(Icon, { name: "play" })))),
     h("div", { className: "ad-rail-foot" },
-      h("button", { type: "button", className: "ad-btn quiet small", title: t.backToDsh, onClick: onBack }, t.backToDsh),
-      h("button", { type: "button", className: "ad-icon-btn sm", title: t.disconnect, "aria-label": t.disconnect, onClick: async () => store.set({ status: await call("disconnect") }) }, h(Icon, { name: "back" }))));
+      h("button", { type: "button", className: "ad-icon-btn sm", title: t.settings, "aria-label": t.settings, onClick: () => store.set({ sheet: "resident" }) }, h(Icon, { name: "gear" })),
+      h("span", { className: "sp" }),
+      h("button", { type: "button", className: "ad-dsh", title: t.backToDsh, "aria-label": t.backToDsh, onClick: onBack }, h(Icon, { name: "exit" }), t.dsh)));
 }

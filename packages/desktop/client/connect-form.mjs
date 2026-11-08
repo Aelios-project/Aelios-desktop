@@ -25,12 +25,13 @@ export function ConnectForm({ defaultWorkspace = "" }) {
 
   const field = (name, label, props = {}) => h("label", null, label, h("input", { value: form[name], onChange: set(name), disabled: busy, ...props }));
   return h("form", { className: "ad-form", onSubmit: submit },
+    h("h2", null, h("span", { className: "ad-rail-mark", "aria-hidden": true, style: { display: "inline-grid", marginRight: 10, verticalAlign: "-4px" } }, "✦"), t.connectTitle),
     field("url", t.address, { type: "url", required: true, placeholder: "https://", autoComplete: "off" }),
     field("key", t.key, { type: "password", required: true, autoComplete: "off" }),
     field("workspace", t.folder, { placeholder: defaultWorkspace }),
     h("label", null, t.helper, h("select", { value: form.helper, onChange: set("helper"), disabled: busy }, h("option", { value: "dsh" }, "DSH"), h("option", { value: "kiro" }, "Kiro"))),
-    h("label", null, t.access, h("select", { value: form.access, onChange: set("access"), disabled: busy }, ["read", "edit", "full"].map((v) => h("option", { key: v, value: v }, v)))),
-    form.access === "full" && h("label", null, h("span", null, h("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
+    h("label", null, t.access, h("select", { value: form.access, onChange: set("access"), disabled: busy }, ["read", "edit", "full"].map((v) => h("option", { key: v, value: v }, t.tier[v])))),
+    form.access === "full" && h("label", { className: "check" }, h("span", null, h("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
     error && h("div", { className: "ad-error", role: "alert" }, error),
     h("button", { className: "ad-btn", type: "submit", disabled: busy }, busy ? t.connecting : t.connect));
 }
