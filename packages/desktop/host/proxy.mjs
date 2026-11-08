@@ -4,9 +4,10 @@
 const ALLOWED = [
   "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
   "waiting", "waiting/seen", "task/choose", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
+  "groups", "group", "group/say",
 ];
 // Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.
-const BYTES = ["picture", "file", "media"];
+const BYTES = ["picture", "file", "media", "group/picture"];
 // Raw posts: a picture the reader puts up as the resident's face.
 const RAW = ["avatar"];
 const RESIDENT = /^[a-z][a-z0-9-]{0,23}$/;

@@ -8,6 +8,7 @@ import { call, web } from "./api.mjs";
 import { soonAlarms } from "./alarms.mjs";
 import { askedFor, hitRows, searchPath, snippetOf } from "./search.mjs";
 import { Face } from "./face.mjs";
+import { groupList } from "./group.mjs";
 import { Icon } from "./icons.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
@@ -17,7 +18,7 @@ const POLL_MS = 30000;
 
 export function Left({ onBack }) {
   const t = words();
-  const { status, residents, usage, alarms, search } = useStore(store);
+  const { status, residents, usage, alarms, search, groups, group } = useStore(store);
   const resident = status?.resident || "default";
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState("");

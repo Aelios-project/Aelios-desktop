@@ -5,6 +5,7 @@ import { call } from "./api.mjs";
 import { paletteOf, readSurface } from "./palette.mjs";
 import { shellTopInset } from "./platform.mjs";
 import { Chat } from "./chat.mjs";
+import { GroupChat } from "./group-chat.mjs";
 import { ConnectForm } from "./connect-form.mjs";
 import { Left } from "./left.mjs";
 import { store, useStore } from "./store.mjs";
@@ -75,7 +76,7 @@ function Main() {
   return h("div", { className: `ad-root${day ? " day" : ""}`, ref: root },
     h("div", { className: "ad-sky", "aria-hidden": true }),
     !status ? h("div", { className: "ad-note" }, t.connecting)
-      : status.connected ? [h(Chat, { key: "chat" }), h(Right, { key: "right" })] : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
+      : status.connected ? [h(store.get().group ? GroupChat : Chat, { key: "chat" }), h(Right, { key: "right" })] : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
 }
 
 /** The whole left column while ours is in place; its foot hands the column back to DSH. */

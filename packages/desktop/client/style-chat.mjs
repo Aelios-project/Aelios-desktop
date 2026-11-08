@@ -21,9 +21,15 @@ export const CHAT = `
 .ad-row { display: flex; flex-direction: column; gap: 4px; max-width: 78%; }
 .ad-row.ai { align-self: flex-start; align-items: flex-start; }
 .ad-row.me { align-self: flex-end; align-items: flex-end; }
+.ad-row.note { align-self: center; align-items: center; max-width: 92%; }
+.ad-note-bubble { border-style: dashed; border-color: var(--line-dash); background: transparent; box-shadow: none; border-radius: 14px; padding: 6px 12px; color: var(--text-3); font-size: 12px; }
+.ad-who-g { padding: 0 4px 1px; font-size: 11px; letter-spacing: .04em; color: var(--text-4); }
 .ad-bubble { position: relative; max-width: 100%; padding: 9px 13px; border-radius: 6px 18px 18px 18px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow-wrap: anywhere; user-select: text; }
 .ad-row.ai .ad-bubble.first { border-radius: 18px 18px 18px 6px; }
-.ad-row.me .ad-bubble { background: var(--mine); border-color: var(--mine-line); box-shadow: none; border-radius: 18px 18px 6px 18px; white-space: pre-wrap; }
+.ad-row.me .ad-row.note { align-self: center; align-items: center; max-width: 92%; }
+.ad-note-bubble { border-style: dashed; border-color: var(--line-dash); background: transparent; box-shadow: none; border-radius: 14px; padding: 6px 12px; color: var(--text-3); font-size: 12px; }
+.ad-who-g { padding: 0 4px 1px; font-size: 11px; letter-spacing: .04em; color: var(--text-4); }
+.ad-bubble { background: var(--mine); border-color: var(--mine-line); box-shadow: none; border-radius: 18px 18px 6px 18px; white-space: pre-wrap; }
 .ad-row.me .ad-bubble .ad-md { white-space: pre-wrap; }
 .ad-bubble .ad-md { display: block; }
 .ad-bubble .ad-md > p:last-child { display: inline; }

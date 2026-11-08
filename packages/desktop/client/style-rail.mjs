@@ -46,6 +46,7 @@ export const RAIL = `
 .ad-find-hit .t b { color: var(--accent-text); font-weight: 600; }
 .ad-find-hit .s { font-size: 11px; color: var(--text-4); }
 .ad-alarms.quiet { display: none; }
+.ad-groups { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
 .ad-alarms { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
 .ad-alarm { display: flex; align-items: center; gap: 2px; border-radius: 10px; }
 .ad-alarm-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; }
