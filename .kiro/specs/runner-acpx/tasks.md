@@ -10,7 +10,10 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
   - [ ] 1.1 Add `acpx` `0.22.0` to `packages/runner/package.json` (exact), `engines.node >=22.13.0`, update the lock file. Change the "No runtime dependencies" line in `.kiro/steering/tech.md`. Add acpx (MIT) to `THIRD_PARTY_NOTICES.md`
   - [ ] 1.2 Script `test/spike-acpx.mjs` (not part of `npm test`; run by hand): with `createAcpRuntime` and a `stateDir` in a temp folder, against `test/fake-agent.mjs`, check session keep, reattach after a runtime restart, follow-up queueing, cancel, permission callback, `fs:false`, `terminal:false`, `elicitationModes:[]`
   - [ ] 1.3 Write down in design.md: which fields make acpx open a new session (agent name, command, argv, cwd); file modes of its file store; what `onAcpMessage` shows for `initialize`; whether stderr is reachable
-  - [ ] 1.4 If 1.2 fails for `createAcpRuntime`, stop and ask the owner (open question 1)
+  - [ ] 1.4 If 1.2 fails for `createAcpRuntime` (cannot reattach after a restart), use the decided fallback: the shared runtime with state in `~/.acpx/` (5.7). Write the weaker guarantees into design.md and the README
+  - [ ] 1.5 Model selection: check that acpx forwards `session/set_config_option` to the agent (against the fake agent, then real Kiro v3 and DSH), and that the reply is readable. If it does not, report to the owner before more code
+  - [ ] 1.6 Kiro v3: check that `kiro-cli acp --agent-engine=v3` without `--agent` runs, that the per-thread agent is selectable as an advertised mode, and that the model option is listed
+  - [ ] 1.7 Environment and start-up: check that acpx passes the allowlisted environment (proxy names such as `ALL_PROXY`) to the child, and waits at least 60 s for a first start (Kiro cold start is about 24 s). Check the installed version is exactly `0.22.0`
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
 - [ ] 2. Engine switch and the seam
@@ -21,14 +24,14 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 
 - [ ] 3. Kiro agent name without the tier (mechanism)
   - [ ] 3.1 `kiro-agent.mjs`: `agentName(threadId, cwd)` has no tier; the tier only changes file content
-  - [ ] 3.2 Add the `full` config (all tools allowed) so `full` needs no `--trust-all-tools`. Check by hand against real Kiro (`AELIOS_REAL_KIRO=1`) that it opens what the flag opens. If not, keep the flag and note it in design.md (open question 2)
+  - [ ] 3.2 Add the `full` config (all tools allowed) so `full` needs no `--trust-all-tools` (decided). Check by hand against real Kiro (`AELIOS_REAL_KIRO=1`) that it opens what the flag opens. If real Kiro refuses it, keep the flag and make a move to or from `full` a visible handoff with a recap (12); note it in design.md
   - [ ] 3.3 Tests in `kiro-agent.test.mjs`: same name for `read`, `edit`, `full` on one thread; different names for different threads; file content differs by tier; file mode `0600`
   - _Requirements: 4.3_
 
 - [ ] 4. Launch registry and launch identity (mechanism)
   - [ ] 4.1 `src/launch.mjs`: `registryOf(config)` (one entry, ours, never the acpx table), `identityOf(launch)`, `sameLaunch(record, current)`, command string quoting
   - [ ] 4.2 `adapters.json` and `src/adapters.mjs` (new plugs `claude`, `codex`, experimental): pinned package, version, integrity; started from a local install path
-  - [ ] 4.3 Tests in `launch.test.mjs`: `kiro` command is `kiro-cli acp ...`, never `kiro-cli-chat`; DSH path with spaces is quoted; `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`; identity is equal across tiers and different when binary, args, version or folder change
+  - [ ] 4.3 Tests in `launch.test.mjs`: `kiro` command is `kiro-cli acp --agent-engine=v3`, never `kiro-cli-chat`; `dsh` command is `dsh --profile acp`; both come from our registry, not acpx's table; DSH path with spaces is quoted; `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`; identity is equal across tiers and different when binary, args, version or folder change
   - [ ] 4.4 Named tests `tier change keeps the session` and `launch change is a visible handoff, never silent` (see task 9 for the second; the first runs here against the fake helper and checks it saw `session/load`, not `session/new`)
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4, 4.5_
 
@@ -36,6 +39,7 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
   - [ ] 5.1 `src/store.mjs`: `openStore(home)` creates `<home>/acpx/` at `0700`, checks and narrows modes, refuses with a message when it cannot
   - [ ] 5.2 `src/retention.mjs`: delete threads idle for N days; cap total size, oldest first; `forget(thread)`; `forgetAll()`
   - [ ] 5.3 `bin/aelios-runner.mjs`: `forget <thread>`, `forget --all`, `unpair` asks to delete the store; `status` shows path and size. Keep the CLI additions in `bin/forget.mjs` so the main file does not grow
+  - [ ] 5.3b `src/transcript.mjs`: DSH transcript store at `<home>/transcripts/<thread>.jsonl` (`0600`, redacted, 200 KB cap per thread, same retention). Test: appends, cap drops oldest, retention deletes it, `forget` deletes it, the recap reads it
   - [ ] 5.4 README: a short section "What is saved on this machine" including the secrets warning
   - [ ] 5.5 Tests in `store.test.mjs`, `retention.test.mjs`: modes `0700`/`0600` on a fresh store; a wide mode is narrowed; age and size limits remove the right threads and keep others; `forget` removes one; `unpair` default removes the store
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
@@ -54,7 +58,8 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 
 - [ ] 8. Verdicts and ask kinds
   - [ ] 8.1 `src/verdict.mjs`: pure `verdict(signals)` as in the design table
-  - [ ] 8.2 Table test `verdict.test.mjs`: one row per table line, plus: crash before the prompt is written is `failed` with its reason; crash after it is `interrupted`; a stage limit before and after the prompt; `cancelled` vs our cancel; denied list gives `permission`; `refusal` gives `problem`
+  - [ ] 8.2 Table test `verdict.test.mjs`: one row per table line, plus: crash before the prompt is written is `failed` with its reason; crash after it is `interrupted`; a stage limit before and after the prompt; `cancelled` vs our cancel; denied list gives `permission`; `refusal`, `max_tokens` and no result give `failed`, never `needs_you`; only `ASK:` gives `question`; the five outcomes map one-to-one to the five notifications; long result text is passed whole, never clipped (9.7)
+  - [ ] 8.4 After `interrupted`, the report carries `git status -sb` and the last commit line; test with a temp repo (9.5)
   - [ ] 8.3 Reuse `markers.mjs` and `reason.mjs`; do not copy their rules
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 10.1_
 
@@ -81,6 +86,12 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
   - [ ] 11.3 Tests in `recap.test.mjs`: length bound, redaction of the folder and tokens, history wrapper present, git state included for a temp repo and omitted for a plain folder; a switch test with two fake helpers checks that the old one is closed before the new one starts
   - _Requirements: 12.1, 12.2, 12.3_
 
+- [ ] 11b. Model per role (mechanism)
+  - [ ] 11b.1 `src/model.mjs`: `selectModel(session, wanted)` reads the model config option, exact-matches the id, sends `session/set_config_option`, verifies the reply; no fallback. `src/family.mjs`: runner-owned family catalog and the reviewer-versus-author check
+  - [ ] 11b.2 Wire it into `turn-acpx.mjs` before the prompt is written, on new and resumed sessions
+  - [ ] 11b.3 Tests in `model.test.mjs`: option found and set; **failure 1**: the agent lists no model option, turn fails with `model_selection_unsupported` and the fake helper saw no prompt; **failure 2**: the id matches no value (near matches such as a different case or a prefix also fail), same result and message lists the offered ids; reply with a different value fails; no default-model fallback on any path; same family fails before the prompt; unknown family fails
+  - _Requirements: 3.5, 3.6, 3.8_
+
 - [ ] 12. Real-helper checks (by hand, results written into this file)
   - [ ] 12.1 `AELIOS_REAL_KIRO=1`: one whole turn, a tier change `read` to `edit` (same session), a restart (reattach), a cancel, a permission hold
   - [ ] 12.2 Real DSH: one whole turn, a restart (new session with recap), a cancel
@@ -89,7 +100,7 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
   - _Requirements: 7.4, 5.3, 15.1_
 
 - [ ] 13. `ask.kind` on the wire (mechanism, with the resident)
-  - [ ] 13.1 PROTOCOL.md: optional `ask.kind` (`permission`, `question`, `problem`) in the `ask` object; old residents ignore it
+  - [ ] 13.1 PROTOCOL.md: optional `ask.kind` (`permission`, `question`) in the `ask` object; old residents ignore it
   - [ ] 13.2 `receipt.mjs`: send `kind` when the resident has advertised the field (version check on the heartbeat); otherwise leave it out
   - [ ] 13.3 Resident PR (Aelios-resident, separate repository) to read and show it
   - [ ] 13.4 Tests: with and without the advertised field
@@ -124,12 +135,12 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 - Sending the full command for expand to the resident.
 - Claude Code and Codex as supported (not experimental) helpers.
 
+## Decided (owner answers)
+
+The seven earlier questions are answered and moved into requirements.md: runtime (`createAcpRuntime`, fallback to the shared runtime, 5.1 and 5.7), Kiro `full` without `--trust-all-tools` (4.6), environment allowlist plus config `env` (8.1), no helper elicitation in this release (10.3), retention 30 days and 500 MB with `unpair` deleting by default (5.4, 5.5), full command kept locally (13.2), packaging accepted (2.6).
+
 ## Open questions for the owner
 
-1. Entry point: the declarations show that `createSharedAcpRuntime` has no `stateDir` and no env allowlist, and keeps state in `~/.acpx/`. This spec recommends `createAcpRuntime` (in process). If the spike (task 1) shows it cannot reattach after a restart, do you accept the shared runtime with state in `~/.acpx/`?
-2. Kiro `full` tier: replace `--trust-all-tools` with an all-tools agent file so the launch never changes with the tier? If real Kiro does not accept that, do you accept a visible handoff with a recap when a thread moves to or from `full`?
-3. Environment allowlist: it removes variables a helper may use today (for example a token for `gh`). Do you accept allowlist-only with a config `env` to add names, or want a looser default (all except known secrets)?
-4. Questions from helpers (ACP elicitation): leave them off in this release (only `ASK:`), or build the resident route to answer them now?
-5. Retention: 30 days and 500 MB as defaults, with `forget`. Right numbers? Should `unpair` delete the store by default?
-6. The full command of a step for expand: add a protocol field now, or keep it local until the desktop needs it?
-7. Does `AGPL-3.0-only` with an MIT dependency and about 46 MB of installed dependencies fit the plan for `npx aelios-runner`?
+1. `role-packs.md` is in neither Aelios-resident nor Aelios-desktop. Where should it live (and should the runner read a pack manifest, or does the resident send only a model id and family per job)? This spec assumes the second.
+2. `role-packs.md` says Kiro v3 rejects `--agent` and picks a custom agent as an advertised mode. The existing per-thread agent file design (PR #20) used `--agent`. The task 1 spike checks this. If v3 cannot load our agent file at all, is the v2 engine with `--agent` an acceptable fallback, or must a thread run on the default agent?
+3. A status report (refusal, token limit, no result) now ends as `failed` instead of `needs_you`, so it never reads as waiting for an answer. Is `failed` right for the resident, or does it need its own note kind?

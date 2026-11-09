@@ -32,11 +32,19 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 2.3 `engines.node` SHALL be `>=22.13.0` (acpx's own floor). The steering line "No runtime dependencies" SHALL be changed to "one runtime dependency: acpx, pinned" in the same PR as the dependency.
 2.4 `THIRD_PARTY_NOTICES.md` SHALL list acpx (MIT) and say its own dependencies come with it through npm.
 2.5 Raising the version SHALL be its own PR that runs the whole test suite and the real-helper checks (task 12).
+2.6 Packaging (decided): `AGPL-3.0-only` with the MIT dependency is accepted, and about 46 MB of installed dependencies is accepted for `npx aelios-runner`.
 
 ### 3. Launch configuration
 
 3.1 The runner SHALL NOT use acpx's built-in agent table. It SHALL pass its own registry with one entry per helper, built from `plugins.mjs`.
-3.2 `kiro` SHALL start `kiro-cli acp` (acpx's table says `kiro-cli-chat`, which is wrong for this runner). `dsh` SHALL start as the runner starts it today (`dsh --profile acp`, with the macOS app path fallback). `command` (any ACP helper, experimental) SHALL stay as it is.
+3.2 Both Kiro and DSH SHALL be connected through acpx's custom agent command (the registry entry), never through its built-in table. The exact launches are:
+- `kiro`: `kiro-cli acp --agent-engine=v3` (the v3 engine is needed for the model-selection API in 3.5). `role-packs.md` says v3 rejects the v2-only `--agent`, `--model` and `--effort` flags and selects a custom agent as an advertised session mode. So the per-thread agent file is chosen by mode after `session/new`, not by `--agent`. The task 1 spike confirms this on the pinned Kiro; until then `--agent <name>` stays only as the v2 fallback. acpx's table says `kiro-cli-chat`, which is wrong for this runner.
+- `dsh`: `dsh --profile acp`, with the macOS app path fallback as the runner does today.
+- `command` (any ACP helper, experimental) stays as it is.
+3.5 Per-role model (decided): a role pack picks a model per role (source: the owner's research note `role-packs.md`, summarised in design.md; it is in neither repository yet). The runner SHALL select the model through ACP `session/set_config_option` on the model option (`category: "model"`) before the prompt is written, and SHALL check the returned value.
+3.6 If the agent does not list a model option, or the requested model id is not exactly one of its values (no fuzzy match), the turn SHALL fail before the prompt with `model_selection_unsupported` and a clear message that names the role, the id and the ids offered. The runner SHALL NOT fall back to the default model, because a reviewer could end up on the writer's model unnoticed.
+3.8 A review job SHALL carry the author's model family. If the reviewer's family is the same, or either family is unknown, the turn SHALL fail before the prompt. Families come from a runner-owned catalog, never from guessing at model ids.
+3.7 The acpx version SHALL be locked (2.1). Environment variables, proxy names included, SHALL reach the helper child, and the first-start wait SHALL be long enough for Kiro's cold start of about 24 s. Both are verified in the task 1 spike.
 3.3 A Claude Code or Codex adapter SHALL be a pinned version that the runner starts from a local install path. The runner SHALL NOT start an adapter through `npx` or any command that fetches the latest version at run time.
 3.4 The helper binary is chosen only by this machine's config. Text from the cloud, the repository or the helper SHALL NOT choose a helper, a folder or a tier.
 
@@ -47,16 +55,19 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 4.3 A change of tier SHALL NOT change the launch identity. In particular, the Kiro `--agent` name SHALL NOT contain the tier (PR #20 names it `aelios-runner-<tier>-<hash>`; see the design for the change).
 4.4 When the launch identity differs for any other reason (binary moved, adapter pin raised, folder changed, config edited), the runner SHALL NOT let acpx open a new session silently. It SHALL do an explicit handoff (12) and send a `notice` that says earlier context was passed as a recap.
 4.5 The runner SHALL pass the saved session id to acpx as a resume target, so a session that cannot be reloaded is an error the runner sees, not a quiet new session.
-4.6 If a helper cannot reload sessions (DSH has no `session/load`), the runner SHALL keep its own thread record (13) and say so in the turn's `how` value (`fresh-after-lost`), as it does today.
+4.6 Kiro `full` (decided): the runner SHALL NOT use `--trust-all-tools`. It SHALL generate an all-tools agent file, so launch arguments never change with the tier. If real Kiro refuses that file, a thread that moves to or from `full` SHALL get a visible handoff with a recap (12).
+4.7 If a helper cannot reload sessions (DSH has no `session/load`), the runner SHALL keep its own thread record (13) and say so in the turn's `how` value (`fresh-after-lost`), as it does today.
 
 ### 5. Local state
 
-5.1 acpx's session store SHALL live under the runner's home, in `<home>/acpx/` (`~/.aelios-runner/acpx/`, or `$AELIOS_RUNNER_HOME/acpx/`). It SHALL NOT use `~/.acpx/`.
+5.1 The runtime SHALL be `createAcpRuntime`, running in the runner process (decided). Its session store SHALL live under the runner's home, in `<home>/acpx/` (`~/.aelios-runner/acpx/`, or `$AELIOS_RUNNER_HOME/acpx/`). It SHALL NOT use `~/.acpx/`, except as in 5.7.
+5.7 Fallback (decided): if the task 1 spike shows `createAcpRuntime` cannot reattach a session after a restart, the runner SHALL use the shared runtime with state in `~/.acpx/`. 5.1 and 5.2 then apply to that folder as far as acpx allows, and the README says so.
 5.2 Directories SHALL be mode `0700` and files `0600`. The runner SHALL check this at start and fix or refuse (with a message) if it cannot.
 5.3 The store holds the whole conversation, including tool inputs and outputs. These can contain secrets (file contents, command output, tokens printed by a tool). The runner SHALL say this in the README and in `status`, SHALL NOT upload the store, and SHALL NOT put its contents in logs.
 5.4 Retention: a thread's records SHALL be deleted 30 days after its last turn, and the whole store SHALL be capped at 500 MB (oldest thread first). Both limits SHALL be config values. The owner SHALL have `aelios-runner forget <thread>` and `aelios-runner forget --all`.
-5.5 `unpair` SHALL ask whether to delete the store and SHALL default to deleting it.
+5.5 `unpair` SHALL delete the store by default (decided). It MAY offer to keep it.
 5.6 The runner's own thread record in `state.json` (session id, folder, plugin, launch identity, a short recap seed) SHALL stay, because DSH needs it and because a lost acpx store must not lose the thread.
+5.8 DSH has no `session/load`: its session resumes but old messages are not replayed. The runner SHALL therefore store the DSH transcript itself (user prompts, final texts and the step titles, bounded and redacted, under the same retention as 5.4) and SHALL use it to build the recap for the new session.
 
 ### 6. Queue, cancel, say
 
@@ -72,7 +83,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 
 ### 8. Environment and streams
 
-8.1 A helper SHALL get its environment by allowlist: process essentials, the proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase forms), locale, certificate variables, the variables that helper's plug lists, and the keys in the config's `env`. Nothing else from the runner's environment SHALL pass.
+8.1 A helper SHALL get its environment by allowlist: process essentials, the proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase forms), locale, certificate variables, the variables that helper's plug lists, and the keys in the config's `env`. Nothing else from the runner's environment SHALL pass (decided: allowlist plus config `env`, no full inheritance).
 8.2 The runner's pairing token and device credential SHALL never be in a helper's environment.
 8.3 Helper stdout is reserved for JSON-RPC. Helper stderr SHALL go to the runner log, redacted, and the last lines SHALL be used in error messages as today.
 
@@ -82,13 +93,16 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 9.2 The state SHALL be decided from the prompt's stop reason, acpx errors, process exit and end-of-stream, in one function, with a table test.
 9.3 After a crash or a lost connection once the prompt was written, the state SHALL be `outcome_unknown`. It SHALL be sent as `failed` with `reason: "interrupted"` (from #23). The runner SHALL NOT send that prompt again by itself.
 9.4 A prompt that was never written (a failure before it) MAY be reported as `failed` with its real reason, and the owner decides whether to ask again.
+9.5 After a helper crash the runner SHALL NOT send a prompt that was already written again. It SHALL mark the outcome `outcome_unknown`, read the git state of the folder (`git status -sb`, last commit), put that in the report, and only then leave the decision to the owner.
+9.6 Terminal states SHALL map one-to-one to the resident's notifications: `done`, waiting for approval (permission), waiting for an answer (question), `cancelled`, `failed`. A status report (a refusal, a token limit, no result, stuck) SHALL NOT be labelled as waiting for an answer: it is `failed` with its reason, and its text is the report. Only an `ASK:` line is waiting for an answer.
+9.7 Text handed back to the resident SHALL never be cut mid-way. There SHALL be no fixed clip of the result. If a size limit of the wire forces a cut, the runner SHALL cut at a paragraph or sentence end and say that the text was shortened.
 
 ### 10. Needs input
 
-10.1 Input the helper waits for SHALL be one of three kinds: `permission` (a tool needs approval), `question` (the helper asks the owner something: an `ASK:` line or an ACP elicitation), or `problem` (the helper stopped and cannot go on: refusal, token limit, no result, stuck).
+10.1 Input the helper waits for SHALL be one of two kinds: `permission` (a tool needs approval) or `question` (the helper asks the owner something with an `ASK:` line). A helper that stopped and cannot go on (refusal, token limit, no result, stuck) is not waiting for input: it ends as `failed` (9.6).
 10.2 A permission request SHALL go through the existing hold, journal and `perm-report.mjs` path with the full command shown (13.3).
-10.3 In the first release the runner SHALL NOT advertise elicitation support to helpers, so a question arrives as the `ASK:` marker as today.
-10.4 An `ask` in a receipt SHALL carry an optional `kind` (`permission`, `question`, `problem`). A resident that does not know the field ignores it. This is a PROTOCOL change and goes in its own PR with the resident side.
+10.3 Helper elicitation (decided): not in this release. The runner SHALL NOT advertise elicitation support to helpers, so a question arrives only as the `ASK:` marker. Elicitation comes later, together with `ask.kind`.
+10.4 An `ask` in a receipt SHALL carry an optional `kind` (`permission`, `question`). A resident that does not know the field ignores it. This is a PROTOCOL change and goes in its own PR with the resident side.
 
 ### 11. Permissions
 
@@ -105,7 +119,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 ### 13. Events and steps
 
 13.1 Tool calls SHALL be keyed by `toolCallId` and patched in place when an update arrives (status, output), not appended as a new step.
-13.2 Step titles longer than the limit SHALL be shortened with a middle ellipsis. The full command SHALL be kept for expand.
+13.2 Step titles longer than the limit SHALL be shortened with a middle ellipsis. The full command SHALL be kept locally for expand (decided). A protocol field for it comes later, when the desktop needs it.
 13.3 A permission prompt SHALL always show the full command, never the shortened title.
 13.4 Thinking and usage (credits) events SHALL be kept apart from text. They SHALL NOT enter the summary. Usage MAY be reported as a `notice` with `fyi: true`.
 
