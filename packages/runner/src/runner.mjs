@@ -4,13 +4,15 @@
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync } from "node:fs";
 import { Cloud, CloudError } from "./cloud.mjs";
-import { Turn } from "./helper.mjs";
+import { homeDir } from "./state.mjs";
 import { readAttachments, saveAttachments } from "./inbox.mjs";
 import { PermReport } from "./perm-report.mjs";
 import { Progress } from "./steps.mjs";
 import { computerName } from "./machine-name.mjs";
 import { workspaceDenied } from "./reason.mjs";
 import { launchOf } from "./plugins.mjs";
+import { createEngine } from "./runtime.mjs";
+import { makeTurn } from "./turn.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
 
@@ -45,6 +47,15 @@ export class Runner {
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
     this.pollMs = config.pollMs ?? 5000; this.heartbeatMs = config.heartbeatMs ?? 30_000; this.backoffMaxMs = config.backoffMaxMs ?? 60_000;
+  }
+
+  /** The acpx runtime, made on first use; null for the legacy engine. It is made again if the helper environment in the config changed. */
+  #engine() {
+    if (this.config.engine !== "acpx") return null;
+    const env = JSON.stringify(this.config.env ?? {});
+    if (this.engine && this.engineEnv !== env) { void this.engine.shutdown().catch(() => {}); this.engine = null; }
+    this.engineEnv = env;
+    return (this.engine ??= createEngine(this.config, this.config.home ?? homeDir()));
   }
 
   async #cloud() {
@@ -183,24 +194,31 @@ export class Runner {
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
     let launch;
-    try { launch = launchOf(this.config, tier, cwd); }
+    try { launch = launchOf(this.config, tier, cwd, work.thread); }
     catch (error) {
       this.log("helper launch configuration failed", work.workId, error?.message);
       this.journal?.end(work, "failed", "helper configuration");
       return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: "The helper could not be configured safely. Check the runner logs and ensure the Kiro agents directory is writable, then try again." })]);
     }
+    let engine;
+    try { engine = this.#engine(); }
+    catch (error) { // the session store cannot be made safe: refuse to run, with the reason
+      this.journal?.end(work, "failed", "session store");
+      return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: error.message })]);
+    }
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
-    const turn = new Turn({
+    const turn = makeTurn({
+      thread: work.thread, record, engine,
       files, onStep: steps => progress.push(steps), launch, cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
-      onSession: async (sessionId, how) => {
-        // The thread's folder and session are fixed from the first time it has one.
-        await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
+      onSession: async (sessionId, how, extra = {}) => {
+        // The thread's folder and session are fixed from the first time it has one. `extra` is the acpx engine's launch identity and recap seed.
+        await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], ...extra, sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
         await this.#queueReceipts([this.#receipt(work, "started", { sessionId: safeId(sessionId) })]);
         this.log("started", work.workId, how);
       }
-    });
+    }, this.config);
     this.live.turn = turn;
     if (this.live.pendingCancel || this.shuttingDown) turn.cancel();
     let outcome;
@@ -288,5 +306,6 @@ export class Runner {
     this.#stopLive();
     await this.running;
     await this.flush().catch(() => {}); // best effort; anything unsent stays on disk
+    await this.engine?.shutdown().catch(() => {}); // helper processes end; their saved sessions stay
   }
 }

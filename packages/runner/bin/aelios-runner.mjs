@@ -9,7 +9,7 @@ import { Journal } from "../src/journal.mjs";
 import { computerName } from "../src/machine-name.mjs";
 import { acquire, stopHolder } from "../src/lock.mjs";
 import { overview } from "../src/overview.mjs";
-import { PLUGINS, available, launchOf } from "../src/plugins.mjs";
+import { PLUGINS, available, binOf } from "../src/plugins.mjs";
 import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
 import { StateFile, homeDir, readConfig, writeConfig } from "../src/state.mjs";
@@ -40,8 +40,8 @@ async function pair() {
   const config = { url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: values.access, plugin: values.plugin };
   if (values.command) config.command = JSON.parse(values.command);
   // Fails now, not on the first job, if the helper cannot be started.
-  const launch = launchOf(config, "full"); // Only check the executable here; no helper is started.
-  if (!available(launch.command)) throw new Error(`cannot find "${launch.command}" to start the ${config.plugin} helper; install it, or set AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`);
+  const command = binOf(config); // Only check the executable here; no helper is started.
+  if (!available(command)) throw new Error(`cannot find "${command}" to start the ${config.plugin} helper; install it, or set AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`);
   const release = acquire(lockFile);
   try {
     if ((await state.read()).device) throw new Error('already paired; run "aelios-runner unpair" first');

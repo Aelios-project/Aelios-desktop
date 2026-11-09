@@ -45,7 +45,7 @@ test("pictures and files are saved inside the thread's folder and handed to the 
     assert.ok(existsSync(path.join(dir, "1-picture-1.png")));
     assert.deepEqual(readFileSync(path.join(dir, "2-escape.pdf")), Buffer.from("%PDF-1.4"));
     assert.ok(!existsSync(path.join(r.workspace, "..", "escape.pdf")), "nothing written outside the folder");
-    assert.deepEqual(prompt.blocks.map(b => b.type), ["text", "image", "resource_link"]);
+    assert.deepEqual(prompt.blocks.map(b => b.type), process.env.RUNNER_TEST_ENGINE === "acpx" ? ["text", "image"] : ["text", "image", "resource_link"], "acpx takes the picture as a block; a file is a path in the text");
     assert.equal(prompt.blocks[1].data, PNG.toString("base64"));
     assert.match(prompt.blocks[0].text, /2-escape\.pdf/);
     assert.match(prompt.blocks[0].text, /Could not be fetched: gone\.txt/);

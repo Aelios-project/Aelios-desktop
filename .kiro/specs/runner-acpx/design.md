@@ -209,7 +209,7 @@ The detail shown to the owner always has the full command (13.3).
 
 ## Attachments (6.3)
 
-The turn reads `agentCapabilities.promptCapabilities.image` once the session is open (task 1.7 checks that acpx exposes it). If it is true, an image goes in as an image block. Otherwise, and for every non-image file, the attachment stays a path in the prompt text, as the legacy engine does. Tests cover both helper faces with the fake helper.
+An image is always attached as an image block (owner decision). If the helper does not declare `agentCapabilities.promptCapabilities.image`, acpx refuses the turn before the prompt is written, and the turn fails with "<helper> does not accept pictures". There is no fallback to a path for an image. Every other file stays a path in the prompt text. Tests cover both helper faces with the fake helper.
 
 ## Helper switch (12)
 
@@ -254,3 +254,21 @@ The turn reads `agentCapabilities.promptCapabilities.image` once the session is 
 ## Open questions
 
 The seven earlier questions are decided and recorded above. The new ones are at the end of tasks.md.
+
+## Spike results (task 1, acpx 0.22.0, PR A)
+
+Run with `node packages/runner/test/spike-acpx.mjs` (both fake-helper faces). Every premise PR A relies on holds; these are the exact names and the refinements the code uses.
+
+- Keep, reattach: `createAcpRuntime` with `createFileSessionStore({ stateDir })`. A new runtime on the same `stateDir` reloads the saved session (`session/load` on the Kiro face, `session/resume` on the DSH face). `ensureSession` for a new key starts the helper at once. For a saved session it is lazy: no process starts until the first turn (or a control call).
+- acpx does not pool by launch fields. With `resumeSessionId` it reloads the same session even when the registry's argv, the agent name or the folder changed. Detecting a changed launch is therefore ours (`launch.mjs`). The runner puts the first 8 characters of the launch identity into the session key, so a changed launch is a new acpx session, never the old one reloaded under new arguments.
+- `runtime.close({ handle, reason })` ends the helper process and keeps the record (`closed: true`, session id unchanged). The next turn starts a new process that reloads the session. The helper process otherwise stays alive between turns of one runtime.
+- Lost session: `ensureSession` does not throw. The turn's `result` is `{ status: "failed", error: { code: "NO_SESSION", detailCode: "SESSION_RESUME_REQUIRED" } }`, and the prompt was not written (`promptStarted` never resolves). `prepareFreshSession({ handle })` then `ensureSession` without `resumeSessionId` opens a new session.
+- Other error names used: `detailCode` `AGENT_DISCONNECTED` (helper died; after the prompt was written it is the "died in the middle" case), `AGENT_SPAWN_ENOENT` and the like (thrown by `ensureSession`), `UNSUPPORTED_PROMPT_CONTENT` (an image for a helper without `promptCapabilities.image`; acpx refuses before writing the prompt).
+- Current mode: not in `getStatus`, not in the saved record (`acpx.current_mode_id` is only set by `current_mode_update`). It is in the reply to `session/new` or `session/load`, which `onAcpMessage` shows. The turn passes `assertActive` to `startTurn`; acpx calls it after the load and before the prompt, so a mismatch stops the turn with no prompt written. `onAcpMessage` is documented as best effort, so a mode that was not seen fails closed.
+- Images: `agentCapabilities.promptCapabilities.image` is in the saved record after `ensureSession`. Owner decision for PR A: the runner does not read it. An image is always attached as an image block, and a refusal from acpx (`UNSUPPORTED_PROMPT_CONTENT`) fails the turn with `<helper> does not accept pictures`. Other files stay paths in the prompt text.
+- Store modes: `<stateDir>/sessions/` is `0700` and the records are `0600`, set by acpx itself; `store.mjs` checks and narrows them anyway. The record names an `event_log` path under `~/.acpx/`, but nothing was written there in the spike.
+- Client capabilities with `fs: false`, `terminal: false`: the `initialize` request carries `fs.readTextFile: false`, `fs.writeTextFile: false`, `terminal: false` (the legacy client sent `{}`).
+- Permission callback: `request.raw` is the ACP request (`toolCall`, `options`). Returning `{ outcome: "selected", optionId }` or `{ outcome: "reject_once" }` works; a throwing callback is treated as a refusal.
+- Stray non-JSON lines on the helper's stdout are skipped, and acpx prints one console error line for each. Helper stderr is not reachable through the runtime options; the start-up error text acpx gives is used instead.
+- Not checked in PR A (they belong to later PRs): how a stage timer stops a hung `ensureSession` (1.6), `session/set_config_option` against real DSH (1.8), the environment allowlist and the first-start wait (1.9; the code shows no hidden limit on a session start, the runtime `timeoutMs` is unset), real Kiro and real DSH (12).
+- Kiro `full` as an all-tools agent file (3.2) could not be checked against real Kiro from the build sandbox (it may not write `~/.kiro/agents`). It must be checked by hand before the default flips (task 12).

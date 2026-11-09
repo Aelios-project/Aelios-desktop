@@ -1,26 +1,15 @@
 // One turn with an ACP helper: start it, open (or reopen) the thread's session, send one prompt, answer permission
 // requests by tier, and turn the end of the turn into a receipt outcome. One helper process per turn; the session
 // outlives it (session/load or session/resume), so a later turn picks up the same conversation.
-import { createHash } from "node:crypto";
 import { AcpClosed, AcpConnection, AcpError, PROTOCOL_VERSION } from "./acp.mjs";
-import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
+import { CONVENTION } from "./convention.mjs";
+import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { promptBlocks } from "./inbox.mjs";
 import { reasonOf, reasonOfStart } from "./reason.mjs";
 import { answer } from "./permission.mjs";
 import { StepLog } from "./steps.mjs";
 
-const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
-/** Added to every prompt. How the helper tells the user something; a question mark means nothing. */
-export const CONVENTION = [
-  "How to talk to the user. Put each marker alone at the start of a line.",
-  "Say nothing and carry on when a step can be undone and is inside the job. Never ask whether to continue.",
-  "`NOTE: ...` anywhere: the user should know, but you keep going.",
-  "`BLOCKED: ...` as your last line: an outside wall you cannot pass (missing permission, no network, a missing dependency).",
-  "`ASK: ...` as your last line: only the user can decide (cannot be undone, costs money, a preference, a permission to give).",
-  "When technically stuck: (a) try one really different way; (b) then look for a way around, or do the part that is not stuck; (c) only then BLOCKED for an outside wall, or ASK for what only the user can decide.",
-  "A denied permission or a limit the user set is never worked around: stop and say BLOCKED, or ASK for the permission.",
-  "Reply in the language of the job."
-].join(" ");
+export { CONVENTION };
 
 export class Turn {
   /**
@@ -126,44 +115,7 @@ export class Turn {
     }
   }
 
-  #text() { return (this.current.trim() || this.finished.at(-1)?.trim() || ""); }
-
-  #cancelled(how) {
-    const last = this.#text();
-    return { status: "cancelled", summary: this.redact(last ? `Stopped. The last part before stopping: ${last}` : "Stopped."), sessionId: this.opened, how };
-  }
-
-  #stuck(how, why) {
-    const key = "stuck:" + short(why + (this.opened ?? ""));
-    return { status: "needs_you", summary: this.redact(why), sessionId: this.opened, how, ask: { key, question: this.redact(why + " Carry on?") } };
-  }
-
-  #outcome(stopReason, how) {
-    const { notes } = takeNotes([...this.finished, this.current].join("\n"));
-    const final = takeNotes(this.#text()).rest, notice = noticeOf(notes.map(note => this.redact(note)));
-    const base = { sessionId: this.opened, how, ...(notice ? { notice } : {}) };
-    if (this.timedOut) return this.#stuck(how, "The helper did not finish within the time limit and was stopped.");
-    if (stopReason === "cancelled") return this.#cancelled(how);
-    if (stopReason === "refusal" || stopReason === "max_tokens" || stopReason === "max_turn_requests") {
-      const why = `The helper stopped in the middle (${stopReason}).${final ? " Last part: " + final : ""}`;
-      return { ...base, status: "needs_you", summary: this.redact(why), ask: { key: "stop:" + short(stopReason + final), question: this.redact(why) } };
-    }
-    if (this.denied.length) {
-      const list = this.denied.map(item => "- " + item).join("\n");
-      const summary = this.redact(`${final || "(the helper left no text)"}\n\nSome actions were refused by this machine's permission tier (${this.tier}):\n${list}`);
-      return { ...base, status: "needs_you", summary, ask: { key: "perm:" + short(list), question: this.redact(`The helper wanted to do the following, but this machine's tier is ${this.tier}, so it was refused:\n${list}`) } };
-    }
-    if (!final && notes.length) return { ...base, status: "done", summary: this.redact(notes.join("\n")) };
-    if (!final) return { ...base, status: "needs_you", summary: "The turn ended, but the helper left no text result.", ask: { key: "silent:" + short(String(this.opened) + Date.now()), question: "The turn ended, but the helper left no text result. Ask again?" } };
-    const said = lastMarker(final);
-    if (said?.kind === "blocked") {
-      const reason = this.redact(said.text || "(no reason given)");
-      return { ...base, status: "failed", reason: "error", summary: `Blocked: ${reason}${said.body ? "\n\n" + this.redact(said.body) : ""}` };
-    }
-    if (said?.kind === "ask") {
-      const question = this.redact(said.text || "(the helper wants you to decide, but wrote no question)");
-      return { ...base, status: "needs_you", summary: this.redact(said.body || question), ask: { key: "q:" + short(final), question } };
-    }
-    return { ...base, status: "done", summary: this.redact(final) };
-  }
+  #cancelled(how) { return cancelled(this, how); }
+  #stuck(how, why) { return stuck(this, how, why); }
+  #outcome(stopReason, how) { return outcomeOf(this, stopReason, how); }
 }

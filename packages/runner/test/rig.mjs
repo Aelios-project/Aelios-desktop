@@ -16,8 +16,8 @@ export async function rig(plugin, extra = {}) {
   const store = path.join(dir, "agent.json");
   writeFileSync(store, JSON.stringify({ sessions: {}, log: [], n: 0 }));
   const workspace = path.join(dir, "work");
-  const config = { url: cloud.url, resident: "default", workspace, access: "edit", plugin, bin: AGENT, env: { FAKE_STORE: store },
-    kiroAgentsDir: path.join(dir, "agents"), pollMs: 20, heartbeatMs: 20, backoffMaxMs: 100, killAfterMs: 400, ...extra };
+  const config = { url: cloud.url, resident: "default", workspace, access: "edit", plugin, bin: AGENT, env: { FAKE_STORE: store, FAKE_AGENTS: path.join(dir, "agents") },
+    kiroAgentsDir: path.join(dir, "agents"), home: dir, engine: process.env.RUNNER_TEST_ENGINE ?? "legacy", pollMs: 20, heartbeatMs: 20, backoffMaxMs: 100, killAfterMs: 400, ...extra };
   const state = new StateFile(path.join(dir, "state.json"));
   await state.update(s => { s.device = { runnerId: "run_1", token: cloud.deviceToken }; });
   const rig = { dir, cloud, state, config, workspace, store, stopped: false };
