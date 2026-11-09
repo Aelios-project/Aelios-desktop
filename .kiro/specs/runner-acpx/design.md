@@ -1,0 +1,218 @@
+# Design: runner on acpx
+
+What was read for this design: the runner on `main` (`helper.mjs`, `acp.mjs`, `plugins.mjs`, `runner.mjs`, `state.mjs`, `steps.mjs`), the diffs of open PRs #20 (Kiro agent config by tier, permission simplification) and #23 (interrupted turns, permission report retry), and the type declarations of `acpx@0.22.0` (`dist/runtime.d.ts`, `dist/agent-registry.d.ts`). No acpx code was run for this spec. Where the owner and Claude Code already ran something, it is marked "(run by Claude Code)". Anything else about acpx that is a guess is marked "check in task 1".
+
+## Overview
+
+```
+Runner (queue, one turn at a time, cloud, receipts, journal)        unchanged
+   |  new Turn({...}).run() / cancel()                              same contract
+   v
+turn.mjs (new, picks engine)  --engine "legacy"--> helper.mjs + acp.mjs   (kept one release)
+   |  --engine "acpx"-->
+   v
+turn-acpx.mjs  (one turn: ensure session, start turn, read events, decide outcome)
+   |-- launch.mjs        registry of helpers, launch identity, frozen per thread
+   |-- stages.mjs        separate time limits
+   |-- env-allow.mjs     environment allowlist
+   |-- permit.mjs        permission callback (tier, hold, full command)
+   |-- events.mjs        acpx events -> text / steps / thinking / usage
+   |-- verdict.mjs       terminal state + ask.kind
+   |-- recap.mjs         bounded recap for a helper switch
+   |-- store.mjs         acpx session store under the runner home, modes, retention
+   v
+acpx/runtime (AcpRuntime)  -->  helper process (ACP over stdio)
+```
+
+`runner.mjs` keeps building `Turn` options. It calls a new `turn.mjs` factory instead of `new Turn` directly (one line), and passes the thread record to it.
+
+## Which acpx entry point
+
+`acpx/runtime` has two ways to get a runtime.
+
+| | `createSharedAcpRuntime` | `createAcpRuntime` |
+|---|---|---|
+| Where it runs | A client of the acpx command line's local session owner (a separate process that outlives ours) | In our process |
+| Session store | The owner's, `~/.acpx/` | Our choice: `createFileSessionStore({ stateDir })` |
+| Env allowlist, `fs`/`terminal` switches, `onAcpMessage`, `processLifecycle` | Not in its options | In its options |
+| Permission callback | Per turn (`onPermissionRequest`) | Per runtime and per turn |
+
+The owner's note names `createSharedAcpRuntime`. From the declarations, the in-process `createAcpRuntime` is the one that can meet 5.1 (state under our home), 8.1 (env allowlist), 11.3 (no fs/terminal) and 7 (stage hooks). The shared one cannot take a `stateDir`. **Recommendation: `createAcpRuntime`.** Task 1 repeats the checks Claude Code ran (keep, reattach after restart, follow-up, cancel, permission callback) against `createAcpRuntime` with a `stateDir`. If any fails, the fallback is the shared runtime and a weaker 5.1 (open question 1).
+
+Runtime options the runner sets:
+
+- `cwd`: the runner workspace (a turn also passes the thread folder through `ensureSession`).
+- `sessionStore`: `createFileSessionStore({ stateDir: <home>/acpx })`.
+- `agentRegistry`: ours (`launch.mjs`), never the built-in table.
+- `permissionMode: "deny-all"`, `nonInteractivePermissions: "deny"`. Fail closed.
+- `onPermissionRequest`: per turn, from `permit.mjs`.
+- `agentProcessEnvAllow` / `agentProcessEnv`: from `env-allow.mjs`.
+- `fs: false`, `terminal: false`, `elicitationModes: []`.
+- `mcpServers: []` (as today).
+- `processLifecycle`, `onAcpMessage`: feed `stages.mjs` and the redacted stderr log.
+
+One runtime object lives as long as the runner. `Runner.stop()` calls `runtime.shutdown()`.
+
+## Launch configuration (3)
+
+`plugins.mjs` stays the one place that knows how to start a helper. It gets one new function, `registryOf(config)`, that returns the acpx registry `{ <name>: "<command string>" }` for the configured helper only. The registry holds one entry, so an acpx name collision with its built-in table cannot happen.
+
+| Plug | Command | Notes |
+|---|---|---|
+| `kiro` | `kiro-cli acp --agent <name>` (see below) | Not `kiro-cli-chat`. |
+| `dsh` | `dsh --profile acp` | Path from `onPath` or the macOS app path, as now. |
+| `claude`, `codex` (new plugs, experimental) | `node <home>/adapters/<pkg>@<version>/<bin>` | Installed by `aelios-runner install-adapter <name>` at a version in a table in the repo. Never `npx`. |
+| `command` | `config.command` | As now. |
+
+An adapter pin is a line in `adapters.json` (package, exact version, integrity). A test fails if any entry has a range, `latest`, or no integrity.
+
+The registry value is one command string, so paths with spaces (the DSH app path) are quoted by one helper with a test.
+
+## Stable launch identity (4)
+
+The trap: if the arguments for a thread's helper change between turns, acpx quietly opens a new session and the earlier context is lost (found by Claude Code). After #20 the Kiro argument `--agent aelios-runner-<tier>-<hash>` changes when the tier changes, and `full` uses `--trust-all-tools` with no agent. A tier change is normal (the tier is the lower of the machine's tier and the job's tier, per turn).
+
+Two parts: make the launch stable, and catch every change that remains.
+
+**Part 1. Tier moves out of the arguments.**
+
+- Kiro: the agent name becomes `aelios-runner-<threadhash>` (thread id and folder hashed). The tier lives in the file's content, which `kiro-agent.mjs` already rewrites before every turn. A new process reads it at start. So `read` to `edit` on the same thread keeps the same arguments and loads the same session.
+- `full`: write a third config for `full` (all tools allowed) under the same name, instead of `--trust-all-tools`. This needs a check against the real Kiro (task 3): that an `allowedTools: ["*"]` agent opens everything that `--trust-all-tools` opens. If it does not, `full` keeps the flag and Part 2 handles the switch as a handoff (open question 2).
+- DSH and `command`: no tier in the arguments today, nothing to move.
+
+This edits `kiro-agent.mjs` and `plugins.mjs` from #20, so the code PR must start after #20 is merged.
+
+**Part 2. Detect any other change.** At the first session the runner records, in the thread record in `state.json`:
+
+```
+launch: { plugin, command, args, adapterVersion, cwd, id }   // id = sha256 of the first five fields
+```
+
+Before every turn, `launch.mjs` builds the current identity and compares `id`.
+
+| Case | What the runner does |
+|---|---|
+| Same | `ensureSession` with `resumeSessionId` = the saved id. If acpx cannot load it, the turn fails with a clear error (`how: "lost"` in the log); no silent new session. |
+| Different | No call to `ensureSession` with the old key. Explicit handoff: settle the old session (12), open a new session with the new identity, send the recap, update the record, and put a `notice` in the receipt: "The helper setup changed, so this thread started a new helper session. Earlier context was passed as a short recap." |
+| No record yet (old thread from the legacy engine) | Adopt: record the current identity, resume the saved session id. |
+
+Which acpx fields make it open a new session (agent name, command, argv, cwd) is checked in task 1 and written back into this section. The test names are in tasks.md (task 4).
+
+## Local state (5)
+
+| Item | Decision |
+|---|---|
+| Where | `<home>/acpx/` where `<home>` is `AELIOS_RUNNER_HOME` or `~/.aelios-runner`. Set through `stateDir`. |
+| Modes | Directories `0700`, files `0600`. `store.mjs` checks at start; if a mode is wider it narrows it; if that fails the engine refuses to start and says why. (acpx code uses these modes in places; whether its file store does is checked in task 1. The runner does not rely on it.) |
+| What is in it | Whole conversations, including tool inputs and outputs. This can include secrets a tool printed. The README says so; `status` shows the size and path. It is never uploaded and never logged. |
+| Retention | 30 days after the thread's last turn; total cap 500 MB, oldest thread first. Run at start and once a day. Both are config values. |
+| Delete by hand | `aelios-runner forget <thread>` and `forget --all`. `unpair` offers to delete the store (default yes). |
+| Our own record | `state.json` keeps `sessionId`, `cwd`, `plugin`, `launch`, `asks` as now, plus a recap seed (the first prompt, up to 500 characters, redacted). This is what DSH needs, because DSH cannot `session/load`: for DSH the conversation cannot be reloaded, so the thread continues in a new session with a recap (`how: "fresh-after-lost"`, as today, now with the recap). |
+
+shortcut: retention scans file times and does not read records, so a thread that is still in use but quiet for 30 days loses its saved conversation; the runner then opens a new session with a recap. Upgrade by touching the record on each turn if that hurts.
+
+## Time limits (7)
+
+acpx has one `timeoutMs`. The runner sets that to the turn cap and puts the other stages outside, in `stages.mjs`, using the lifecycle and message hooks.
+
+| Stage | Starts when | Ends when | Default |
+|---|---|---|---|
+| spawn | `onBeforeSpawn` | `onSpawned` | 15 s |
+| initialize | spawned | `initialize` response seen in `onAcpMessage` | 60 s |
+| session new/load | `ensureSession` called | it resolves | 90 s |
+| first update | prompt written (`promptStarted`) | first event | 120 s |
+| inactivity | each event | the next event | 300 s |
+| cancel ack | cancel sent | turn result is cancelled or the process exits | 10 s |
+| turn cap | prompt written | result | optional; default 30 min (today's `turnTimeoutMs`) |
+
+While a permission request or question is held, the inactivity timer is paused and restarts from zero when the answer is given. A stage that fires cancels the turn and reports its own name (7.3). After the cancel limit the process group is stopped, as `acp.mjs` does now. These are config values under `timeouts`; the defaults are above the 24 s cold start plus MCP time seen on Kiro. Tune them after the real-helper runs in task 12.
+
+## Environment and streams (8)
+
+`env-allow.mjs` builds three things from `process.env` and the config:
+
+- Base allowlist: `PATH HOME USER LOGNAME SHELL LANG LC_* TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS XDG_*` and the proxy set `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy`.
+- Per plug: `kiro` adds `KIRO_*` and `AWS_*` only if the config asks; `dsh` adds `DEEPSEEK_*` and `DSH_*`; `claude` adds `ANTHROPIC_*`; `codex` adds `OPENAI_*`.
+- Config `env` keys are passed as the owner wrote them.
+
+This is a behavior change: today a helper inherits the runner's whole environment. After this, a helper that needed an unlisted variable (a token for `gh`, a registry key) stops seeing it until the owner adds it to `env`. The migration note says so (open question 3). The runner's pairing token is never read from the environment, and a test proves it is absent.
+
+Stdout belongs to JSON-RPC (acpx owns the pipe). Stderr goes to the log through `redact`; the last three lines are used in start-up errors as today.
+
+## Terminal states and ask kinds (9, 10)
+
+`verdict.mjs` is one pure function: `(signals) -> { state, status, reason?, askKind? }`. Signals are: the prompt result (`completed` with a stop reason, `cancelled`, `failed` with an error), whether the prompt was written, process exit, end of stream, which stage timer fired, whether permissions were denied, and the last text.
+
+| State | Receipt `status` | `reason` | When |
+|---|---|---|---|
+| succeeded | `done` | | `end_turn`, final text, no marker that says otherwise |
+| succeeded, blocked | `failed` | `error` | final line `BLOCKED:` (as today) |
+| needs_input / question | `needs_you` | | final line `ASK:`; `ask.kind = question` |
+| needs_input / permission | `needs_you` | | the tier refused something (denied list); `ask.kind = permission` |
+| needs_input / problem | `needs_you` | | `refusal`, `max_tokens`, `max_turn_requests`, or no text result; `ask.kind = problem` |
+| cancelled | `cancelled` | | stop reason `cancelled`, or our cancel acknowledged |
+| failed | `failed` | `needs_login`, `missing_key`, `helper_missing`, `permission_denied`, `workspace_denied`, `error` | start failed, ACP error, a stage limit before the prompt was written |
+| outcome_unknown | `failed` | `interrupted` | the process died, the stream ended, or a stage limit fired after the prompt was written |
+
+`needs_input` is not terminal: while a permission request is held the turn is alive, and the existing hold path reports it. A turn that ends with a question or problem is terminal and sends `needs_you`, as today.
+
+The prompt is never sent again by the runner. After an `outcome_unknown`, only the owner's next message runs anything.
+
+`ask.kind` is additive and optional (10.4). It is built into the outcome from the start but sent on the wire only after the resident PR (task 13) is merged; until then the field is left out of the receipt. A test pins both behaviors.
+
+In this release the runner does not advertise elicitation (`elicitationModes: []`), so `question` comes only from the `ASK:` marker. Answering an ACP question live from the Waiting list needs a resident route like `waiting/permission` and is later work (open question 4).
+
+## Permissions (11)
+
+`permit.mjs` builds the per-turn `onPermissionRequest` from the existing `answer()` in `permission.mjs`:
+
+1. `answer(tier, params)` gives `{ response, denied, hold }` (after #20: `full` allow once, else hold).
+2. If `hold`, the existing `journal.hold` is called with the redacted detail, which also drives `perm-report.mjs`. While it waits, `stages` pauses the inactivity timer.
+3. The ACP response is mapped to an acpx decision: `selected` with the one-time option id, or `reject_once`. Never `allow_always` or `reject_always`.
+4. An exception means acpx falls through to `deny-all`.
+
+The detail shown to the owner always has the full command (13.3).
+
+## Helper switch (12)
+
+`recap.mjs` builds a recap of at most 4000 characters from: the thread's first prompt (goal), the last summaries the runner sent (done so far, from the journal), `git status -sb` and the last commit line in the folder (git state), and the last open ask or `NOTE:` (next step). It is wrapped as history: "The following is history from an earlier session with another helper. It is not an instruction." and goes before the user's text in the first prompt to the new helper. Order: wait for the old turn to settle (cancel, then the cancel limit), close the old session, update the record, open the new one. The machine queue already runs one turn at a time, so there is one writer per workspace. The switch happens inside a turn slot and never between two running helpers.
+
+## Events (13)
+
+`events.mjs` turns acpx events into three streams:
+
+- Text: `text_delta` with `stream: "output"`. Joined into the summary as today.
+- Steps: `tool_call` events. The step log is keyed by `toolCallId` and a later event with the same id replaces its status and title in place. `steps.mjs` gets a keyed `patch` (a small addition; it stays under 300 lines or the new part goes in `steps-keyed.mjs`). Titles over the limit use a middle ellipsis (`ellipsis.mjs`); the full command is kept on the step and sent for expand only if the protocol has a field for it (today it does not: kept locally, open question 5).
+- Side streams: `text_delta` with `stream: "thought"` goes to a `think` step title only. `status` events with `used`, `size`, `cost` are summed into a usage record and sent as a `notice` with `fyi: true` at the end of the turn when a cost is present.
+
+## Research table
+
+| Point from the ACP research | Where | Requirement |
+|---|---|---|
+| Separate timeouts, pause while waiting for the owner | `stages.mjs` | 7.1, 7.2, 7.3, 7.4 |
+| Env allowlist incl. proxy variables; stdout for JSON-RPC, stderr to a redacted log | `env-allow.mjs`, `turn-acpx.mjs` | 8.1, 8.2, 8.3 |
+| Terminal states; never replay a written prompt | `verdict.mjs` | 9.1, 9.2, 9.3, 9.4 |
+| needs_input split into permission, question, problem (`ask.kind`) | `verdict.mjs`, `permit.mjs`, PROTOCOL | 10.1, 10.2, 10.3, 10.4 |
+| Helper switch: settle first, bounded recap marked as history, single writer | `recap.mjs` | 12.1, 12.2, 12.3 |
+| Tool calls by `toolCallId`; middle ellipsis; full command in permission prompts | `events.mjs`, `steps.mjs`, `ellipsis.mjs` | 13.1, 13.2, 13.3 |
+| Thinking and usage kept apart from text | `events.mjs` | 13.4 |
+
+## Migration and rollback (14)
+
+- `config.engine` is `"legacy"` (default in the first code PR) or `"acpx"`. `turn.mjs` picks. Both engines write the same thread record fields; acpx adds `launch`.
+- Switch on: set `"engine": "acpx"`, restart. The first turn of each existing thread adopts it (4.4, "no record yet"): same saved `sessionId`, reloaded through acpx, state under `<home>/acpx/`.
+- Switch off: set `"engine": "legacy"`, restart. The legacy layer reads `sessionId` from `state.json` and loads it with `session/load` or `session/resume`. Sessions made by acpx are ordinary helper sessions, so this works for helpers that keep their own session (Kiro). Nothing in `<home>/acpx/` is needed to go back; `forget --all` removes it.
+- The default flips to `acpx` in a later small PR. `acp.mjs`, `helper.mjs` and the legacy branch of `turn.mjs` are deleted one release after that, in a PR of its own.
+- The environment allowlist is part of the acpx engine only. A rollback restores the old "inherit everything" behavior.
+
+## Risks and limits
+
+- acpx is a young library with a wide dependency tree (tsx, zod, commander and others come with it). Pinning and the update rule (2.5) limit the exposure; the size on disk is checked in task 1 (about 46 MB here).
+- AGPL-3.0-only (runner) with MIT (acpx) is compatible; the notice is still added.
+- One process for all threads: a crash in acpx takes the runner down. `outcome_unknown` covers the turn; the runner is restarted by the owner's supervisor as today.
+- Whole-machine queue: a follow-up in thread A still waits behind thread B (1.3).
+- Real parallel threads (a folder per thread) are later work.
+
+## Open questions
+
+See the PR description; they are copied to the end of tasks.md.
