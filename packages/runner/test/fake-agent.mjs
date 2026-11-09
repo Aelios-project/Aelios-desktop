@@ -50,6 +50,15 @@ async function prompt(id, params) {
     call(4, { title: "Read c", kind: "read", locations: [{ path: (session?.cwd ?? "") + "/c.md" }] });
     await sleep(100);
   }
+  const update = u => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: u } });
+  if (text.includes("THINKME")) update({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "SECRET THOUGHT" } });
+  if (text.includes("UPDATEME")) { // the same call again: a new status, then a new title and a long command
+    update({ sessionUpdate: "tool_call", toolCallId: "u1", title: "Run", kind: "execute", status: "pending", rawInput: { command: "npm test" } });
+    update({ sessionUpdate: "tool_call_update", toolCallId: "u1", status: "in_progress" });
+    update({ sessionUpdate: "tool_call_update", toolCallId: "u1", status: "completed", rawInput: { command: "npm run build -- " + "--flag ".repeat(60) + "--last-flag" } });
+    await sleep(100);
+  }
+  if (text.includes("USAGEME")) update({ sessionUpdate: "usage_update", used: 1200, size: 200000, cost: { amount: 0.25, currency: "USD" } });
   if (text.includes("CRASH")) process.exit(3);
   if (text.includes("SLOW")) {
     chunk(sessionId, "partial work");
