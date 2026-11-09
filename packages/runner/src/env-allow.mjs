@@ -6,7 +6,7 @@
 
 const BASE = ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "SSH_AUTH_SOCK"];
 const PROXY = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"].flatMap(name => [name, name.toLowerCase()]);
-const PREFIXES = { all: ["LC_", "XDG_"], kiro: ["KIRO_", "AWS_"], dsh: ["DEEPSEEK_", "DSH_"], command: [] };
+const PREFIXES = { all: ["LC_", "XDG_"], kiro: ["KIRO_", "AWS_"], dsh: ["DEEPSEEK_", "DSH_"], claude: ["ANTHROPIC_", "CLAUDE_"], codex: ["OPENAI_", "CODEX_"], command: [] };
 
 /**
  * @param {string} plugin  the config's plugin

@@ -2,8 +2,10 @@
 // The helper is chosen by this machine's config, never by a job.
 import { accessSync, constants } from "node:fs";
 import path from "node:path";
+import { ADAPTERS, adapterLaunch } from "./adapters.mjs";
 import { writeAgent } from "./kiro-agent.mjs";
 import { TIERS } from "./permission.mjs";
+import { homeDir } from "./state.mjs";
 
 const DSH_APP = "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh";
 
@@ -31,9 +33,17 @@ export const PLUGINS = {
     bin: () => onPath("dsh") ?? (process.platform === "darwin" && available(DSH_APP) ? DSH_APP : "dsh"),
     args: () => ["--profile", "acp"]
   },
-  // Any other ACP helper (e.g. Claude Code's adapter, experimental): config.command = ["bin", "arg", ...].
+  // Claude Code and Codex through a pinned ACP adapter (experimental, adapters.mjs): node <home>/adapters/<name>-<version>/...
+  claude: adapterPlug("claude"),
+  codex: adapterPlug("codex"),
+  // Any other ACP helper (experimental): config.command = ["bin", "arg", ...].
   command: { bin: () => null, args: () => [] }
 };
+
+function adapterPlug(name) {
+  const home = config => config.home ?? homeDir();
+  return { adapter: name, bin: config => adapterLaunch(home(config), name).command, args: (tier, cwd, config) => adapterLaunch(home(config), name).args };
+}
 
 /** The program a config starts, without preparing anything (used to check that it exists). */
 export function binOf(config) {
@@ -43,7 +53,7 @@ export function binOf(config) {
     if (!Array.isArray(config.command) || !config.command.length || config.command.some(part => typeof part !== "string")) throw new Error('plugin "command" needs config.command: ["bin", "arg", ...]');
     return config.command[0];
   }
-  return config.bin ?? process.env[`AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`] ?? plug.bin();
+  return config.bin ?? process.env[`AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`] ?? plug.bin(config);
 }
 
 /** @returns {{command: string, args: string[], env: Record<string,string>}} */
@@ -60,7 +70,7 @@ export function launchOf(config, tier, cwd, thread) {
     throw new Error("Extra Kiro arguments cannot override the restricted agent or trust tools.");
   }
   return { command: bin, args: [...args, ...(config.args ?? [])], env: config.env ?? {},
-    ...(config.plugin === "kiro" ? { expectedAgent: args[2] } : {}) };
+    ...(config.plugin === "kiro" ? { expectedAgent: args[2] } : {}), ...(plug.adapter ? { adapterVersion: ADAPTERS[plug.adapter].version } : {}) };
 }
 
 /** Can this command be started at all? Looked for on PATH, or at its path when it has one. */

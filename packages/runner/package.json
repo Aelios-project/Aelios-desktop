@@ -6,7 +6,7 @@
   "type": "module",
   "engines": { "node": ">=22.13.0" },
   "bin": { "aelios-runner": "bin/aelios-runner.mjs" },
-  "files": ["bin", "src", "README.md", "PROTOCOL.md"],
+  "files": ["bin", "src", "adapters.json", "README.md", "PROTOCOL.md"],
   "repository": { "type": "git", "url": "git+https://github.com/Aelios-project/Aelios-desktop.git", "directory": "packages/runner" },
   "dependencies": { "acpx": "0.22.0" },
   "scripts": {

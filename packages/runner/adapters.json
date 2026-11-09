@@ -1,0 +1,14 @@
+{
+  "claude": {
+    "package": "@agentclientprotocol/claude-agent-acp",
+    "version": "0.101.1",
+    "integrity": "sha512-re7jjUO8EvOaH5GcpG7wKlZwplDsQSMPYW2wR1ZS/pWvpOsmq7Vn774EFGibjmTpzwko0FOtHTIVRd/1byJWnA==",
+    "bin": "dist/index.js"
+  },
+  "codex": {
+    "package": "@zed-industries/codex-acp",
+    "version": "0.16.0",
+    "integrity": "sha512-XKzqztT5R8Wg1BVFnk6/U4JVx5GNUaZgxpf9gP2Cw6BsknvJWh3aefcAGZQljgdMivRqczjNKYL4F6H65dc5vA==",
+    "bin": "bin/codex-acp.js"
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// aelios-runner pair | start | status | unpair | forget   (see ../README.md)
+// aelios-runner pair | start | status | unpair | forget | install-adapter   (see ../README.md)
 import { mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
@@ -14,6 +14,7 @@ import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
 import { StateFile, homeDir, readConfig, writeConfig } from "../src/state.mjs";
 import { forgetCommand, keepSwept, storeOnUnpair, storeStatus } from "./forget.mjs";
+import { installAdapter } from "../src/adapters.mjs";
 
 const [command, ...rest] = process.argv.slice(2);
 const home = homeDir();
@@ -103,6 +104,7 @@ async function permit() {
   console.log("Recorded.");
 }
 
-const commands = { pair, start, status, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)) };
-if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit|forget"); process.exit(2); }
+const commands = { pair, start, status, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)),
+  "install-adapter": async () => console.log(`Installed ${await installAdapter(home, rest[0] ?? "")}`) };
+if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit|forget|install-adapter"); process.exit(2); }
 commands[command]().catch(error => { console.error("aelios-runner:", error.message); process.exit(1); });

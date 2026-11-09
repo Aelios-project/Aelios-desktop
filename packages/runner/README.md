@@ -46,10 +46,18 @@ The config is in `~/.aelios-runner/config.json`. Credentials and thread records 
 
 Only this machine's config picks the helper. A cloud message cannot change it.
 
-- `kiro`: runs `kiro-cli acp`. With `--access full` it adds `--trust-all-tools`; otherwise it adds `--agent` with a config the runner writes into `~/.kiro/agents` before each turn. Run `kiro-cli login` on this machine first. The runner logs in to no account.
+- `kiro`: runs `kiro-cli acp --agent <name>` with a config the runner writes into `~/.kiro/agents` before each turn (for `full` that config allows every tool; there is no `--trust-all-tools`). Run `kiro-cli login` on this machine first. The runner logs in to no account.
 - `dsh`: runs `dsh --profile acp` (the DeepSeek Harness ACP server). It looks for `dsh` on `PATH`. On macOS, if it is not found, it tries `/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh`. DSH resumes sessions with `session/resume`. Set the provider and model in DSH's `acp` profile first.
-- `command` (experimental): any command that speaks ACP, for example the Claude Code adapter `claude-agent-acp`. In `config.json` write `"plugin": "command", "command": ["claude-agent-acp"]`. Signing in with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
+- `claude` and `codex` (experimental): Claude Code and Codex through their ACP adapters, pinned in `adapters.json` (package, exact version, integrity). Install the pinned adapter once with `aelios-runner install-adapter claude` (or `codex`). It goes to `~/.aelios-runner/adapters/` and runs with node from there, never through `npx`. Raising a pin is a new launch, so the thread gets a new session with a recap. Signing in to Claude Code with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
+- `command` (experimental): any other command that speaks ACP. In `config.json` write `"plugin": "command", "command": ["my-acp-helper", "arg"]`.
 - Optional config: `bin` (another executable path), `args` (extra arguments), `env` (extra environment variables), `turnTimeoutMs` (longest single turn, default 30 minutes), `pollMs` (how often to fetch work, default 5 seconds), `backoffMaxMs` (longest wait between tries while the cloud is unreachable, default 60 seconds).
+
+### The engine
+
+`"engine"` in `config.json` picks how the runner talks to the helper: `"legacy"` (the default for now), or `"acpx"`, which runs the helper through [acpx](https://www.npmjs.com/package/acpx). The time limits, the environment allowlist and the session store below apply to `acpx` only.
+
+- Turn it on: set `"engine": "acpx"` and restart `start`. Each thread keeps its saved session id and reloads it through acpx on its next turn.
+- Go back: set `"engine": "legacy"` and restart. The legacy engine reads the same session ids from `state.json`. The helper gets the runner's whole environment again, and only the single turn limit applies. `forget --all` removes the acpx store, which going back does not need.
 
 ### Time limits (acpx engine)
 
