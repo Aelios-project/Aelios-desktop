@@ -131,7 +131,7 @@ A request below the `full` tier is held for the owner (10 minutes; no answer cou
   "sessionId": "…",           // optional, the ACP session id (opaque, at most 160 characters; replaced by a short digest if it fails the check)
   // only final carries the rest:
   "status": "done",           // done | failed | needs_you | cancelled
-  "reason": "needs_login",    // failed only, optional: why. One of permission_denied, needs_login, missing_key, helper_missing, workspace_denied, error
+  "reason": "needs_login",    // failed only, optional: why. One of permission_denied, needs_login, missing_key, helper_missing, workspace_denied, interrupted, error
   "summary": "…",             // at most 4000 characters; the runner replaces workspace paths and tokens that appear as is, and nothing else
   "ask":    { "key": "…", "question": "…", "options": ["…"], "recommend": "…" },
   "notice": { "text": "…", "fyi": true },
@@ -140,7 +140,7 @@ A request below the `full` tier is held for the owner (10 minutes; no answer cou
 ```
 
 - `started`: the helper session is made or resumed, and work begins. `queued`: this `mail` is waiting behind. `final`: this work is finished. A work has only one `final`.
-- `reason` (only on a `failed` final; any other status with a `reason`, or a code not in the list, is refused with 400): what the runner knows about the failure. `needs_login` / `missing_key`: the helper said it needs a login or a key (ACP `auth_required`, or those words in its error). `permission_denied`: the helper was refused a permission. `helper_missing`: the helper program could not be started. `workspace_denied`: the workspace folder could not be made or used. `error`: anything else (a `BLOCKED:` line, an unreadable message, an unclassified helper error). The resident lists a failed thread in its waiting list only for `needs_login`, `missing_key` and `permission_denied`; without a `reason` (an older runner) it falls back to matching words in the summary.
+- `reason` (only on a `failed` final; any other status with a `reason`, or a code not in the list, is refused with 400): what the runner knows about the failure. `needs_login` / `missing_key`: the helper said it needs a login or a key (ACP `auth_required`, or those words in its error). `permission_denied`: the helper was refused a permission. `helper_missing`: the helper program could not be started. `workspace_denied`: the workspace folder could not be made or used. `interrupted`: the runner was stopped or restarted in the middle of the turn, or hit an error handling it, so the outcome is not known (never an ask: the owner opens the thread and decides). `error`: anything else (a `BLOCKED:` line, an unreadable message, an unclassified helper error). The resident lists a failed thread in its waiting list only for `needs_login`, `missing_key`, `permission_denied` and `interrupted`; without a `reason` (an older runner) it falls back to matching words in the summary.
 - `status`: `done` finished; `failed` not done (the helper errored); `needs_you` the user must decide, **always with `ask`**; `cancelled` interrupted by `say` or stopped by `cancel`.
 - **`ask`** is one item in the "waiting for you" list. `key` is a stable id for the same matter: while a `key` is open it is not asked again. The cloud lists it under "waiting for you" and does not post it into the chat. `options` and `recommend` are optional.
 - **`notice`** only informs. `fyi:true` means no reply is needed.

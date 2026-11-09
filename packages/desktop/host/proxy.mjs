@@ -3,8 +3,12 @@
 // supervisor and never from the page.
 const ALLOWED = [
   "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
-  "waiting", "waiting/seen", "waiting/permission", "task/choose", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
+  "waiting", "waiting/seen", "waiting/permission", "task/choose", "task/settle", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
   "groups", "group", "group/say",
+  // Settings and actions the desktop pages call (2026-11-09: opened at the owner's request).
+  "alarms/edit", "alarms/remove", "command", "group/config", "group/remove", "group/stop", "residents/remove",
+  "sites", "sites/remove", "speak", "stickers/import", "stickers/pack", "stickers/remove", "take-back",
+  "tasks/github", "tasks/roles", "tasks/roles/remove", "tasks/test", "telegram/connect",
 ];
 // Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.
 const BYTES = ["picture", "file", "media", "group/picture"];

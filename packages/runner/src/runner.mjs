@@ -157,8 +157,7 @@ export class Runner {
       try { await this.#execute(work); }
       catch (error) {
         this.log("execute failed", work.workId, error?.message);
-        await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "The runner hit an error handling this message. It will not be redone automatically.",
-          ask: { key: "runner:" + work.workId, question: "The runner hit an error handling this message and the result is not confirmed. Try again?" } })], state => remember(state, work.thread, "runner:" + work.workId));
+        await this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "interrupted", summary: "The runner hit an error handling this message and the result is not confirmed. It will not be redone automatically." })]);
       } finally {
         this.live = null;
         await this.state.update(state => { state.current = null; });
@@ -207,7 +206,8 @@ export class Runner {
     let outcome;
     try { outcome = await turn.run(); } finally { progress.close(); }
     if (this.shuttingDown && outcome.status === "cancelled") {
-      outcome = { ...outcome, status: "needs_you", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically.", ask: { key: "stopped:" + work.workId, question: "The runner was stopped and this turn did not finish. Do it again?" } };
+      // Not a question: the owner opens the thread and decides. Reported as a failure so it is a stuck item, never an ask.
+      outcome = { ...outcome, status: "failed", reason: "interrupted", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically." };
     }
     const receipt = { status: outcome.status, summary: outcome.summary || "(no content)", ...(outcome.status === "failed" && outcome.reason ? { reason: outcome.reason } : {}) };
     await this.state.update(s => {
@@ -227,9 +227,8 @@ export class Runner {
     const state = await this.state.read();
     if (!state.current) return;
     const work = state.current;
-    await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "The runner restarted and the result of this turn is not confirmed. It will not be redone automatically. Please check the thread.",
-      ask: { key: "restart:" + work.workId, question: "The runner restarted and the result of this turn is not confirmed. Do it again?" } })],
-    s => { s.current = null; remember(s, work.thread, "restart:" + work.workId); });
+    await this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "interrupted", summary: "The runner restarted and the result of this turn is not confirmed. It will not be redone automatically. Please check the thread." })],
+    s => { s.current = null; });
   }
 
   /** Pairing was withdrawn: stop the running turn, drop what is waiting. Nothing is claimed or started again. */
