@@ -2,6 +2,7 @@
 // helper's rawInput), never from its title. The rule is deliberately narrow: a short list of programs, each with the
 // few arguments it may take, and no shell syntax at all except `;` between such commands. Anything else asks.
 import path from "node:path";
+import { gitConfigSafe } from "./gitconfig.mjs";
 import { inside } from "./inside.mjs";
 
 // Letters, digits and a few punctuation marks that do nothing in a shell. No quotes, pipes, redirects, `$`, backticks,
@@ -10,6 +11,10 @@ const SAFE_LINE = /^[A-Za-z0-9_@%+=:,./~^ ;-]*$/;
 const FLAG = /^-[A-Za-z0-9]+$/;
 const LONG_FLAG = /^--[a-z][a-z-]*(=[A-Za-z0-9_.,:/^~%-]+)?$/;
 const NAME = /^[A-Za-z0-9_.-]+$/;
+const pathLike = word => word.startsWith("/") || word.startsWith("~") || word.split("/").includes("..");
+/** Flags that make git write a file, run a program or read outside the folder or config. */
+const GIT_NO = /^(--output|--ext-diff|--textconv|--no-index|--exec|--open-files-in-pager|-O|--git-dir|--work-tree|--config)/;
+const GIT_BRANCH_FLAGS = new Set(["-a", "-r", "-v", "-vv", "--list", "--show-current", "--all", "--remotes", "--verbose"]);
 
 /** Every word is a path inside the workspace. */
 function paths(words, cwd, { need = false } = {}) {
@@ -34,9 +39,8 @@ const RULES = {
   cat: (args, cwd) => args.every(word => word === "-n" || !word.startsWith("-")) && paths(args.filter(word => word !== "-n"), cwd, { need: true }),
   wc: (args, cwd) => args.every(word => /^-[lwcm]$/.test(word) || !word.startsWith("-")) && paths(args.filter(word => !word.startsWith("-")), cwd, { need: true }),
   head: (args, cwd) => counted(args, cwd),
-  tail: (args, cwd) => counted(args, cwd)
-  // No git: the helper runs the command, not the runner, so safe flags cannot be forced on it, and git runs what
-  // the repository config says (core.fsmonitor, diff.external, ...). Every git command goes to the owner.
+  tail: (args, cwd) => counted(args, cwd),
+  git: (args, cwd) => git(args, cwd)
 };
 
 /** head / tail: `-n N`, `-c N`, `-N`, then files. Never `-f` (tail would wait forever). */
@@ -50,6 +54,24 @@ function counted(args, cwd) {
     else files.push(word);
   }
   return paths(files, cwd, { need: true });
+}
+
+/** git runs what the repository config says, so it is read-only only when that config names no program (gitconfig.mjs). */
+function git([sub, ...args], cwd) {
+  if (!["status", "log", "diff", "show", "branch"].includes(sub)) return false;
+  if (sub === "branch" ? !args.every(word => GIT_BRANCH_FLAGS.has(word)) : !gitArgs(args, cwd)) return false; // a name would create a branch
+  return gitConfigSafe(cwd);
+}
+
+function gitArgs(args, cwd) {
+  let after = false;
+  for (const word of args) {
+    if (after) { if (!paths([word], cwd)) return false; continue; }
+    if (word === "--") after = true;
+    else if (word.startsWith("-")) { if (GIT_NO.test(word) || !(FLAG.test(word) || LONG_FLAG.test(word))) return false; }
+    else if (pathLike(word) && !paths([word], cwd)) return false; // a revision is not path-like; a path must be inside
+  }
+  return true;
 }
 
 /** The commands of a request's rawInput as lists of words, or null when it is not a plain command line. */
@@ -72,6 +94,6 @@ function commandsOf(rawInput) {
 /** True when every command in the request is on the list with allowed arguments, in this workspace. */
 export function readOnly(rawInput, cwd) {
   const commands = commandsOf(rawInput);
-  if (!commands) return false;
+  if (!commands || commands.flat().some(word => /^GIT_/i.test(word))) return false; // GIT_DIR, GIT_CONFIG*, GIT_EXEC_PATH redirect git
   return commands.every(([name, ...args]) => Object.hasOwn(RULES, name) && RULES[name](args, cwd));
 }
