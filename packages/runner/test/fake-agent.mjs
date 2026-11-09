@@ -99,6 +99,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
     const data = store(d => { d.n += 1; d.sessions[`sess-${d.n}`] = { cwd: params.cwd }; });
     return reply({ sessionId: `sess-${data.n}`, ...mode() });
   }
+  if ((method === "session/load" || method === "session/resume") && process.env.FAKE_HANG_LOAD) return; // never answers: a stuck restore
   if (method === "session/load" || method === "session/resume") {
     if (!load().sessions[params.sessionId]) return send({ jsonrpc: "2.0", id, error: { code: -32002, message: "session not found" } });
     if (method === "session/load") chunk(params.sessionId, "OLD HISTORY replayed on load");

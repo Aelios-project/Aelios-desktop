@@ -62,8 +62,10 @@ export class AcpxTurn {
   /** Close the helper. While the session is still opening acpx has no handle to close, so the process is stopped by pid. */
   async #kill() {
     const { runtime, pids } = this.engine;
+    // A stage that ran out while the helper starts or loads may have a handle and a stuck request: stop the process too.
+    const stuckOpen = !this.handle || OPENING.has(this.stage);
+    if (stuckOpen && pids.has(this.slot?.sessionKey)) try { process.kill(pids.get(this.slot.sessionKey), "SIGKILL"); } catch { /* already gone */ }
     if (this.handle) await runtime.close({ handle: this.handle, reason: "cancel limit" }).catch(() => {});
-    else if (pids.has(this.slot?.sessionKey)) try { process.kill(pids.get(this.slot.sessionKey), "SIGKILL"); } catch { /* already gone */ }
     if (!this.handle) { this.gaveUp = true; this.release?.(null); } // run() stops waiting for the open either way
   }
 
@@ -124,6 +126,8 @@ export class AcpxTurn {
       if (event === "spawning") this.stages.start("spawn");
       else if (event === "spawned") { this.stages.stop("spawn"); this.stages.start("initialize"); }
       else if (event === "initialized") this.stages.stop("initialize");
+      else if (event === "opening") this.stages.start("session");
+      else if (event === "opened") this.stages.stop("session");
     };
     try {
       if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap

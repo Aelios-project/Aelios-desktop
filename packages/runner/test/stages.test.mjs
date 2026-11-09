@@ -106,6 +106,27 @@ for (const [stage, env] of [["initialize", { FAKE_HANG_INIT: "1" }], ["session",
   });
 }
 
+for (const plugin of ["kiro", "dsh"]) {
+  test(`[${plugin}] end to end: after a restart, a saved session whose load never answers ends failed with the stage name`, async () => {
+    const r = await rig(plugin, { engine: "acpx" });
+    try {
+      r.start();
+      assert.equal((await final(r, r.cloud.push({ text: "first" }))).status, "done");
+      await r.stop(); r.stopped = false;
+      Object.assign(r.config, { killAfterMs: 5000, timeouts: { session: 300, initialize: 300, firstUpdate: 300, turn: 600 } });
+      r.config.env = { ...r.config.env, FAKE_HANG_LOAD: "1" };
+      r.start();
+      const done = await final(r, r.cloud.push({ text: "second" }));
+      assert.equal(done.status, "failed");
+      assert.match(done.summary, /did not get past opening the session in 300 ms/);
+      assert.equal(r.prompts().length, 1, "the second prompt was never written");
+      assert.ok(r.log().some(e => e.event === (plugin === "dsh" ? "session/resume" : "session/load")), "the hang was in the restore");
+      const pid = r.log().filter(e => e.event === "start").at(-1).pid;
+      await r.cloud.until(() => { try { process.kill(pid, 0); return false; } catch { return true; } }, "the helper process exits");
+    } finally { await r.done(); }
+  });
+}
+
 test("end to end: inactivity, when on, stops a silent turn and asks the owner; the prompt is not sent again", async () => {
   const r = await rig("kiro", { engine: "acpx", timeouts: { inactivity: 300 } });
   try {

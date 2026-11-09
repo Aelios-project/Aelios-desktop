@@ -35,6 +35,9 @@ export function createEngine(config, home) {
       const request = direction === "inbound" && message.id != null && message.method === undefined ? asked.get(message.id) : null;
       if (request) asked.delete(message.id);
       if (request?.method === "initialize") self.watch?.("initialized");
+      // acpx may load a saved session lazily, inside startTurn: the request and its answer bound the session stage there too.
+      if (direction === "outbound" && OPENING.has(message.method)) self.watch?.("opening");
+      if (request && OPENING.has(request.method)) self.watch?.("opened");
       if (request && OPENING.has(request.method) && message.result) modes.set(message.result.sessionId ?? request.sessionId, message.result.modes?.currentModeId ?? null);
     }
   });
