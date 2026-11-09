@@ -8,7 +8,7 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
   - [ ] 1.3 Find how to list the AI Gateway built-in providers live (a `cf` command or the REST route)
   - [ ] 1.4 Deploy the resident on a free-plan account; record what happens with `BROWSER` and `IMAGES`, and decide the fallback
   - [ ] 1.5 Find how the Cloudflare MCP server accepts the `cf` token, and which tools are read-only
-  - [ ] 1.7 Settle how the Worker upload gets its login: try the REST upload with the `cf` profile token read in-process (including the `assets` upload and Durable Object migrations), then a private config file for `wrangler`, then `wrangler login`. Record whether a second browser approval is needed. If yes, the new-owner count becomes 5 everywhere (requirement 11, design table, task 9.1)
+  - [ ] 1.7 Verify that the `cf` profile token can be handed to `wrangler` through `CLOUDFLARE_API_TOKEN` in the child's environment only, and which scopes it needs (script upload, the `assets` directory, Durable Object migrations). If it cannot, `wrangler login` is the fallback. Record whether a second browser approval is needed. If yes, the new-owner count becomes 5 everywhere (requirement 11, design table, task 9.1)
   - [ ] 1.6 Write the answers into `design.md` and remove them from the "Not checked" notes
   - _Requirements: 4, 5, 8_
 
@@ -27,7 +27,7 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
   - _Requirements: 1, 8, 9.2_
 
 - [ ] 4. Cloudflare and Aelios
-  - [ ] 4.1 `cloudflare.mjs`: auth profile, whoami, list Workers, detect Aelios and resident
+  - [ ] 4.1 `cloudflare.mjs`: auth profile, whoami, list Workers, detect Aelios and resident; a found resident switches to the existing-resident path, a found Aelios alone stops with an explanation, and nothing found is overwritten or rekeyed
   - [ ] 4.2 `aelios.mjs`: d1, migrations, vectorize (dimension rule), queue, secret, deploy, health, gateway identity with the model pattern (never empty; pre-filled from the chosen model; a mismatch shows the warning and "I know", never blocks)
   - [ ] 4.3 Secret rule test: local and Cloudflare both present is done; Cloudflare only goes to the "set a new one" card; "Start over" keeps the secrets. Fake `cf`, fake `wrangler` and fake Aelios for tests; test each step twice (second run does nothing) and a failure in the middle (re-run finishes)
   - _Requirements: 2, 4, 6_

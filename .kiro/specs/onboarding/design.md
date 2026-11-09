@@ -55,7 +55,9 @@ start
       ├─ yes ── address + web key (secret) ── check ── read its Aelios ──► Card H
       └─ no
            └─ Card A  Cloudflare approval (browser) ── detect Workers ──┐
-                                                                         │ found: connect it, or go on
+                                                                         │ found resident: existing-resident path
+                                                                         │ found Aelios only: stop (after the contest)
+                                                                         │ never overwrite or rekey
            └─ Card S  "Your assistant"  ◄──────────────────────────────┘
                 name · main model · memory pattern (follows the model)  ── deploys run behind it
  └─ Card H  helpers, folder, tier. Shows new keys once.  [Start]
@@ -77,12 +79,12 @@ A browser approval is counted with the click that opens it. Typing in a field of
 
 ### Worker upload login
 
-`wrangler deploy` has its own login store (`wrangler login`), separate from the `cf` profile. Rule 8.2 forbids putting a token in an environment variable a child can print, and a second browser approval would add a step. Candidates, to settle in Task 1.7, in order:
-1. Upload through the Cloudflare REST API from the host half, with the `cf` profile's token read in-process (script upload takes the bundle, bindings and Durable Object migrations as metadata). No `wrangler`, no second approval, no env var.
-2. `wrangler` pointed at a config file that only the owner can read and that the host deletes right after, if `cf` and `wrangler` can share a token that way.
-3. `wrangler login` in the browser. Allowed only if 1 and 2 fail; then the step table above counts it.
+`wrangler deploy` has its own login store (`wrangler login`), separate from the `cf` profile. A second browser approval would add a step. Rule 8.2 (no token in an environment variable) has one exception, for this step only. Preferred, to verify in Task 1.7:
+The host half starts `wrangler deploy` as a child process with `CLOUDFLARE_API_TOKEN` set in that child's environment only (the variable `wrangler` reads for this). The token is read in-process from the `cf` profile, never set in the host's environment, never logged or printed, and the child's output goes through the redactor. The second browser approval is not needed.
 
-Not checked yet: whether the `cf` token's scopes cover script upload, and whether the REST upload covers the resident's `assets` directory (it needs the assets upload session first).
+Fallback if Task 1.7 says the `cf` token does not work this way: `wrangler login` in the browser, counted in the step table. Reimplementing the upload over REST is not a candidate.
+
+Not checked yet: whether the `cf` token can be handed to `wrangler` this way, and which scopes it needs (Workers Scripts edit, Workers assets for the resident's `assets` directory, and Durable Object migrations).
 
 ## Cloudflare resources
 
@@ -138,7 +140,7 @@ Rules.
 - A step that fails stops the flow on its card. Earlier steps stay. Nothing is deleted. "Try again" runs the same step; the wizard restarts at the first step whose `check` is not `done`.
 - "Start over" forgets the saved progress only. It keeps the generated secrets in DSH credentials, so a re-run finds them and no Cloudflare secret is left that nobody knows. It never deletes cloud resources. A person who wants them gone does it in Cloudflare.
 - Order for a new install: auth, d1, migrations, vectorize, queue, secret, deploy Aelios, health, gateway identity, then the resident: secret, deploy, health, pairing.
-- A step that touches an account resource the wizard did not create (a Worker with a found name) asks first.
+- The wizard never deploys over, rekeys or changes a Worker it did not create. A found resident switches to the existing-resident path; a found Aelios alone stops the flow with an explanation. The card says that going on would overwrite, and does not offer it in contest scope.
 
 ## Bundles
 

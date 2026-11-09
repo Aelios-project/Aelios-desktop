@@ -48,8 +48,8 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 1. The wizard SHALL authorize Cloudflare once, in the browser, through `cf auth` with a profile of its own, so the owner's other `cf` logins stay as they are.
 2. The card SHALL show the link and the code that `cf` prints, and a button that opens the link. The wizard SHALL never ask for a global API key.
 3. WHEN `cf` is not on the machine THEN the wizard SHALL say so and give the exact install command; it SHALL NOT install it silently.
-4. After authorization the wizard SHALL list the account's Workers and, WHEN it finds an Aelios or a resident (by name and bindings), SHALL offer to connect it instead of deploying a second one.
-5. WHEN the owner connects a found Worker THEN the wizard SHALL ask for its key. It MAY offer "set a new key on it", which SHALL need the owner's explicit approval because other clients of that Worker stop working.
+4. After authorization the wizard SHALL list the account's Workers (by name and bindings). WHEN it finds a resident THEN it SHALL stop the new-install flow, say what it found, and switch to the existing-resident path (requirement 2). WHEN it finds only an Aelios THEN it SHALL stop and tell the owner that connecting to an existing Aelios comes after the contest ("After the contest").
+5. In contest scope the wizard SHALL NOT deploy over, rekey or otherwise change a Worker it did not create. The card SHALL say plainly that going on would overwrite what is there, and SHALL NOT offer it. Deploying a second Worker next to a found one needs a different name and is also not offered in contest scope.
 
 ### 5. Main model (new Aelios only)
 
@@ -75,12 +75,12 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 ### 8. Secrets
 
 1. A secret SHALL be typed only into a secret card (a password field). The browser half SHALL send it once to the host half and SHALL NOT keep it after the call.
-2. A secret SHALL NOT pass through a model, a prompt, a log line, a command-line argument, an environment variable that a child can print, or an error message.
+2. A secret SHALL NOT pass through a model, a prompt, a log line, a command-line argument, an environment variable that a child can print, or an error message. One exception, in 8.7: the Cloudflare token for `wrangler`, given to that child process only.
 3. The host half SHALL hand a secret to `cf` or `wrangler` on standard input or in a file that only the owner can read, and SHALL delete that file right after.
 4. All child-process output SHALL pass through a redactor that removes every secret the wizard holds before it is stored or shown.
 5. Secrets SHALL live in DSH credentials (`ctx.credentials`) and in Cloudflare secrets, nowhere else.
 6. No secret SHALL exist that nobody knows. A secret step counts as done only WHEN the secret exists both locally and in Cloudflare. WHEN Cloudflare has it and the local copy is gone THEN the wizard SHALL go to a "set a new one" card and SHALL NOT claim success. Replacing a secret on a Worker needs the owner's explicit approval, as in requirement 4.5.
-7. WHEN the wizard runs `wrangler` for the Worker upload THEN it SHALL get its login without a second browser approval and without a token in an environment variable (8.2). If that is not possible the second approval SHALL be counted in the step table (design, Task 1.7).
+7. WHEN the wizard runs `wrangler` for the Worker upload THEN it SHALL give the `cf` profile's token to the `wrangler` child process only, through its environment (`CLOUDFLARE_API_TOKEN`, the variable `wrangler` reads for this). The token SHALL NOT be set in the host's own environment, written to a file, logged or printed, and the child's output SHALL pass through the redactor (8.4). This is the one exception to 8.2. If the `cf` token cannot be used by `wrangler` this way (Task 1.7), the second browser approval SHALL be counted in the step table (design, Task 1.7).
 
 ### 9. Failure and re-run
 
