@@ -1,6 +1,7 @@
 // Answers a helper's session/request_permission by the access tier this machine allows, never by what the helper
 // or the job text says. Only one-time choices are ever picked, so nothing stays allowed after the turn.
 import { describeInput } from "./detail.mjs";
+import { inGitDir } from "./gitguard.mjs";
 import { inside } from "./inside.mjs";
 import { readOnly } from "./readonly.mjs";
 
@@ -29,6 +30,8 @@ export function judge(tier, toolCall, cwd) {
   if (READ.has(kind)) return { allow: true, why: "" };
   if (tier === "edit" && COMMAND.has(kind) && readOnly(toolCall?.rawInput, cwd)) return { allow: true, why: "", auto: true };
   if (tier === "edit" && EDIT.has(kind)) {
+    // git obeys the config in .git, so writing there is a way to run any command later: the owner decides
+    if (files.some(inGitDir)) return { allow: false, why: "the request touches a git directory, which can make git run commands", hold: true };
     if (kind !== "edit" || files.length) return { allow: true, why: "" };
     return { allow: false, why: "the edit does not say where", hold: true };
   }

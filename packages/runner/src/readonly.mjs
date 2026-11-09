@@ -2,6 +2,7 @@
 // helper's rawInput), never from its title. The rule is deliberately narrow: a short list of programs, each with the
 // few arguments it may take, and no shell syntax at all except `;` between such commands. Anything else asks.
 import path from "node:path";
+import { gitConfigSafe } from "./gitconfig.mjs";
 import { inside } from "./inside.mjs";
 
 // Letters, digits and a few punctuation marks that do nothing in a shell. No quotes, pipes, redirects, `$`, backticks,
@@ -11,11 +12,11 @@ const FLAG = /^-[A-Za-z0-9]+$/;
 const LONG_FLAG = /^--[a-z][a-z-]*(=[A-Za-z0-9_.,:/^~%-]+)?$/;
 const NAME = /^[A-Za-z0-9_.-]+$/;
 const pathLike = word => word.startsWith("/") || word.startsWith("~") || word.split("/").includes("..");
-/** Flags that make git write a file, run a program or read outside the folder. */
-const GIT_NO = /^(--output|--ext-diff|--textconv|--no-index|--exec|--open-files-in-pager|-O)/;
+/** Flags that make git write a file, run a program or read outside the folder or config. */
+const GIT_NO = /^(--output|--ext-diff|--textconv|--no-index|--exec|--open-files-in-pager|-O|--git-dir|--work-tree|--config)/;
 const GIT_BRANCH_FLAGS = new Set(["-a", "-r", "-v", "-vv", "--list", "--show-current", "--all", "--remotes", "--verbose"]);
 
-/** Every word is a path inside the workspace (or, for a git revision, not path-like at all). */
+/** Every word is a path inside the workspace. */
 function paths(words, cwd, { need = false } = {}) {
   if (need && !words.length) return false;
   return words.every(word => word !== "-" && !word.startsWith("~") && inside(cwd, path.resolve(cwd, word)));
@@ -55,9 +56,14 @@ function counted(args, cwd) {
   return paths(files, cwd, { need: true });
 }
 
+/** git runs what the repository config says, so it is read-only only when that config names no program (gitconfig.mjs). */
 function git([sub, ...args], cwd) {
   if (!["status", "log", "diff", "show", "branch"].includes(sub)) return false;
-  if (sub === "branch") return args.every(word => GIT_BRANCH_FLAGS.has(word)); // a name would create a branch
+  if (sub === "branch" ? !args.every(word => GIT_BRANCH_FLAGS.has(word)) : !gitArgs(args, cwd)) return false; // a name would create a branch
+  return gitConfigSafe(cwd);
+}
+
+function gitArgs(args, cwd) {
   let after = false;
   for (const word of args) {
     if (after) { if (!paths([word], cwd)) return false; continue; }
@@ -88,6 +94,6 @@ function commandsOf(rawInput) {
 /** True when every command in the request is on the list with allowed arguments, in this workspace. */
 export function readOnly(rawInput, cwd) {
   const commands = commandsOf(rawInput);
-  if (!commands) return false;
+  if (!commands || commands.flat().some(word => /^GIT_/i.test(word))) return false; // GIT_DIR, GIT_CONFIG*, GIT_EXEC_PATH redirect git
   return commands.every(([name, ...args]) => Object.hasOwn(RULES, name) && RULES[name](args, cwd));
 }
