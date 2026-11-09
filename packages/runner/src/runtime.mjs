@@ -42,7 +42,7 @@ export function createEngine(config, home) {
     }
   });
   return (self = {
-    runtime, sessionStore, modes, pids,
+    runtime, sessionStore, modes, pids, home,
     watch: null, // set by the running turn for its stage timers: "spawning", "spawned", "initialized" (one turn runs at a time)
     tiers: new Map(), // session key -> the tier its open helper process was started with
     register: entries => { for (const [name, argv] of Object.entries(entries)) registry.set(name, argv); },

@@ -1,12 +1,13 @@
 // What the acpx store keeps and for how long (src/retention.mjs), and the command line for it (bin/forget.mjs).
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkRetention, forget, forgetAll, storeInfo, sweep, threadHash } from "../src/retention.mjs";
+import { acquire } from "../src/lock.mjs";
+import { checkRetention, forget, forgetAll, markForgotten, storeInfo, sweep, threadHash } from "../src/retention.mjs";
 import { FakeCloud } from "./fake-cloud.mjs";
 import { final, rig } from "./rig.mjs";
 
@@ -26,28 +27,28 @@ const withHome = fn => { const home = mkdtempSync(path.join(os.tmpdir(), "retent
 
 test("the age limit deletes idle threads whole and keeps the rest", () => withHome(home => {
   const old1 = put(home, "t_old", "aaaa1111", 10, 40), old2 = put(home, "t_old", "bbbb2222", 10, 35), fresh = put(home, "t_new", "cccc3333", 10, 1);
-  assert.equal(sweep(home, { days: 30 }, NOW), 2);
+  assert.equal(sweep(home, { days: 30 }, NOW).deleted, 2);
   assert.deepEqual(names(home), [fresh]);
   assert.ok(![old1, old2].some(name => names(home).includes(name)));
 }));
 
 test("a thread used recently keeps all its files, even an old one", () => withHome(home => {
   put(home, "t_mixed", "aaaa1111", 10, 60); put(home, "t_mixed", "bbbb2222", 10, 2);
-  assert.equal(sweep(home, { days: 30 }, NOW), 0);
+  assert.equal(sweep(home, { days: 30 }, NOW).deleted, 0);
   assert.equal(names(home).length, 2);
 }));
 
 test("the size cap deletes the thread used longest ago first, until the store fits", () => withHome(home => {
   const mb = 1024 * 1024;
   put(home, "t_a", "aaaa1111", mb, 3); put(home, "t_b", "bbbb2222", mb, 2); const c = put(home, "t_c", "cccc3333", mb, 1);
-  assert.equal(sweep(home, { days: 30, maxMb: 1.5 }, NOW), 2);
+  assert.equal(sweep(home, { days: 30, maxMb: 1.5 }, NOW).deleted, 2);
   assert.deepEqual(names(home), [c]);
   assert.equal(storeInfo(home).bytes, mb);
 }));
 
 test("forget removes one thread; forget all removes the store; a missing store is fine", () => withHome(home => {
   assert.equal(forget(home, "t_none"), 0);
-  assert.equal(sweep(home, {}, NOW), 0);
+  assert.equal(sweep(home, {}, NOW).deleted, 0);
   put(home, "t_a", "aaaa1111", 5, 0); put(home, "t_a", "bbbb2222", 5, 0); const b = put(home, "t_b", "cccc3333", 5, 0);
   assert.equal(forget(home, "t_a"), 2);
   assert.deepEqual(names(home), [b]);
@@ -75,6 +76,35 @@ test("forget finds the files acpx really wrote for a thread", async () => {
   } finally { await r.done(); }
 });
 
+for (const [name, stopFirst] of [["forget with the runner stopped", true], ["expiry while the runner runs", false]]) {
+  test(`after ${name}, the next turn is a new session with a recap and a notice; a neighbour thread keeps its session`, async () => {
+    const r = await rig("kiro", { engine: "acpx" });
+    try {
+      r.start();
+      await final(r, r.cloud.push({ text: "remember the plan" }));
+      await final(r, r.cloud.push({ text: "other work", thread: "t_other" }));
+      if (stopFirst) await r.stop();
+      if (stopFirst) { assert.equal(forget(r.dir, "t_main"), 1); }
+      else { utimesSync(path.join(sessions(r.dir), names(r.dir).find(n => n.startsWith(threadHash("t_main")))), new Date(0), new Date(0)); assert.deepEqual(sweep(r.dir, { days: 30 }).threads, [threadHash("t_main")]); }
+      await markForgotten(r.state, [threadHash("t_main")]); // what bin/forget.mjs does after deleting
+      if (stopFirst) { r.stopped = false; r.start(); }
+      const done = await final(r, r.cloud.push({ text: "carry on" }));
+      assert.equal(done.status, "done");
+      assert.match(done.notice.text, /saved session was deleted on this machine/);
+      const prompt = r.prompts().at(-1);
+      assert.equal(prompt.sessionId, "sess-3", "a new session, not sess-1 reloaded");
+      assert.match(prompt.full, /history from an earlier session[^]*remember the plan[^]*carry on/);
+      const record = (await r.state.read()).threads.t_main;
+      assert.equal(record.sessionId, "sess-3");
+      assert.ok(!record.forgotten);
+      assert.equal((await final(r, r.cloud.push({ text: "more", thread: "t_other" }))).status, "done");
+      assert.equal(r.prompts().at(-1).sessionId, "sess-2", "the neighbour kept its session");
+      assert.equal((await final(r, r.cloud.push({ text: "again" }))).notice, undefined, "the notice comes once");
+      assert.equal(r.prompts().at(-1).sessionId, "sess-3");
+    } finally { await r.done(); }
+  });
+}
+
 test("command line: status shows the store; forget; unpair deletes the store unless --keep-store", async () => {
   const cloud = await new FakeCloud().listen();
   const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "runner-forget-")));
@@ -89,7 +119,15 @@ test("command line: status shows the store; forget; unpair deletes the store unl
     assert.equal(status.store.path, path.join(runnerHome, "acpx"));
     assert.equal(status.store.bytes, 12);
     assert.match(status.store.note, /secrets/);
+    const stateFile = path.join(runnerHome, "state.json"), saved = JSON.parse(readFileSync(stateFile, "utf8"));
+    writeFileSync(stateFile, JSON.stringify({ ...saved, threads: { t_a: { sessionId: "s_a", cwd: "/w" }, t_b: { sessionId: "s_b", cwd: "/w" } } }));
+    const release = acquire(path.join(runnerHome, "runner.lock")); // as a running `start` holds it
+    await assert.rejects(run("forget", "t_a"), /already using/);
+    release();
     assert.match(await run("forget", "t_a"), /Deleted 1/);
+    const threads = JSON.parse(readFileSync(stateFile, "utf8")).threads;
+    assert.deepEqual(threads.t_a, { cwd: "/w", forgotten: true }, "the record stays, without the session to reload");
+    assert.equal(threads.t_b.sessionId, "s_b");
     await assert.rejects(run("forget"), /usage/);
     assert.match(await run("unpair", "--keep-store"), /kept/);
     assert.equal(names(runnerHome).length, 1);

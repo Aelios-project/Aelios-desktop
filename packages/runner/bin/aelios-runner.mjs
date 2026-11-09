@@ -64,7 +64,7 @@ async function start() {
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => control.abort());
     const runner = new Runner({ config, state, journal, log: (...args) => console.error(new Date().toISOString(), ...args) });
     console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}`);
-    const unsweep = keepSwept(home, config.retention, (...args) => console.error(new Date().toISOString(), ...args));
+    const unsweep = await keepSwept(home, config.retention, state, (...args) => console.error(new Date().toISOString(), ...args));
     try { await runner.start(control.signal); } finally { unsweep(); }
   } finally { release(); }
 }
@@ -86,9 +86,12 @@ async function unpair() {
     catch (error) { console.error("The resident did not confirm the revoke (" + error.message + "). Revoke this runner from the web page too."); }
     await state.update(next => { next.device = null; next.claimKey = null; next.queue = []; next.outbox = []; next.current = null; });
     console.log("Unpaired. Waiting work and unsent receipts are dropped.");
-    console.log(storeOnUnpair(home, rest));
+    console.log(await storeOnUnpair(home, rest, state));
   } finally { release(); }
 }
+
+/** Runs fn while holding the runner lock: refused while `start` runs, so state.json keeps one writer. */
+async function locked(fn) { const release = acquire(lockFile); try { return await fn(); } finally { release(); } }
 
 async function showOverview() { console.log(JSON.stringify(overview(await readConfig(configFile), await state.read(), journal))); }
 
@@ -100,6 +103,6 @@ async function permit() {
   console.log("Recorded.");
 }
 
-const commands = { pair, start, status, unpair, overview: showOverview, permit, forget: async () => console.log(forgetCommand(home, rest)) };
+const commands = { pair, start, status, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)) };
 if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit|forget"); process.exit(2); }
 commands[command]().catch(error => { console.error("aelios-runner:", error.message); process.exit(1); });

@@ -47,19 +47,35 @@ export function forgetAll(home) { rmSync(path.join(home, "acpx"), { recursive: t
 
 /**
  * Deletes threads idle for more than `days`, then, while the store is over `maxMb`, the thread used longest ago.
- * A thread goes whole: all its session files at once. Returns the number of files deleted.
+ * A thread goes whole: all its session files at once. Returns the number of files deleted and the hashes of those threads.
  */
 export function sweep(home, { days = RETENTION_DEFAULTS.days, maxMb = RETENTION_DEFAULTS.maxMb } = {}, now = Date.now()) {
   const all = files(home), groups = new Map();
   for (const item of all) groups.set(item.group, [...(groups.get(item.group) ?? []), item]);
   const ordered = [...groups.values()].map(items => ({ items, at: Math.max(...items.map(i => i.at)), size: items.reduce((s, i) => s + i.size, 0) })).sort((a, b) => a.at - b.at);
   let total = all.reduce((sum, item) => sum + item.size, 0), deleted = 0;
+  const threads = [];
   for (const group of ordered) {
     if (!(now - group.at > days * DAY || total > maxMb * 1024 * 1024)) continue;
     for (const item of group.items) { rmSync(item.file, { force: true }); deleted++; }
     total -= group.size;
+    threads.push(group.items[0].group);
   }
-  return deleted;
+  return { deleted, threads };
+}
+
+/**
+ * Marks threads whose saved sessions were deleted, so their next turn starts a new session with a recap instead of
+ * reloading the old one from the helper. The record itself stays (folder, seed, launch). `which`: thread hashes, or "all".
+ */
+export function markForgotten(state, which) {
+  return state.update(s => {
+    for (const [thread, record] of Object.entries(s.threads)) {
+      if (!record.sessionId || (which !== "all" && !which.includes(threadHash(thread)))) continue;
+      delete record.sessionId;
+      record.forgotten = true;
+    }
+  });
 }
 
 /** Throws when config `retention` is not `{days?, maxMb?}` with positive numbers. */

@@ -10,7 +10,7 @@ import { identityOf, registryOf, resolve, sameLaunch } from "./launch.mjs";
 import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { makePermit } from "./permit.mjs";
 import { reasonOf } from "./reason.mjs";
-import { threadHash } from "./retention.mjs";
+import { forget, threadHash } from "./retention.mjs";
 import { buildRecap, gitState } from "./recap.mjs";
 import { closeOld } from "./switch.mjs";
 import { StepLog } from "./steps.mjs";
@@ -131,7 +131,12 @@ export class AcpxTurn {
       else if (event === "opened") this.stages.stop("session");
     };
     try {
-      if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap
+      if (record?.forgotten) { // its saved session was deleted here (forget, retention): never reload it, start again with a recap
+        const old = record.launch ? `${hash(thread)}:${record.launch.id.slice(0, 8)}` : key;
+        await closeOld(engine, old, record.launch ? `${record.launch.plugin}:${hash(thread)}` : name, "forgotten");
+        forget(engine.home, thread); // a live runtime may have saved the record again while closing it
+        resume = undefined; handoff = NOTICES.forgotten; history = await this.#recap(); how = "handoff";
+      } else if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap
         await closeOld(engine, `${hash(thread)}:${record.launch.id.slice(0, 8)}`, `${record.launch.plugin}:${hash(thread)}`, "launch changed");
         resume = undefined; handoff = NOTICES.changed; history = await this.#recap(); how = "handoff";
       } else if (resume && engine.tiers.get(key) && engine.tiers.get(key) !== this.tier) { // the helper reads its agent file at start: restart it, keep the session
@@ -142,7 +147,7 @@ export class AcpxTurn {
       this.handle = await this.#open(key, name, resume);
       if (!this.handle) return this.#stopped(how);
       this.opened = this.handle.backendSessionId ?? resume;
-      const extras = () => ({ launch: identity, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
+      const extras = () => ({ launch: identity, forgotten: undefined, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
       await this.onSession?.(this.opened, how, extras());
       if (this.cancelled) return this.#stopped(how);
       let attempt = await this.#turn(await this.#prompt(history));
