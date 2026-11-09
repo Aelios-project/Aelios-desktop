@@ -96,15 +96,16 @@ for (const plugin of ["kiro", "dsh"]) {
     await r.cloud.until(async () => (await r.state.read()).outbox.length === 0, "outbox empty");
   });
 
-  t("an open ask from a restart or a runner error is closed by the next finished turn", async r => {
+  t("a restart leaves no open ask behind: it is a failure the next turn has nothing to resolve", async r => {
     const old = r.cloud.push({ text: "was running" });
     r.cloud.works[0].leased = true;
     await r.state.update(s => { s.current = { workId: old.workId, token: old.token, thread: "t_main", kind: "job", text: "was running" }; });
     r.start();
     const restart = await final(r, old);
-    assert.equal(restart.ask.key, "restart:" + old.workId);
+    assert.equal(restart.status, "failed");
+    assert.equal(restart.reason, "interrupted");
     const next = await final(r, r.cloud.push({ text: "carry on" }));
-    assert.deepEqual(next.resolve, ["restart:" + old.workId]);
+    assert.equal(next.resolve, undefined);
   });
 }
 

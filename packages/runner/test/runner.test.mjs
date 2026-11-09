@@ -210,25 +210,27 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(r.prompts().length, 1);
   });
 
-  t("a runner that restarted mid-turn reports it unconfirmed and does not rerun it", async r => {
+  t("a runner that restarted mid-turn reports it as a failure (interrupted), not an ask, and does not rerun it", async r => {
     const work = r.cloud.push({ text: "was running" });
     r.cloud.works[0].leased = true;
     await r.state.update(s => { s.current = { workId: work.workId, token: work.token, thread: "t_main", kind: "job", text: work.text }; });
     r.start();
     const done = await final(r, work);
-    assert.equal(done.status, "needs_you");
-    assert.match(done.ask.key, /^restart:/);
+    assert.equal(done.status, "failed");
+    assert.equal(done.reason, "interrupted");
+    assert.equal(done.ask, undefined);
     assert.equal(r.prompts().length, 0);
   });
 
-  t("stopping the runner mid-turn reports needs_you, not cancelled", async r => {
+  t("stopping the runner mid-turn reports a failure (interrupted), not an ask and not cancelled", async r => {
     r.start();
     const work = r.cloud.push({ text: "SLOW long" });
     await r.cloud.until(() => r.cloud.got(work.workId, "started")[0], "started");
     await r.stop();
     const done = r.cloud.finals(work.workId)[0];
-    assert.equal(done.status, "needs_you");
-    assert.match(done.ask.key, /^stopped:/);
+    assert.equal(done.status, "failed");
+    assert.equal(done.reason, "interrupted");
+    assert.equal(done.ask, undefined);
   });
 
   t("the device credential and the folder never appear in a summary", async r => {

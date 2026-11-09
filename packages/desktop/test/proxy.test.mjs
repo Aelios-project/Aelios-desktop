@@ -11,6 +11,8 @@ test("allowed paths pass, with the resident prefix", () => {
   assert.equal(target(BASE, "default", "/web/config").href, `${BASE}/web/config`);
   assert.equal(target(BASE, "luna", "/web/avatar", "POST").href, `${BASE}/r/luna/web/avatar`);
   assert.equal(target(BASE, "luna", "/web/waiting/permission", "POST").href, `${BASE}/r/luna/web/waiting/permission`);
+  // The Waiting panel's X on an ask (client/panel-waiting.mjs act.settle).
+  assert.equal(target(BASE, "luna", "/web/task/settle", "POST").href, `${BASE}/r/luna/web/task/settle`);
 });
 
 test("everything else is refused", () => {
