@@ -80,7 +80,7 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 4. All child-process output SHALL pass through a redactor that removes every secret the wizard holds before it is stored or shown.
 5. Secrets SHALL live in DSH credentials (`ctx.credentials`) and in Cloudflare secrets, nowhere else.
 6. No secret SHALL exist that nobody knows. A secret step counts as done only WHEN the secret exists both locally and in Cloudflare. WHEN Cloudflare has it and the local copy is gone THEN the wizard SHALL go to a "set a new one" card and SHALL NOT claim success. Replacing a secret on a Worker needs the owner's explicit approval, as in requirement 4.5.
-7. WHEN the wizard runs `wrangler` for the Worker upload THEN it SHALL give the `cf` profile's token to the `wrangler` child process only, through its environment (`CLOUDFLARE_API_TOKEN`, the variable `wrangler` reads for this). The token SHALL NOT be set in the host's own environment, written to a file, logged or printed, and the child's output SHALL pass through the redactor (8.4). This is the one exception to 8.2. If the `cf` token cannot be used by `wrangler` this way (Task 1.7), the second browser approval SHALL be counted in the step table (design, Task 1.7).
+7. WHEN the wizard runs `wrangler` for the Worker upload THEN it SHALL give the `cf` profile's token to the `wrangler` child process only, through its environment (`CLOUDFLARE_API_TOKEN`, the variable `wrangler` reads for this). The token SHALL NOT be set in the host's own environment, written to a file, logged or printed, and the child's output SHALL pass through the redactor (8.4). This is the one exception to 8.2. Task 1.7 showed that it can be used this way. Only if the profile is kept in the keyring and cannot be read, the second browser approval SHALL be counted in the step table for that owner (design, Task 1.7).
 
 ### 9. Failure and re-run
 
@@ -101,7 +101,7 @@ Wizard installs have no fork, so Update is the only way they get new bundled cod
 1. From an installed plugin to the resident's first line, an owner with a resident (so Aelios too) SHALL need **2** steps: the resident card, the helper card.
 2. A new owner with the default choices SHALL need **4** steps: the resident card (no), the Aelios card with the Cloudflare approval, the "your assistant" card (name, model, pattern), the helper card that also shows the new keys.
 3. Choosing bring-your-own-key from a built-in provider SHALL add typing inside the same card, not a new step.
-4. WHEN Task 1.7 finds that `wrangler` needs its own browser approval THEN the new-owner count becomes 5 and every place that states it (PR text, this requirement, the design table, the test in task 9.1) SHALL change together.
+4. Task 1.7 found that `wrangler` needs no browser approval of its own, so the new-owner count stays 4. WHEN a different finding makes it 5, every place that states it (PR text, this requirement, the design table, the test in task 9.1) SHALL change together.
 5. The design SHALL list the count per path, and a test SHALL fail when a path grows past it.
 
 ### 12. House rules
