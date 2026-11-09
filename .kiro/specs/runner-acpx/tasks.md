@@ -29,7 +29,7 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
 
 - [ ] 1. Spike and dependency (mechanism)
   - [ ] 1.1 Add `acpx` `0.22.0` to `packages/runner/package.json` (exact), `engines.node >=22.13.0`, update the lock file. Change the "No runtime dependencies" line in `.kiro/steering/tech.md`. Add acpx (MIT) to `THIRD_PARTY_NOTICES.md`
-  - [ ] 1.2 Script `test/spike-acpx.mjs` (not part of `npm test`; run by hand): with `createAcpRuntime` and a `stateDir` in a temp folder, against `test/fake-agent.mjs`, check session keep, reattach after a runtime restart (already verified by Claude Code with the shared runtime; repeat for `createAcpRuntime`), follow-up queueing, cancel, permission callback, `fs:false`, `terminal:false`, `elicitationModes:[]`
+  - [ ] 1.2 Script `test/spike-acpx.mjs` (not part of `npm test`; run by hand): with `createAcpRuntime` and a `stateDir` in a temp folder, against `test/fake-agent.mjs`, check session keep, reattach after a runtime restart (already verified by Claude Code with `createAcpRuntime` and a `stateDir`, for both helper faces; repeat it here), follow-up queueing, cancel, permission callback, `fs:false`, `terminal:false`, `elicitationModes:[]`
   - [ ] 1.3 Write down in design.md: which fields make acpx open a new session (agent name, command, argv, cwd); file modes of its file store; what `onAcpMessage` shows for `initialize`; whether stderr is reachable
   - [ ] 1.4 Session close and loss: that `runtime.close` ends the helper process and keeps the saved session (9.8); the exact error acpx gives for a session it cannot reload (`SESSION_RESUME_REQUIRED`) and how `prepareFreshSession` is called (9.10). Write the real names into design.md
   - [ ] 1.5 Mode check: find where `helper.mjs` (`checkAgent`) reads the current session mode, and where the same value is readable through acpx. If acpx hides it, say so in design.md before any code
@@ -69,7 +69,7 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
   - [ ] 9.6 Named test `launch change is a visible handoff, never silent`: change the binary path between two turns; assert one `session/new`, a recap in the first prompt marked as history, a `notice` in the receipt, and a new `launch.id` in the thread record. (The recap here is the small seed from the thread record; the full recap is PR D)
   - [ ] 9.7 Named test `a prompt that was written is never sent again`: kill the fake helper after the prompt; assert `interrupted` and exactly one prompt seen
   - [ ] 9.8 Tier change (4.3a): when the tier of the thread differs from the tier of the open session, the turn calls `runtime.close` for that session and then `ensureSession` again with `resumeSessionId`, so the helper process restarts and reads the new agent file; the session is kept. Named test `tier change keeps the session`: `read` then `edit` on one thread; the fake helper saw `session/load` once and `session/new` once in total, and the second process ran with the `edit` agent file
-  - [ ] 9.9 Fail-closed mode check (11.4): carry over `helper.mjs` `checkAgent` for every tier, not only `read` and `edit`. After the session is open, the turn compares the helper's current mode with the mode the tier needs; on a mismatch or an unreadable mode it fails before the prompt with `reason: "error"` and a message. Tests: wrong mode fails for each of the three tiers; unreadable mode fails; right mode passes; the fake helper saw no prompt in the failing cases
+  - [ ] 9.9 Fail-closed mode check (11.4): carry over `helper.mjs` `checkAgent` for Kiro at every tier, not only `read` and `edit`. After the session is open, the turn compares Kiro's current mode with the runner-written agent the turn needs; on a mismatch or an unreadable mode it fails before the prompt with `reason: "error"` and a message. DSH and `command` are not checked. Tests: wrong mode fails for each of the three Kiro tiers; unreadable mode fails; right mode passes; the fake helper saw no prompt in the failing cases; a DSH-face helper that reports no mode still runs
   - [ ] 9.10 Lost session (4.5): on `SESSION_RESUME_REQUIRED` the turn calls `prepareFreshSession`, opens a new session, passes the recap seed as history, sends a `notice` ("The helper could not reload the session, so this thread started a new one. Earlier context was passed as a short recap."), and records the new session id. It never ends in a dead thread. Tests: fake helper that refuses `session/load` gives one new session, a notice, and a prompt that ran; the next turn resumes the new id
   - [ ] 9.11 Images (6.3): the turn attaches an image as an image block only when `agentCapabilities.promptCapabilities.image` is true. Every other attachment, and an image for a helper without that capability, stays a path in the prompt text. Tests, one per helper face: a fake helper that advertises `image` gets the image block; a fake helper that does not gets the path in text and no image block; a non-image file is a path for both
   - _Requirements: 4.3, 4.4, 4.5, 6.1, 6.2, 6.3, 9.3, 11.1, 11.2, 11.3, 11.4_
@@ -91,7 +91,7 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
   - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
 - [ ] 11. Helper switch and recap (PR D)
-  - [ ] 11.1 `src/recap.mjs`: build the recap (goal, done so far, git state, next step) from the thread record and the journal, cut at 4000 characters, redact, wrap as history. There is no DSH transcript store; a DSH session lost on restart gets this recap and a notice
+  - [ ] 11.1 `src/recap.mjs`: build the recap (goal, done so far, git state, next step) from the thread record and the journal, cut at 4000 characters, redact, wrap as history. There is no DSH transcript store; a DSH session that cannot be resumed gets this recap and a notice
   - [ ] 11.2 Switch logic in `turn-acpx.mjs` (small function in `switch.mjs`): settle old turn, close old session, then open the new one
   - [ ] 11.3 Tests in `recap.test.mjs`: length bound, redaction of the folder and tokens, history wrapper present, git state included for a temp repo and omitted for a plain folder; a switch test with two fake helpers checks that the old one is closed before the new one starts
   - _Requirements: 12.1, 12.2, 12.3_
@@ -142,7 +142,7 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
 - [ ] 4.2 Adapters (PR J, experimental): `adapters.json` and `src/adapters.mjs` (plugs `claude`, `codex`): pinned package, version, integrity; started from a local install path. Test: `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`
 - [ ] 12. Real-helper checks (PR J, by hand, results written into this file)
   - [ ] 12.1 `AELIOS_REAL_KIRO=1`: one whole turn, a tier change `read` to `edit` (same session), a restart (reattach), a cancel, a permission hold
-  - [ ] 12.2 Real DSH: one whole turn, a restart (new session with the recap from the thread record), a cancel
+  - [ ] 12.2 Real DSH: one whole turn, a restart (the same session through `session/resume`), a cancel
   - [ ] 12.3 Tune the default time limits from the measured cold start times
   - [ ] 12.4 Check what is in `<home>/acpx/` after the run and note any secret that landed there
   - _Requirements: 7.4, 5.3, 15.1_
@@ -162,7 +162,7 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
 
 ## Migration and rollback
 
-- Turn on: set `"engine": "acpx"` in the config, restart the runner. Each existing thread adopts acpx on its next turn: same saved `sessionId`, reloaded through acpx (Kiro), or a new session with a recap (DSH).
+- Turn on: set `"engine": "acpx"` in the config, restart the runner. Each existing thread adopts acpx on its next turn: same saved `sessionId`, reloaded through acpx (Kiro, `session/load`; DSH, `session/resume`). Only a session the helper cannot reload gets a new session with a recap (4.5).
 - Turn off: set `"engine": "legacy"`, restart. The legacy layer reads the same `sessionId` from `state.json`. `<home>/acpx/` is not needed to go back and can be deleted with `aelios-runner forget --all` (once PR H is in).
 - What a rollback changes: from PR B on, the helper environment is inherited whole again, and from PR E on, the stage time limits go back to the single turn limit.
 - When PR B is on, a helper that needed an unlisted variable (a token for `gh`, a registry key) stops seeing it until the owner adds it to `env`. Prefix names such as `LC_*`, `XDG_*`, `KIRO_*`, `AWS_*` and `DEEPSEEK_*` are expanded by the runner, and `SSH_AUTH_SOCK` is passed.
@@ -175,7 +175,7 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
 - Answering an ACP question (elicitation) from the Waiting list.
 - Sending the full command for expand to the resident.
 - Claude Code and Codex as supported (not experimental) helpers.
-- A DSH transcript store. A lost DSH session gets a recap from the thread record instead.
+- A DSH transcript store. A DSH session that cannot be resumed gets a recap from the thread record instead.
 
 ## Decided (owner answers)
 

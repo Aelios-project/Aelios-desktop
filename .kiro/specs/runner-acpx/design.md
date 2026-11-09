@@ -55,7 +55,7 @@ One runtime object lives as long as the runner. `Runner.stop()` calls `runtime.s
 
 ## Launch configuration (3)
 
-`plugins.mjs` stays the one place that knows how to start a helper. `launch.mjs` gets `resolve(config, thread)`, which returns `{ name, argv }`: an argv array, never a string to split, and a per-thread name such as `kiro:<threadhash>`. `registryOf(config, thread)` turns that into the acpx registry entry for the configured helper only (acpx wants a command string at the last step; the one function that joins the array does the quoting, so no other code builds a command string). The registry holds one entry, so an acpx name collision with its built-in table cannot happen.
+`plugins.mjs` stays the one place that knows how to start a helper. `launch.mjs` gets `resolve(config, thread)`, which returns `{ name, argv }`: an argv array, never a string to split, and a per-thread name such as `kiro:<threadhash>`. `registryOf(config, thread)` turns that into the acpx registry entry for the configured helper only. acpx's `AcpAgentRegistry.resolve(name)` may return an argv array, so the array is handed over as it is: nothing is joined into a command string or quoted. The registry holds one entry, so an acpx name collision with its built-in table cannot happen.
 
 | Plug | Command | Notes |
 |---|---|---|
@@ -68,7 +68,7 @@ Both are registered as a custom agent command in our registry, never taken from 
 
 An adapter pin is a line in `adapters.json` (package, exact version, integrity). A test fails if any entry has a range, `latest`, or no integrity.
 
-Because the launch is an argv array, a path with spaces (the DSH app path) stays one item. The single join to a command string, if acpx needs it, is tested with such a path.
+Because the launch is an argv array all the way to acpx, a path with spaces (the DSH app path) stays one item. A test checks it.
 
 ### Model per role (3.5, 3.6)
 
@@ -101,7 +101,7 @@ Two parts: make the launch stable, and catch every change that remains.
 
 A running helper has already read the old file. So when the tier of a thread differs from the tier of its open session, the turn calls `runtime.close` for that session and then `ensureSession` again with `resumeSessionId`: the process restarts, reads the new file, and loads the same session. The session id is unchanged. A named test, `tier change keeps the session`, checks that the fake helper saw one `session/new` and one `session/load` in total (task 9.8).
 
-After the session is open, the turn carries over the fail-closed mode check of `helper.mjs` (`checkAgent`) for every tier: the current mode is compared with the mode the tier needs, and a mismatch or an unreadable mode fails the turn before the prompt. Task 1 finds where the current mode is read and where acpx exposes it (task 9.9).
+After the session is open, the turn carries over the fail-closed mode check of `helper.mjs` (`checkAgent`) for Kiro at every tier: Kiro's current mode is compared with the runner-written agent the turn needs, and a mismatch or an unreadable mode fails the turn before the prompt. DSH and `command` have no expected mode and are not checked, as on `main`. Task 1 finds where the current mode is read and where acpx exposes it (task 9.9).
 - `full` (decided): write a third config for `full` (all tools allowed) under the same name. No `--trust-all-tools`, so launch arguments never change with the tier. This needs a check against the real Kiro (task 3): that an `allowedTools: ["*"]` agent opens everything that `--trust-all-tools` opens. If real Kiro refuses it, `full` keeps the flag and Part 2 handles a move to or from `full` as a visible handoff with a recap.
 - DSH and `command`: no tier in the arguments today, nothing to move.
 
@@ -133,7 +133,7 @@ Which acpx fields make it open a new session (agent name, command, argv, cwd) is
 | Retention (decided) | 30 days after the thread's last turn; total cap 500 MB, oldest thread first. Run at start and once a day. Both are config values. |
 | Delete by hand | `aelios-runner forget <thread>` and `forget --all`. `unpair` deletes the store by default (decided). |
 | Our own record | `state.json` keeps `sessionId`, `cwd`, `plugin`, `launch`, `asks` as now, plus a recap seed (the first prompt, up to 500 characters, redacted). |
-| DSH after a restart | DSH has no `session/load`. Its thread gets a new session with a recap built from the thread record and the journal (`how: "fresh-after-lost"`, as today), and a `notice` says so. There is no separate DSH transcript store. |
+| DSH after a restart | DSH has no `session/load`, but it resumes the same session with `session/resume` (as the legacy engine does today; checked with the fake helper's DSH face). Only a failed resume gives a new session with a recap built from the thread record and the journal (`how: "fresh-after-lost"`) and a `notice`. There is no separate DSH transcript store. |
 
 shortcut: retention scans file times and does not read records, so a thread that is still in use but quiet for 30 days loses its saved conversation; the runner then opens a new session with a recap. Upgrade by touching the record on each turn if that hurts.
 

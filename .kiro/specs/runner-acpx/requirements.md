@@ -58,7 +58,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 4.4 When the launch identity differs for any other reason (binary moved, adapter pin raised, folder changed, config edited), the runner SHALL NOT let acpx open a new session silently. It SHALL do an explicit handoff (12) and send a `notice` that says earlier context was passed as a recap.
 4.5 The runner SHALL pass the saved session id to acpx as a resume target, so a session that cannot be reloaded is an error the runner sees, not a quiet new session. On that error (`SESSION_RESUME_REQUIRED`) the runner SHALL call `prepareFreshSession`, open a new session, pass a recap as history, send a `notice`, and record the new session id. A thread SHALL never end up dead because a session was lost.
 4.6 Kiro `full` (decided): the runner SHALL NOT use `--trust-all-tools`. It SHALL generate an all-tools agent file, so launch arguments never change with the tier. This file is the `full` tier's agent file. If real Kiro refuses that file, a thread that moves to or from `full` SHALL get a visible handoff with a recap (12).
-4.7 If a helper cannot reload sessions (DSH has no `session/load`), the runner SHALL keep its own thread record (13) and say so in the turn's `how` value (`fresh-after-lost`), as it does today.
+4.7 DSH has no `session/load`, but it resumes its session with `session/resume`, as the legacy engine does today. The helper keeps its own context, so a resumed DSH session needs no recap. Only a resume that fails takes the 4.5 path (`how: "fresh-after-lost"`).
 
 ### 5. Local state
 
@@ -68,7 +68,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 5.4 Retention: a thread's records SHALL be deleted 30 days after its last turn, and the whole store SHALL be capped at 500 MB (oldest thread first). Both limits SHALL be config values. The owner SHALL have `aelios-runner forget <thread>` and `aelios-runner forget --all`.
 5.5 `unpair` SHALL delete the store by default (decided). It MAY offer to keep it.
 5.6 The runner's own thread record in `state.json` (session id, folder, plugin, launch identity, a short recap seed) SHALL stay, because DSH needs it and because a lost acpx store must not lose the thread.
-5.8 DSH has no `session/load`. After a restart its thread gets a new session with a recap built from the thread record (5.6) and the journal (12.2), and a `notice` says so. The runner SHALL NOT keep a separate DSH transcript store.
+5.8 After a restart a DSH thread resumes the same session through acpx (`session/resume`; checked by Claude Code with the fake helper's DSH face, both after a runtime restart and when adopting a legacy session id). Only when that resume fails does it get a new session with a recap built from the thread record (5.6) and the journal (12.2), and a `notice` (4.5). The runner SHALL NOT keep a separate DSH transcript store.
 
 ### 6. Queue, cancel, say
 
@@ -112,7 +112,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 
 11.1 The permission callback SHALL answer by tier exactly as `permission.mjs` does on `main` (since #20): `full` allows once; any other tier holds the request for the owner (Allow / Deny). Only one-time choices SHALL be picked.
 11.2 Anything that does not reach the callback or makes it throw SHALL be denied (acpx mode `deny-all`, non-interactive policy `deny`). The runner SHALL fail closed.
-11.4 The fail-closed mode check of `helper.mjs` (`checkAgent`) SHALL be carried over for every tier: after the session is open, the helper's current mode is compared with the mode the tier needs, and a mismatch or an unreadable mode fails the turn before the prompt.
+11.4 The fail-closed mode check of `helper.mjs` (`checkAgent`) SHALL be carried over for Kiro at every tier: after the session is open, Kiro's current mode is compared with the runner-written agent the turn needs, and a mismatch or an unreadable mode fails the turn before the prompt. Helpers the runner writes no agent for (DSH, `command`) have no expected mode and are not checked, as on `main`.
 11.3 The runner SHALL turn off acpx's file and terminal callbacks (`fs: false`, `terminal: false`). The client declares neither capability today, so the helper does its own work in its own sandbox.
 
 ### 12. Helper switch
