@@ -11,7 +11,9 @@ One program, two ways to run it. Both talk to the helper over [ACP](https://agen
 | Mode | Where | State |
 |---|---|---|
 | Headless | A laptop or a VPS, no window | Works. It lives in [`packages/runner`](packages/runner). |
-| Desktop app | A window on your computer, built on DeepSeek Harness (MIT) | Planned. See [`packages/desktop`](packages/desktop). |
+| Desktop app | A window on your computer, built on DeepSeek Harness (MIT) | Exists as a plugin (PRs #6 to #12). Not yet seen running inside a real DSH window. See [`packages/desktop`](packages/desktop). |
+
+The desktop plugin draws the resident's own interface in three columns: the conversation, the machine's state, and the work (Waiting, Threads, Alarms), plus a settings sheet. It connects with the resident's address and web key, pairs and starts the runner for you, and has a preview that runs without DSH. What it does, how to set it up and what was checked are in [`packages/desktop/README.md`](packages/desktop/README.md).
 
 Helpers that work through ACP today: Kiro (`kiro-cli acp`) and DeepSeek Harness (`dsh --profile acp`). Claude Code through an ACP adapter is experimental.
 
