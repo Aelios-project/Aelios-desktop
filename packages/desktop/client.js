@@ -1807,19 +1807,19 @@ function Voice({ voice, resident }) {
     (0, import_react11.createElement)("span", { className: "len" }, voice.missed ? t.missed : voiceLength(voice.seconds))
   );
 }
-function Stickers({ stickers, at }) {
+function Stickers({ stickers, at, base }) {
   return (0, import_react11.createElement)("div", { className: "ad-stickers" }, stickers.map((sticker, i) => (0, import_react11.createElement)(
     "div",
     { key: sticker.url, className: "ad-sticker-wrap" },
     (0, import_react11.createElement)(
       "div",
       { className: "ad-sticker" },
-      sticker.video ? (0, import_react11.createElement)("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers }) : (0, import_react11.createElement)("img", { src: sticker.url, alt: "", loading: "lazy" })
+      sticker.video ? (0, import_react11.createElement)("video", { src: avatarUrl(base, sticker.url), autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers }) : (0, import_react11.createElement)("img", { src: avatarUrl(base, sticker.url), alt: "", loading: "lazy" })
     ),
     i === stickers.length - 1 && at ? (0, import_react11.createElement)("span", { className: "ad-meta" }, clock(at)) : null
   )));
 }
-function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
+function Message({ line, resident, base, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? myWords(line) : bubbleTexts(line.text);
@@ -1839,7 +1839,7 @@ function Message({ line, resident, last = false, onChanged = null, cards = [] })
     me && (line.attached ?? []).length > 0 && (0, import_react11.createElement)(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && (0, import_react11.createElement)(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && (0, import_react11.createElement)(Voice, { voice: line.voice, resident }),
-    (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers, at: line.at }),
+    (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers, at: line.at, base }),
     cards.length > 0 && (0, import_react11.createElement)(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && (0, import_react11.createElement)(MessageActions, { line, resident, last, onChanged })
   );
@@ -1902,7 +1902,7 @@ function Chat() {
       { className: "ad-stream", "aria-live": "polite" },
       (0, import_react12.createElement)("div", { className: "grow" }),
       !around && lines.length === 0 && (0, import_react12.createElement)("div", { className: "ad-note" }, t.empty),
-      (around ? around.lines : lines).map((line, i, all) => (0, import_react12.createElement)(Message, { key: line.id ?? i, line, resident, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => {
+      (around ? around.lines : lines).map((line, i, all) => (0, import_react12.createElement)(Message, { key: line.id ?? i, line, resident, base: status?.url, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => {
         restart();
         await refresh();
       } })),
@@ -2038,7 +2038,7 @@ function GroupChat() {
         (row.stickers || []).length > 0 && (0, import_react13.createElement)("div", { className: "ad-stickers" }, row.stickers.map((s) => (0, import_react13.createElement)(
           "div",
           { key: s.url, className: "ad-sticker" },
-          s.video ? (0, import_react13.createElement)("video", { src: s.url, autoPlay: true, loop: true, muted: true, playsInline: true }) : (0, import_react13.createElement)("img", { src: s.url, alt: "" })
+          s.video ? (0, import_react13.createElement)("video", { src: avatarUrl(status?.url, s.url), autoPlay: true, loop: true, muted: true, playsInline: true }) : (0, import_react13.createElement)("img", { src: avatarUrl(status?.url, s.url), alt: "" })
         )))
       )),
       (0, import_react13.createElement)("div", { ref: end })

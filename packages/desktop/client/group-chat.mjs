@@ -84,7 +84,7 @@ export function GroupChat() {
         row.pictures > 0 && h(Pictures, { group, seq: row.seq, count: row.pictures }),
         row.text && h("div", { className: `ad-bubble${row.note ? " ad-note-bubble" : " first"}` }, row.text),
         (row.stickers || []).length > 0 && h("div", { className: "ad-stickers" }, row.stickers.map((s) => h("div", { key: s.url, className: "ad-sticker" },
-          s.video ? h("video", { src: s.url, autoPlay: true, loop: true, muted: true, playsInline: true }) : h("img", { src: s.url, alt: "" })))))),
+          s.video ? h("video", { src: avatarUrl(status?.url, s.url), autoPlay: true, loop: true, muted: true, playsInline: true }) : h("img", { src: avatarUrl(status?.url, s.url), alt: "" })))))),
       h("div", { ref: end })),
     error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 18px 4px", textAlign: "center" } }, error),
     h(Composer, { placeholder: t.writeGroup, say, onError: setError, rich: false }));

@@ -64,7 +64,7 @@ export function Chat() {
     h("div", { className: "ad-stream", "aria-live": "polite" },
       h("div", { className: "grow" }),
       !around && lines.length === 0 && h("div", { className: "ad-note" }, t.empty),
-      (around ? around.lines : lines).map((line, i, all) => h(Message, { key: line.id ?? i, line, resident, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => { restart(); await refresh(); } })),
+      (around ? around.lines : lines).map((line, i, all) => h(Message, { key: line.id ?? i, line, resident, base: status?.url, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => { restart(); await refresh(); } })),
       h("div", { ref: end })),
     error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 18px 4px", textAlign: "center" } }, error),
     notice && h("div", { className: "ad-notice", role: "status" }, h("div", { className: "ad-md" }, h(Md, { text: notice })),

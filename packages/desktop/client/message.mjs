@@ -3,6 +3,7 @@
 // the split of the text come from client/activity.mjs.
 import { createElement as h, useEffect, useRef, useState } from "react";
 import { blobUrl } from "./api.mjs";
+import { avatarUrl } from "./avatar.mjs";
 import { bubbleTexts, busyOf } from "./activity.mjs";
 import { Icon } from "./icons.mjs";
 import { Md } from "./md.mjs";
@@ -111,17 +112,17 @@ function Voice({ voice, resident }) {
 }
 
 /** Stickers a line carried: a still picture, or the short loop it is; `at` shows the time when nothing else does. */
-function Stickers({ stickers, at }) {
+function Stickers({ stickers, at, base }) {
   return h("div", { className: "ad-stickers" }, stickers.map((sticker, i) => h("div", { key: sticker.url, className: "ad-sticker-wrap" },
     h("div", { className: "ad-sticker" },
       sticker.video
-        ? h("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers })
-        : h("img", { src: sticker.url, alt: "", loading: "lazy" })),
+        ? h("video", { src: avatarUrl(base, sticker.url), autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers })
+        : h("img", { src: avatarUrl(base, sticker.url), alt: "", loading: "lazy" })),
     i === stickers.length - 1 && at ? h("span", { className: "ad-meta" }, clock(at)) : null)));
 }
 
 /** `last` marks the newest reply (it can be taken back); `onChanged` reads the conversation again after. */
-export function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
+export function Message({ line, resident, base, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
   const bubbles = me ? myWords(line) : bubbleTexts(line.text);
@@ -137,7 +138,7 @@ export function Message({ line, resident, last = false, onChanged = null, cards 
     me && (line.attached ?? []).length > 0 && h(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
-    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers, at: line.at }),
+    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers, at: line.at, base }),
     cards.length > 0 && h(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && h(MessageActions, { line, resident, last, onChanged }));
 }
