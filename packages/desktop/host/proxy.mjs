@@ -10,8 +10,9 @@ const ALLOWED = [
   "sites", "sites/remove", "speak", "stickers/import", "stickers/pack", "stickers/remove", "take-back",
   "tasks/github", "tasks/roles", "tasks/roles/remove", "tasks/test", "telegram/connect",
 ];
-// Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker.
-const BYTES = ["picture", "file", "media", "group/picture"];
+// Bytes the page shows itself: her pictures in a reply, a file a reply handed over, a sticker, and a thread's own file
+// (/web/thread/file?id=…&path=…, the route a cloud thread lists its files for).
+const BYTES = ["picture", "file", "media", "group/picture", "thread/file"];
 // Raw posts: a picture the reader puts up as the resident's face.
 const RAW = ["avatar"];
 const RESIDENT = /^[a-z][a-z0-9-]{0,23}$/;

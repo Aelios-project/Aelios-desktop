@@ -63,7 +63,7 @@ function Permission({ item, t, busy, onPermit }) {
       : h("p", { className: `said ${item.decided}` }, said));
 }
 
-function Result({ item, t, busy, onChoose }) {
+function Result({ item, t, busy, onChoose, onSaveFile, saving }) {
   const tone = taskTone(item.status);
   const links = (item.links || []).filter(safeLink);
   return h("div", { className: "ad-tl-result" },
@@ -71,7 +71,8 @@ function Result({ item, t, busy, onChoose }) {
     item.text && h("div", { className: "text" }, h(Md, { text: item.text })),
     ((item.choices || []).length > 0 || links.length > 0 || safeLink(item.sessionUrl) || (item.files || []).length > 0) && h("div", { className: "ad-card-row" },
       (item.choices || []).map((c, i) => h("button", { key: c, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: busy, onClick: () => onChoose(item.task, c) }, c)),
-      (item.files || []).map((f) => h("span", { key: f.path, className: "ad-pill", title: f.path }, h(Icon, { name: "file" }), f.path.split("/").pop())),
+      (item.files || []).map((f) => h("button", { key: f.path, type: "button", className: "ad-file-pill", title: `${t.saveFile} · ${f.path}`, disabled: Boolean(saving) || !onSaveFile, onClick: () => onSaveFile?.(f.path) },
+        h(Icon, { name: "file" }), h("span", { className: "n" }, f.path.split("/").pop()), saving === f.path ? h("span", { className: "s" }, t.saving) : null)),
       links.map((l) => h("a", { key: l, className: "ad-btn quiet small", href: l, target: "_blank", rel: "noopener noreferrer" }, h(Icon, { name: "open" }), new URL(l).host)),
       safeLink(item.sessionUrl) && h("a", { className: "ad-btn quiet small", href: item.sessionUrl, target: "_blank", rel: "noopener noreferrer" }, h(Icon, { name: "open" }), t.session)));
 }

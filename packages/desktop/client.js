@@ -53,13 +53,30 @@ async function upload(path, data, type, { resident } = {}, request = fetch) {
   return out.data;
 }
 var blobs = /* @__PURE__ */ new Map();
+var BLOBS_KEPT = 24;
+function bytesOf(data) {
+  const raw = atob(data);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
 async function blobUrl(path, { resident } = {}, request = fetch) {
   const key = `${resident || ""}${path}`;
-  if (blobs.has(key)) return blobs.get(key);
+  const held = blobs.get(key);
+  if (held) {
+    blobs.delete(key);
+    blobs.set(key, held);
+    return held;
+  }
   const { type, data } = await call("blob", { path, resident }, request);
   if (!data) throw new Error("the resident has no such bytes");
-  const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type }));
+  const url = URL.createObjectURL(new Blob([bytesOf(data)], { type }));
   blobs.set(key, url);
+  while (blobs.size > BLOBS_KEPT) {
+    const [old, gone] = blobs.entries().next().value;
+    blobs.delete(old);
+    URL.revokeObjectURL(gone);
+  }
   return url;
 }
 function createMessages(get, now = Date.now) {
@@ -336,6 +353,8 @@ var WORDS = {
     sendTo: "Send to the thread",
     files: "Files",
     session: "Session",
+    saveFile: "Save the file",
+    saving: "Saving…",
     who: { mine: "You", given: "Resident", result: "Result", thread: "Thread" },
     thought: "Thought",
     plan: "Plan",
@@ -543,6 +562,8 @@ var WORDS = {
     sendTo: "发给线程",
     files: "文件",
     session: "会话",
+    saveFile: "下载文件",
+    saving: "正在下载…",
     who: { mine: "你", given: "住户", result: "交回", thread: "线程" },
     thought: "想法",
     plan: "计划",
@@ -3502,7 +3523,7 @@ function Permission({ item, t, busy, onPermit }) {
     ) : (0, import_react27.createElement)("p", { className: `said ${item.decided}` }, said)
   );
 }
-function Result({ item, t, busy, onChoose }) {
+function Result({ item, t, busy, onChoose, onSaveFile, saving }) {
   const tone = taskTone(item.status);
   const links = (item.links || []).filter(safeLink);
   return (0, import_react27.createElement)(
@@ -3514,7 +3535,13 @@ function Result({ item, t, busy, onChoose }) {
       "div",
       { className: "ad-card-row" },
       (item.choices || []).map((c, i) => (0, import_react27.createElement)("button", { key: c, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: busy, onClick: () => onChoose(item.task, c) }, c)),
-      (item.files || []).map((f) => (0, import_react27.createElement)("span", { key: f.path, className: "ad-pill", title: f.path }, (0, import_react27.createElement)(Icon, { name: "file" }), f.path.split("/").pop())),
+      (item.files || []).map((f) => (0, import_react27.createElement)(
+        "button",
+        { key: f.path, type: "button", className: "ad-file-pill", title: `${t.saveFile} · ${f.path}`, disabled: Boolean(saving) || !onSaveFile, onClick: () => onSaveFile?.(f.path) },
+        (0, import_react27.createElement)(Icon, { name: "file" }),
+        (0, import_react27.createElement)("span", { className: "n" }, f.path.split("/").pop()),
+        saving === f.path ? (0, import_react27.createElement)("span", { className: "s" }, t.saving) : null
+      )),
       links.map((l) => (0, import_react27.createElement)("a", { key: l, className: "ad-btn quiet small", href: l, target: "_blank", rel: "noopener noreferrer" }, (0, import_react27.createElement)(Icon, { name: "open" }), new URL(l).host)),
       safeLink(item.sessionUrl) && (0, import_react27.createElement)("a", { className: "ad-btn quiet small", href: item.sessionUrl, target: "_blank", rel: "noopener noreferrer" }, (0, import_react27.createElement)(Icon, { name: "open" }), t.session)
     )
@@ -3542,6 +3569,7 @@ function ThreadView({ resident, id, onBack }) {
   const [draft, setDraft] = (0, import_react28.useState)("");
   const [busy, setBusy] = (0, import_react28.useState)(false);
   const [error, setError] = (0, import_react28.useState)("");
+  const [saving, setSaving] = (0, import_react28.useState)("");
   const end = (0, import_react28.useRef)(null);
   const reload = async () => {
     try {
@@ -3596,6 +3624,24 @@ function ThreadView({ resident, id, onBack }) {
   const onOpenPath = (path) => {
     void openInFiles(path).catch((e) => setError(e.message));
   };
+  const saveFile = async (path) => {
+    if (saving) return;
+    setSaving(path);
+    try {
+      const url = await blobUrl(`/web/thread/file?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`, { resident });
+      const a2 = document.createElement("a");
+      a2.href = url;
+      a2.download = path.split("/").pop() || "file";
+      document.body.append(a2);
+      a2.click();
+      a2.remove();
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving("");
+    }
+  };
   const onKey = (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
       e.preventDefault();
@@ -3629,12 +3675,18 @@ function ThreadView({ resident, id, onBack }) {
       counts.files > 0 && (0, import_react28.createElement)("span", { className: "ad-mi", title: `${counts.files} ${t.filesN}` }, (0, import_react28.createElement)(Icon, { name: "file" }), counts.files),
       counts.commands > 0 && (0, import_react28.createElement)("span", { className: "ad-mi", title: `${counts.commands} ${t.commandsN}` }, (0, import_react28.createElement)(Icon, { name: "terminal" }), counts.commands)
     ),
-    (0, import_react28.createElement)("div", { className: "ad-timeline" }, items.map((item, i) => (0, import_react28.createElement)(Item, { key: item.id || `${item.type}-${i}`, item, t, busy, onPermit, onChoose, onOpenPath }))),
+    (0, import_react28.createElement)("div", { className: "ad-timeline" }, items.map((item, i) => (0, import_react28.createElement)(Item, { key: item.id || `${item.type}-${i}`, item, t, busy, onPermit, onChoose, onOpenPath, onSaveFile: saveFile, saving }))),
     (thread?.files || []).length > 0 && (0, import_react28.createElement)(
       "div",
       { className: "ad-tool-files" },
       (0, import_react28.createElement)("p", { className: "ad-label" }, t.files),
-      thread.files.map((f) => (0, import_react28.createElement)("span", { key: f.path, className: "ad-pathbtn", title: f.path }, (0, import_react28.createElement)(Icon, { name: "file" }), (0, import_react28.createElement)("span", null, f.path)))
+      thread.files.map((f) => (0, import_react28.createElement)(
+        "button",
+        { key: f.path, type: "button", className: "ad-pathbtn", title: t.saveFile, disabled: Boolean(saving), onClick: () => saveFile(f.path) },
+        (0, import_react28.createElement)(Icon, { name: "file" }),
+        (0, import_react28.createElement)("span", null, f.path),
+        saving === f.path ? (0, import_react28.createElement)("span", { className: "ad-save-note" }, t.saving) : null
+      ))
     ),
     error && (0, import_react28.createElement)("div", { className: "ad-error", role: "alert" }, error),
     (0, import_react28.createElement)("div", { ref: end }),
@@ -4410,6 +4462,7 @@ var THREAD = `
 .ad-pathbtn:hover { background: var(--line-soft); color: var(--accent-text); }
 .ad-pathbtn svg { width: 12px; height: 12px; color: var(--text-4); }
 .ad-pathbtn > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-save-note { flex: none; color: var(--text-4); font-size: 11px; }
 .ad-diffn { flex: none; display: inline-flex; gap: 4px; font: 600 11px/1 var(--mono); }
 .ad-diffn b { color: var(--ok-text); font-weight: 600; } .ad-diffn i { color: var(--err-text); font-style: normal; }
 
@@ -4436,6 +4489,13 @@ var THREAD = `
 .ad-perm .said.allowed { color: var(--ok-text); } .ad-perm .said.denied { color: var(--err-text); }
 .ad-tl-result { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line-dash); }
 .ad-tl-result .text { font-size: 13.5px; line-height: 1.6; }
+/* A file a result handed over: a pill that saves it, icon at a fixed size (an unconstrained svg would fill the pill). */
+.ad-file-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 24px; padding: 0 9px 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text-2); font-size: 11.5px; line-height: 1; }
+.ad-file-pill:hover:not(:disabled) { border-color: var(--line-dash); color: var(--accent-text); }
+.ad-file-pill:disabled { cursor: default; }
+.ad-file-pill svg { flex: none; width: 12px; height: 12px; color: var(--accent-text); }
+.ad-file-pill .n { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ad-file-pill .s { flex: none; color: var(--text-4); }
 `;
 
 // client/theme.mjs

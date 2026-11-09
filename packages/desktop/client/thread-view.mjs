@@ -3,6 +3,7 @@
 // its local session, with a way to its folder and Allow/Deny on a request the helper is waiting on; any thread
 // shows the cloud's lines. The box at the foot talks to the thread directly (POST /web/thread/say).
 import { createElement as h, useEffect, useRef, useState } from "react";
+import { blobUrl } from "./api.mjs";
 import { ACCEPT, Chips, useAttachments } from "./attachments-state.mjs";
 import { Icon } from "./icons.mjs";
 import { loadSession, openInFiles, permit } from "./local-api.mjs";
@@ -23,6 +24,7 @@ export function ThreadView({ resident, id, onBack }) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState("");
   const end = useRef(null);
 
   const reload = async () => {
@@ -60,6 +62,18 @@ export function ThreadView({ resident, id, onBack }) {
   });
   const onPermit = (item, allow) => act(async () => { await permit(item.id, allow); await reload(); });
   const onOpenPath = (path) => { void openInFiles(path).catch((e) => setError(e.message)); };
+  // A thread's own file comes from the resident by its path (GET /web/thread/file), then saves as a download.
+  const saveFile = async (path) => {
+    if (saving) return;
+    setSaving(path);
+    try {
+      const url = await blobUrl(`/web/thread/file?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`, { resident });
+      const a = document.createElement("a");
+      a.href = url; a.download = path.split("/").pop() || "file";
+      document.body.append(a); a.click(); a.remove();
+      setError("");
+    } catch (e) { setError(e.message); } finally { setSaving(""); }
+  };
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); void say(); } };
 
   const helper = helperOf({ id, runs: thread?.runs }, local);
@@ -82,9 +96,10 @@ export function ThreadView({ resident, id, onBack }) {
       counts.tools > 0 && h("span", { className: "ad-mi", title: `${counts.tools} ${t.toolsN}` }, h(Icon, { name: "wrench" }), counts.tools),
       counts.files > 0 && h("span", { className: "ad-mi", title: `${counts.files} ${t.filesN}` }, h(Icon, { name: "file" }), counts.files),
       counts.commands > 0 && h("span", { className: "ad-mi", title: `${counts.commands} ${t.commandsN}` }, h(Icon, { name: "terminal" }), counts.commands)),
-    h("div", { className: "ad-timeline" }, items.map((item, i) => h(Item, { key: item.id || `${item.type}-${i}`, item, t, busy, onPermit, onChoose, onOpenPath }))),
+    h("div", { className: "ad-timeline" }, items.map((item, i) => h(Item, { key: item.id || `${item.type}-${i}`, item, t, busy, onPermit, onChoose, onOpenPath, onSaveFile: saveFile, saving }))),
     (thread?.files || []).length > 0 && h("div", { className: "ad-tool-files" }, h("p", { className: "ad-label" }, t.files),
-      thread.files.map((f) => h("span", { key: f.path, className: "ad-pathbtn", title: f.path }, h(Icon, { name: "file" }), h("span", null, f.path)))),
+      thread.files.map((f) => h("button", { key: f.path, type: "button", className: "ad-pathbtn", title: t.saveFile, disabled: Boolean(saving), onClick: () => saveFile(f.path) },
+        h(Icon, { name: "file" }), h("span", null, f.path), saving === f.path ? h("span", { className: "ad-save-note" }, t.saving) : null))),
     error && h("div", { className: "ad-error", role: "alert" }, error),
     h("div", { ref: end }),
     thread?.canSay && a.any && h(Chips, { a }),

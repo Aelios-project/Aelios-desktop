@@ -25,13 +25,27 @@ export async function upload(path, data, type, { resident } = {}, request = fetc
 
 /** The resident's bytes (a picture, a handed-over file, a sticker) as an object URL, fetched once per path. */
 const blobs = new Map();
+const BLOBS_KEPT = 24; // a small LRU: object URLs are released once the page stops needing them
+/** Base64 from the host half back to the bytes it came from; atob alone mangles anything but ASCII. */
+function bytesOf(data) {
+  const raw = atob(data);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
 export async function blobUrl(path, { resident } = {}, request = fetch) {
   const key = `${resident || ""}${path}`;
-  if (blobs.has(key)) return blobs.get(key);
+  const held = blobs.get(key);
+  if (held) { blobs.delete(key); blobs.set(key, held); return held; }
   const { type, data } = await call("blob", { path, resident }, request);
   if (!data) throw new Error("the resident has no such bytes");
-  const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type }));
+  const url = URL.createObjectURL(new Blob([bytesOf(data)], { type }));
   blobs.set(key, url);
+  while (blobs.size > BLOBS_KEPT) {
+    const [old, gone] = blobs.entries().next().value;
+    blobs.delete(old);
+    URL.revokeObjectURL(gone);
+  }
   return url;
 }
 

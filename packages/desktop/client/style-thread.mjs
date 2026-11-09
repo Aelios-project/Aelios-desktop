@@ -42,6 +42,7 @@ export const THREAD = `
 .ad-pathbtn:hover { background: var(--line-soft); color: var(--accent-text); }
 .ad-pathbtn svg { width: 12px; height: 12px; color: var(--text-4); }
 .ad-pathbtn > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-save-note { flex: none; color: var(--text-4); font-size: 11px; }
 .ad-diffn { flex: none; display: inline-flex; gap: 4px; font: 600 11px/1 var(--mono); }
 .ad-diffn b { color: var(--ok-text); font-weight: 600; } .ad-diffn i { color: var(--err-text); font-style: normal; }
 
@@ -68,4 +69,11 @@ export const THREAD = `
 .ad-perm .said.allowed { color: var(--ok-text); } .ad-perm .said.denied { color: var(--err-text); }
 .ad-tl-result { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line-dash); }
 .ad-tl-result .text { font-size: 13.5px; line-height: 1.6; }
+/* A file a result handed over: a pill that saves it, icon at a fixed size (an unconstrained svg would fill the pill). */
+.ad-file-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 24px; padding: 0 9px 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text-2); font-size: 11.5px; line-height: 1; }
+.ad-file-pill:hover:not(:disabled) { border-color: var(--line-dash); color: var(--accent-text); }
+.ad-file-pill:disabled { cursor: default; }
+.ad-file-pill svg { flex: none; width: 12px; height: 12px; color: var(--accent-text); }
+.ad-file-pill .n { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ad-file-pill .s { flex: none; color: var(--text-4); }
 `;
