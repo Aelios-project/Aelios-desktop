@@ -12,11 +12,11 @@ DSH 0.2.2-rc.1, app at `/Applications/DeepSeek Harness.app`, read from the unpac
 | `@deepseek-ai/dsh-credentials` | Yes. `ctx.credentials` gives `readRecord`, `modifyRecord`, `describeRecord`, `listRecords`, `deleteRecord`. The shell already uses it (`host/store.mjs`, key `aelios-desktop/connection`). The local store is `$DSH_HOME/.credentials.yaml`, plain text; it refuses to start if the file is readable by others | credentials README; `dsh-credentials-local/lib/index.js` line ~104 |
 | `dsh-client-ui-user-questions` | Yes, but it draws an agent's question, answered through the model's tool call. It has no password field. A secret typed there would reach the model | package README |
 | `dsh-client-ui-tool` | Yes. It draws tool-call cards in the transcript. Not a form | package README |
-| Real window test | Not done: the checks are of the bundled code only. The existing connect form already uses `type: "password"` in the shell's own UI, so the same works for a secret card | `client/connect-form.mjs` |
+| A password field in the real window | Works. The connect form (`type: "password"`, posted to the host half) was used in the real 0.2.2-rc.1 install; its key is in `.credentials.yaml` (0600) and in none of the 412 files under `~/.dsh/logs` and `~/.dsh/sessions`. The fetch route is owner-only and logs no body. Checked 2026-11-09 (Task 1.1) | `client/connect-form.mjs`; `dsh-client-connection/lib/index.js` |
 
 Consequences. The wizard uses `ctx.credentials` and the shell's own cards. It does not register an authorization flow: `cf` keeps its own Cloudflare token. `user-questions` is never used for a secret.
 
-Cloudflare CLI, as installed here (`cf` 1.0.0-beta.12): `cf auth login|create` (device flow by default, `--no-browser` prints the link), `cf workers list|get|secrets`, `cf d1 create|list|migrations apply`, `cf vectorize create|get|info`, `cf queues create|list`, `cf ai-gateway gateways|custom-providers`, `cf ai-gateway gateways providers create|list|update` (provider keys), `cf mcp`. `cf deploy` takes a Build Output Specification project, not a `wrangler.toml`. So Worker upload and the Durable Object migrations use `npx wrangler@<pin> deploy`. Not checked: the OAuth scopes that `cf auth` asks for, and the exact text it prints in device mode.
+Cloudflare CLI, as installed here (`cf` 1.0.0-beta.12): `cf auth login|create` (device flow by default, `--no-browser` prints the link), `cf workers list|get|secrets`, `cf d1 create|list|migrations apply`, `cf vectorize create|get|info`, `cf queues create|list`, `cf ai-gateway gateways|custom-providers`, `cf ai-gateway gateways providers create|list|update` (provider keys), `cf mcp`. `cf deploy` takes a Build Output Specification project, not a `wrangler.toml`. So Worker upload and the Durable Object migrations use `npx wrangler@<pin> deploy`. Checked 2026-11-09 (Task 1.2): in device mode it prints to stderr `To authorize cf, please visit:`, the link `https://dash.cloudflare.com/oauth2/device/verify`, `and enter the code:`, an 8-character code and `You have 5 minutes to approve this request.`; without `--no-browser` it also opens the browser at a link that holds the code. With no `--scopes` it asks for its whole default list (475 scopes were granted), which covers Workers, D1, Vectorize, Queues, AI Gateway, Workers AI, Images and Browser. The profile file `~/Library/Preferences/cloudflare/config/<profile>.json` holds `oauth_token`, `refresh_token`, `expiration_time` and `scopes`.
 
 ## Where code goes
 
@@ -75,16 +75,18 @@ The deploy runs while Card S is open, so the wait is spent on the owner's choice
 | New, built-in provider key | 4 | the same cards; the key is typed inside S |
 | After the contest: has Aelios, no resident | 4 | R (no), A (yes + key + pick identity), approve in the browser, H |
 
-A browser approval is counted with the click that opens it. Typing in a field of the same card is not a step. If Task 1.7 finds that `wrangler` needs a second approval, the new paths become 5 and this table, requirement 11, the PR text and the test in task 9.1 change together.
+A browser approval is counted with the click that opens it. Typing in a field of the same card is not a step. Task 1.7 found that `wrangler` needs no second approval (see "Worker upload login"), so the count stays 4. For an owner whose `cf` profile is kept in the keyring (an `.enc` file the host cannot read) the fallback adds one step for that owner only.
 
 ### Worker upload login
 
-`wrangler deploy` has its own login store (`wrangler login`), separate from the `cf` profile. A second browser approval would add a step. Rule 8.2 (no token in an environment variable) has one exception, for this step only. Preferred, to verify in Task 1.7:
+`wrangler deploy` has its own login store (`wrangler login`), separate from the `cf` profile. A second browser approval would add a step. Rule 8.2 (no token in an environment variable) has one exception, for this step only. Verified in Task 1.7 (2026-11-09):
 The host half starts `wrangler deploy` as a child process with `CLOUDFLARE_API_TOKEN` set in that child's environment only (the variable `wrangler` reads for this). The token is read in-process from the `cf` profile, never set in the host's environment, never logged or printed, and the child's output goes through the redactor. The second browser approval is not needed.
 
-Fallback if Task 1.7 says the `cf` token does not work this way: `wrangler login` in the browser, counted in the step table. Reimplementing the upload over REST is not a candidate.
+Checked: `wrangler` 4.158.0, started with only `PATH`, `HOME`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `WRANGLER_SEND_METRICS=false` and `CI=1`, accepted the `cf` OAuth access token (`wrangler whoami` reported an API token from the environment), and `wrangler deploy` of the resident uploaded its assets, script, Durable Object migrations and `AI`, `BROWSER` and `IMAGES` bindings. Before reading the token, the host runs `cf auth whoami --profile <ours>` so an expired access token (about an hour) is refreshed. It never sets `CLOUDFLARE_API_TOKEN` when it runs `cf` itself, because `cf` then ignores the profile.
 
-Not checked yet: whether the `cf` token can be handed to `wrangler` this way, and which scopes it needs (Workers Scripts edit, Workers assets for the resident's `assets` directory, and Durable Object migrations).
+Fallback, only for a keyring-backed profile: `wrangler login` in the browser, counted in the step table. Reimplementing the upload over REST is not a candidate.
+
+Scopes: the default `cf` list was enough. The deploy needs `workers_scripts:write` (script, assets, migrations, secrets) and the account lookup (`account:read`, `user:read`); `CLOUDFLARE_ACCOUNT_ID` saves the memberships call. Not checked: a token that expires during a long deploy (this one took about 25 seconds).
 
 ## Cloudflare resources
 
@@ -109,7 +111,7 @@ Taken from `wrangler.toml` of Aelios (`origin/main`) and `wrangler.jsonc` of the
 |---|---|---|---|
 | Worker | `aelios-resident` | `wrangler deploy` | assets from `public/`; `keep_vars = true` |
 | Durable Objects | classes `Resident`, `BoxHub`; bindings `RESIDENT`, `BOXES` | the deploy (migrations `v1`, `v2`, `v3`) | SQLite-backed; no separate create. The migration list must be carried in full (see Bundles) |
-| Bindings, no resource | `AI`, `BROWSER`, `IMAGES` | the deploy | Browser needs Workers Paid; Images has a free allowance. Not checked what the deploy does on a free plan: Task 1.4 |
+| Bindings, no resource | `AI`, `BROWSER`, `IMAGES` | the deploy | Checked on a Workers Free account (Task 1.4): the deploy is accepted with all three. Browser Run is 10 minutes a day with 3 concurrent browsers on Free; Images is 5,000 unique transformations a month. The code works without either. No fallback needed |
 | Secret | `WEB_KEY` (generated) | `wrangler secret put`, stdin | |
 | Variable and secret | `AELIOS_URL`, `AELIOS_API_KEY` | deploy config and `put` on stdin | Contest path. The service binding is in "After the contest" |
 | Variable, optional | `AELIOS_NAMESPACE`, `AELIOS_IDENTITY` | deploy config | Only when the owner needs another space or picks another identity |
@@ -172,7 +174,7 @@ Aelios:
 ## Main model card
 
 - Cloudflare models: nothing to store. The list is read from the Aelios model catalog route (`/api/gateway/models`) after the deploy. Credits: the card links to the dashboard to buy credits and then runs a test call.
-- BYOK, built-in: provider list read live from the account's AI Gateway when the card opens (`cf ai-gateway` first; the REST catalog if `cf` lacks a list command, Task 1.3). The key goes to `cf ai-gateway gateways providers create`.
+- BYOK, built-in: provider list read live from the account's AI Gateway when the card opens (`cf` has no such command; Task 1.3 found `GET /accounts/<account>/ai-gateway/providers?per_page=100`, answered with the `cf` token, and `GET https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/compat/models` for the models). The key goes to `cf ai-gateway gateways providers create <gateway> --body @/dev/stdin`, never `--secret`, which would put it in `argv`.
 - Memory pattern: the field is pre-filled with the chosen model (default path: `glm-4.7-flash`) and follows it until the owner edits it. If the edited pattern does not match the chosen model (Aelios's own matcher, Task 4.2), the card shows one line, "This model will not be remembered", with an "I know" button. It does not block. An empty field is refused.
 - After each choice the wizard sends a test call and shows the answer's first line, or the redacted failure.
 
@@ -191,11 +193,11 @@ Designed so the contest build leaves room, not built yet.
 - **Codex sign-in.** `codex.mjs`: `POST /api/gateway/chatgpt/login` returns an authorize link whose redirect is `http://127.0.0.1:1455/auth/callback`. It listens on that port on 127.0.0.1 for 10 minutes, posts the captured address to `/api/gateway/chatgpt/callback` and runs `/test`. Port busy: show a paste field.
 - **Custom provider.** `cf ai-gateway custom-providers create` with name and base URL; then the key as for a built-in provider.
 - **Service binding.** A binding gives no caller identity, and the Aelios front door wants an API key. Plan: Aelios adds a `WorkerEntrypoint` that calls its handler as the trusted resident; the resident adds an `AELIOS` binding with that entrypoint and uses it before `fetch`. This changes Aelios (`src/index.ts`, `wrangler.toml`) and the resident (`src/aelios.ts`, `wrangler.jsonc`, `env.d.ts`).
-- **"Help me check".** `explain.mjs` builds one message from the step name, the error code and the redacted output. It calls Workers AI (`glm-4.7-flash`, id looked up live) on the owner's account through the REST route with the `cf` token, and offers the Cloudflare MCP server's read tools. The host half owns the tool loop: a tool is called only if its name is on a read allowlist; any other tool name becomes an approval card and waits. The answer is shown as text; it never changes state itself and its text is never run. Not checked: how the MCP server accepts the `cf` token (Task 1.5).
+- **"Help me check".** `explain.mjs` builds one message from the step name, the error code and the redacted output. It calls Workers AI (`glm-4.7-flash`, id looked up live) on the owner's account through the REST route with the `cf` token, and offers the Cloudflare MCP server's read tools. The host half owns the tool loop: a tool is called only if its name is on a read allowlist; any other tool name becomes an approval card and waits. The answer is shown as text; it never changes state itself and its text is never run. Checked (Task 1.5): `https://mcp.cloudflare.com/mcp` accepts the `cf` access token as a bearer token. Its tools are `docs`, `search`, `execute` and `whoami`; only `whoami` is marked read-only by the server, `docs` and `search` are read-only in fact but not marked, and `execute` can call any API method. So the allowlist is by name in the host half (`docs`, `search`, `whoami`, and `get_*` with `?codemode=false`), never by the server's hints.
 
 ## Open items
 
 1. The service binding needs changes in both other repositories (see above). Until then the wizard uses the address and key.
 2. (Settled) An existing resident with a new Aelios does not happen: a resident only works with Aelios, so the wizard never deploys Aelios for an owner who already has a resident.
 3. Where users get `cf`. It is an npm package in beta (`cf`). The wizard pins a tested version in `npx`.
-4. How the Worker upload gets its login (Task 1.7).
+4. (Settled, Task 1.7) The Worker upload uses the `cf` token through the child's environment; no second approval.
