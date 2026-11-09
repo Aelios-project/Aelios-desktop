@@ -185,10 +185,9 @@ export class Runner {
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
     const turn = new Turn({
-      files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
+      files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier, cwd), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
-      auto: info => this.journal?.auto(work.thread, info),
       onSession: async (sessionId, how) => {
         // The thread's folder and session are fixed from the first time it has one.
         await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });

@@ -10,6 +10,7 @@ import { CloudError, register } from "../src/cloud.mjs";
 import { FakeCloud } from "./fake-cloud.mjs";
 
 import { CONVENTION } from "../src/helper.mjs";
+import { agentName } from "../src/kiro-agent.mjs";
 import { final, rig } from "./rig.mjs";
 
 for (const plugin of ["kiro", "dsh"]) {
@@ -30,7 +31,9 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(prompt.cwd, r.workspace, "extra fields from the cloud do not choose the folder");
     const init = r.log().find(e => e.event === "initialize");
     assert.deepEqual(init.caps, {}, "no file or terminal capability is offered");
-    assert.deepEqual(r.log().find(e => e.event === "start").args, plugin === "dsh" ? ["--profile", "acp"] : ["acp"]);
+    const args = r.log().find(e => e.event === "start").args;
+    if (plugin === "dsh") assert.deepEqual(args, ["--profile", "acp"]);
+    else assert.deepEqual(args, ["acp", "--agent", agentName("edit", r.workspace)], "Kiro starts with the generated agent of this tier and folder");
     const saved = (await r.state.read()).threads.t_main;
     assert.deepEqual([saved.sessionId, saved.cwd], ["sess-1", r.workspace]);
   });
@@ -142,16 +145,13 @@ for (const plugin of ["kiro", "dsh"]) {
 
   const perm = async (r, text, extra = {}) => { r.start(); return final(r, r.cloud.push({ text, ...extra })); };
 
-  t("permissions, tier edit: an edit inside the folder is allowed, one outside is turned down and asked about", async r => {
-    const inside = await perm(r, `PERM:edit:${path.join(os.tmpdir(), "not-yet")}`);
-    assert.equal(inside.status, "needs_you", "outside the folder");
-    assert.match(inside.ask.question, /outside the workspace/);
-    assert.match(inside.summary, /perm=reject/);
-    const ok = await final(r, r.cloud.push({ text: `PERM:edit:${path.join(r.workspace, "a.txt")}` }));
-    assert.equal(ok.status, "done");
-    assert.match(ok.summary, /perm=allow/, "only the one-time option is ever chosen");
-    const run = await final(r, r.cloud.push({ text: "PERM:execute" }));
-    assert.equal(run.status, "needs_you");
+  t("permissions, tier edit: the runner judges nothing; with no owner to ask, a request is turned down", async r => {
+    r.start();
+    for (const text of [`PERM:edit:${path.join(r.workspace, "a.txt")}`, `PERM:edit:${path.join(os.tmpdir(), "not-yet")}`, "PERM:execute", "PERM:read"]) {
+      const done = await final(r, r.cloud.push({ text }));
+      assert.equal(done.status, "needs_you", text);
+      assert.match(done.summary, /perm=reject/, "only the one-time reject is ever chosen");
+    }
   });
 
   t("permissions: the job can lower the tier but never raise it", async r => {

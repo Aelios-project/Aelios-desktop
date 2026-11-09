@@ -1,5 +1,5 @@
 // A held permission reaches the resident, the owner's answer from there (or from this machine) settles it, and a
-// read-only command in the edit tier never asks. Runner + journal + fake resident + fake helper.
+// full tier never asks. Runner + journal + fake resident + fake helper.
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
@@ -90,23 +90,25 @@ test("a resident that is down does not stop the turn from waiting for the owner 
   } finally { await r.done(); }
 });
 
-test("a read-only command in the edit tier runs without asking and is written in the journal as auto; the read tier asks", async () => {
+test("the runner judges nothing: even a read-only looking command is held in the edit tier, and full allows it unasked", async () => {
   const r = await held();
   try {
     r.start();
-    const done = await final(r, r.cloud.push({ text: RAW("scutil --get ComputerName; sw_vers; uname -m") }));
-    assert.equal(done.status, "done");
-    assert.match(done.summary, /perm=allow/);
-    assert.deepEqual(r.journal.fold().perms.map(p => [p.decided, p.by, p.detail]), [["allowed", "auto", "scutil --get ComputerName; sw_vers; uname -m"]]);
-    assert.equal(reports(r, "held").length, 0, "nothing was held or reported");
-    const piped = await r.cloud.push({ text: RAW("uname -m | sh") });
-    await r.cloud.until(() => reports(r, "held")[0], "a piped command is held");
-    r.cloud.answers = [{ id: reports(r, "held")[0].id, allow: false }];
-    assert.equal((await final(r, piped)).status, "needs_you");
+    const work = r.cloud.push({ text: RAW("uname -m") });
+    const sent = await r.cloud.until(() => reports(r, "held")[0], "held in the edit tier");
+    r.cloud.answers = [{ id: sent.id, allow: false }];
+    assert.equal((await final(r, work)).status, "needs_you");
   } finally { await r.done(); }
+  const full = await held({ access: "full" });
+  try {
+    full.start();
+    const done = await final(full, full.cloud.push({ text: RAW("uname -m") }));
+    assert.equal(done.status, "done");
+    assert.equal(reports(full, "held").length, 0);
+  } finally { await full.done(); }
 });
 
-test("the read tier keeps asking even for a read-only command", async () => {
+test("the read tier holds a command too", async () => {
   const r = await held({ access: "read" });
   try {
     r.start();

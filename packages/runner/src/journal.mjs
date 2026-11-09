@@ -38,12 +38,6 @@ export class Journal {
     return true;
   }
 
-  /** A request allowed without asking because it only looks at things: shown to the owner, decided by "auto". */
-  auto(thread, info) {
-    const id = this.#request(thread, info);
-    this.add({ t: "decision", id, allow: true, by: "auto" });
-  }
-
   #request(thread, info) {
     const id = "p_" + randomBytes(5).toString("hex");
     this.add({ t: "perm", id, thread, title: clip(info.title, 120), kind: clip(info.kind, 20), paths: info.paths.map(path => clip(path, 300)).slice(0, 5), ...(info.detail ? { detail: clip(info.detail, 400) } : {}) });

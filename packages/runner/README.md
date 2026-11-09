@@ -37,7 +37,7 @@ aelios-runner pair --code pc_… \
 | `--code` | The pairing code from the settings page. Without it, the web key is needed. |
 | `--resident` | Resident id. Default `default`. |
 | `--workspace` | The fixed folder where the helper works. Absolute path. Each thread records it on first use and never changes it. |
-| `--access` | The highest permission tier this machine allows: `read`, `edit` (change files in the workspace), or `full` (everything). Default `read`. |
+| `--access` | The highest permission tier this machine allows: `read`, `edit` (also Kiro's read-only shell commands; writes are still held), or `full` (everything). Default `read`. |
 | `--plugin` | Which helper: `kiro`, `dsh`, or `command`. Default `kiro`. |
 
 The config is in `~/.aelios-runner/config.json`. Credentials and thread records are in `state.json` beside it (readable only by you). Set `AELIOS_RUNNER_HOME` to move the folder.
@@ -46,7 +46,7 @@ The config is in `~/.aelios-runner/config.json`. Credentials and thread records 
 
 Only this machine's config picks the helper. A cloud message cannot change it.
 
-- `kiro`: runs `kiro-cli acp`. With `--access full` it adds `--trust-all-tools`. Run `kiro-cli login` on this machine first. The runner logs in to no account.
+- `kiro`: runs `kiro-cli acp`. With `--access full` it adds `--trust-all-tools`; otherwise it adds `--agent` with a config the runner writes into `~/.kiro/agents` before each turn. Run `kiro-cli login` on this machine first. The runner logs in to no account.
 - `dsh`: runs `dsh --profile acp` (the DeepSeek Harness ACP server). It looks for `dsh` on `PATH`. On macOS, if it is not found, it tries `/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh`. DSH resumes sessions with `session/resume`. Set the provider and model in DSH's `acp` profile first.
 - `command` (experimental): any command that speaks ACP, for example the Claude Code adapter `claude-agent-acp`. In `config.json` write `"plugin": "command", "command": ["claude-agent-acp"]`. Signing in with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
 - Optional config: `bin` (another executable path), `args` (extra arguments), `env` (extra environment variables), `turnTimeoutMs` (longest single turn, default 30 minutes), `pollMs` (how often to fetch work, default 5 seconds), `backoffMaxMs` (longest wait between tries while the cloud is unreachable, default 60 seconds).
@@ -63,11 +63,11 @@ When it stops, a turn that is running is handed back as `needs_you`. It is not r
 
 ## What the permission tiers can and cannot block
 
-The runner can only answer permission requests the helper **asks for**, and it only looks at the kind and paths the helper reports:
+The runner does not judge requests itself. The tier sets the helper's own configuration, and whatever the helper still asks about is held for you (in the resident's waiting list, or on this machine):
 
-- `read`: read, search, think. `edit`: also edits inside the workspace, **and `fetch` (network)**. `full`: everything.
-- Except in `full`, a request with any path outside the workspace is refused. A symlink that points outside counts as outside.
-- It cannot block what a helper does without asking (for example its own tool reading `~/.ssh` with no prompt), or requests with no path. An injected task could use this to read local files and carry them to the cloud. For real isolation, use a dedicated system account, or a VPS with no sensitive files, and tighten the helper's own read and write limits.
+- `read`: Kiro approves reads, search and glob inside the workspace on its own. Everything else is held. `edit`: Kiro also runs the shell commands it counts as read-only (`ls`, `cat`, `git status` and the like) without asking. Writes, the network and paths outside the workspace are not approved by Kiro. `full`: everything is allowed, and Kiro starts with `--trust-all-tools`.
+- For Kiro the runner writes the agent config (`aelios-runner-<tier>-<hash>.json` in `~/.kiro/agents`, outside the workspace) before every turn, so a thread cannot loosen it.
+- Kiro's read-only check is its own, not ours. It is not a sandbox: it can read files outside the workspace through shell commands such as `cat`, except for the patterns the config denies. For real isolation, use a dedicated system account, or a VPS with no sensitive files. Helpers other than Kiro have no generated config yet, so every request they ask about is held.
 - The helper speaks with markers at the start of a line: `NOTE:` (anywhere; goes in the receipt's `notice`, no stop), `BLOCKED:` (last line; the job ends as `failed` with a `Blocked:` summary), `ASK:` (last line; only the user can decide). With no marker it just carries on or finishes. The runner adds a short English convention with these rules to every task. Only `ASK:` and refused permission requests become "waiting for you". A reply that ends with a question mark does not count.
 
 ## Only one start at a time

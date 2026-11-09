@@ -72,12 +72,12 @@ Terms: a **thread** is one ACP session with one fixed workspace. A **job**, **sa
 
 **User story:** As the owner, I want to limit what a helper may do, so that a bad job does little harm.
 
-1. WHILE the tier is `read` THE runner SHALL allow only read, search and think requests.
-2. WHILE the tier is `edit` THE runner SHALL also allow edits inside the workspace and `fetch`.
+1. THE runner SHALL NOT classify permission requests itself. What a helper may do without asking SHALL be the helper's own configuration, which the runner generates from the tier.
+2. WHILE the tier is `read` THE runner SHALL start Kiro with a generated agent config that approves only reads, search and glob inside the workspace. WHILE the tier is `edit` THE config SHALL also let Kiro run the shell commands it counts as read-only. The config SHALL be written outside the workspace before every turn, and SHALL NOT approve writes or the network.
 3. WHILE the tier is `full` THE runner SHALL allow every request, and for Kiro SHALL start it with `--trust-all-tools`.
-4. IF a request outside the `full` tier carries a path outside the workspace THEN the runner SHALL refuse it. A symlink pointing outside counts as outside.
+4. IF a request still reaches the runner below the `full` tier THEN the runner SHALL hold it for the owner as it is, and tell the helper no until the owner answers.
 5. The runner SHALL choose only "allow once" and SHALL NOT grant standing permission.
-6. Documented limit: the runner cannot block what a helper does without asking.
+6. Documented limit: the runner cannot block what a helper does without asking, and it trusts Kiro's own read-only classifier.
 
 ### 8. One runner per folder
 
