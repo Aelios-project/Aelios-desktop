@@ -37,7 +37,7 @@ acpx/runtime (AcpRuntime)  -->  helper process (ACP over stdio)
 | Env allowlist, `fs`/`terminal` switches, `onAcpMessage`, `processLifecycle` | Not in its options | In its options |
 | Permission callback | Per turn (`onPermissionRequest`) | Per runtime and per turn |
 
-The owner's note names `createSharedAcpRuntime`. From the declarations, the in-process `createAcpRuntime` is the one that can meet 5.1 (state under our home), 8.1 (env allowlist), 11.3 (no fs/terminal) and 7 (stage hooks). The shared one cannot take a `stateDir`. **Decided: `createAcpRuntime`, in the runner process, state under `~/.aelios-runner`.** Task 1 repeats the checks Claude Code ran (keep, reattach after restart, follow-up, cancel, permission callback) against `createAcpRuntime` with a `stateDir`. If it cannot reattach after a restart, the fallback is decided too: the shared runtime with state in `~/.acpx/` and a weaker 5.1 (requirement 5.7). The README then says where the state is.
+The owner's note names `createSharedAcpRuntime`. From the declarations, the in-process `createAcpRuntime` is the one that can meet 5.1 (state under our home), 8.1 (env allowlist), 11.3 (no fs/terminal) and 7 (stage hooks). The shared one cannot take a `stateDir`. **Decided: `createAcpRuntime`, in the runner process, state under `~/.aelios-runner`.** Task 1 repeats the checks Claude Code ran (keep, reattach after restart, follow-up, cancel, permission callback) against `createAcpRuntime` with a `stateDir`. Reattach after a restart was already verified by Claude Code, so there is no fallback runtime; if the repeat fails, the result goes to the owner before code.
 
 Runtime options the runner sets:
 
@@ -55,7 +55,7 @@ One runtime object lives as long as the runner. `Runner.stop()` calls `runtime.s
 
 ## Launch configuration (3)
 
-`plugins.mjs` stays the one place that knows how to start a helper. It gets one new function, `registryOf(config)`, that returns the acpx registry `{ <name>: "<command string>" }` for the configured helper only. The registry holds one entry, so an acpx name collision with its built-in table cannot happen.
+`plugins.mjs` stays the one place that knows how to start a helper. `launch.mjs` gets `resolve(config, thread)`, which returns `{ name, argv }`: an argv array, never a string to split, and a per-thread name such as `kiro:<threadhash>`. `registryOf(config, thread)` turns that into the acpx registry entry for the configured helper only (acpx wants a command string at the last step; the one function that joins the array does the quoting, so no other code builds a command string). The registry holds one entry, so an acpx name collision with its built-in table cannot happen.
 
 | Plug | Command | Notes |
 |---|---|---|
@@ -68,7 +68,7 @@ Both are registered as a custom agent command in our registry, never taken from 
 
 An adapter pin is a line in `adapters.json` (package, exact version, integrity). A test fails if any entry has a range, `latest`, or no integrity.
 
-The registry value is one command string, so paths with spaces (the DSH app path) are quoted by one helper with a test.
+Because the launch is an argv array, a path with spaces (the DSH app path) stays one item. The single join to a command string, if acpx needs it, is tested with such a path.
 
 ### Model per role (3.5, 3.6)
 
@@ -79,13 +79,15 @@ Role packs choose a model per role. Decided: the resident sends only a model id 
 - The runner policy for every helper except Kiro is exact match, no fuzzy match, no silent default. Reviewer and author must be in different families, taken from a runner-owned catalog. Kiro auto is its own family, `kiro-auto`.
 - Not verified in the note (no agent was run): DSH role injection, pinned adapter behavior. The task 1 spike covers the ones that touch this spec.
 
+This is its own PR (G) and needs two things first: a PROTOCOL change (optional `model` and `family` on the job) and a task in Aelios-resident that sends them. The runner reads the fields only after the resident advertises them; an old resident sends none, and the turn runs as today.
+
 The runner receives a model id for the turn and does this before the prompt is written:
 
 1. Read the session's config options from `session/new` or `session/load`. Find the option whose category is the model.
 2. If there is no model option, or the id is not one of its values, end the turn as `failed` with `reason: "error"` and a message that starts with `model_selection_unsupported:`, such as `model "<id>" for role "<role>" not offered by <plug>; offered: <ids>`. The prompt is not written.
 3. Otherwise send `session/set_config_option` and check the reply shows the new value. A reply that does not match is the same failure.
 
-There is no default-model fallback on any path except Kiro. Role packs stay helper-agnostic and may carry a model. When a job goes to Kiro, the runner skips the steps above, drops the model instruction and runs on auto. It does not fail. It writes one line in the thread: `Kiro runs on auto; the model in the role pack was not used (<model id>).` Kiro auto sends no thinking, so Kiro threads show no thinking blocks. The same check runs when a thread is resumed, because a resumed session keeps its earlier model. Whether acpx forwards `session/set_config_option` to the agent is a task 1 spike step. If it does not, the runner needs another way to reach the agent connection, and the spike result goes back to the owner before code is written.
+There is no default-model fallback on any path except Kiro. Role packs stay helper-agnostic and may carry a model. When a job goes to Kiro, the runner skips the steps above, drops the model instruction and runs on auto. It does not fail. It writes one line in the thread as a `notice` with `fyi: true`, so it is not chat noise: `Kiro runs on auto; the model in the role pack was not used (<model id>).` Kiro auto sends no thinking, so Kiro threads show no thinking blocks. The same check runs when a thread is resumed, because a resumed session keeps its earlier model. Whether acpx forwards `session/set_config_option` to the agent is a task 1 spike step. If it does not, the runner needs another way to reach the agent connection, and the spike result goes back to the owner before code is written.
 
 ## Stable launch identity (4)
 
@@ -96,6 +98,10 @@ Two parts: make the launch stable, and catch every change that remains.
 **Part 1. Tier moves out of the arguments.**
 
 - Kiro: the agent name becomes `aelios-runner-<threadhash>` (thread id and folder hashed). The tier lives in the file's content, which `kiro-agent.mjs` already rewrites before every turn. A new process reads it at start. So `read` to `edit` on the same thread keeps the same arguments and loads the same session.
+
+A running helper has already read the old file. So when the tier of a thread differs from the tier of its open session, the turn calls `runtime.close` for that session and then `ensureSession` again with `resumeSessionId`: the process restarts, reads the new file, and loads the same session. The session id is unchanged. A named test, `tier change keeps the session`, checks that the fake helper saw one `session/new` and one `session/load` in total (task 9.8).
+
+After the session is open, the turn carries over the fail-closed mode check of `helper.mjs` (`checkAgent`) for every tier: the current mode is compared with the mode the tier needs, and a mismatch or an unreadable mode fails the turn before the prompt. Task 1 finds where the current mode is read and where acpx exposes it (task 9.9).
 - `full` (decided): write a third config for `full` (all tools allowed) under the same name. No `--trust-all-tools`, so launch arguments never change with the tier. This needs a check against the real Kiro (task 3): that an `allowedTools: ["*"]` agent opens everything that `--trust-all-tools` opens. If real Kiro refuses it, `full` keeps the flag and Part 2 handles a move to or from `full` as a visible handoff with a recap.
 - DSH and `command`: no tier in the arguments today, nothing to move.
 
@@ -111,7 +117,7 @@ Before every turn, `launch.mjs` builds the current identity and compares `id`.
 
 | Case | What the runner does |
 |---|---|
-| Same | `ensureSession` with `resumeSessionId` = the saved id. If acpx cannot load it, the turn fails with a clear error (`how: "lost"` in the log); no silent new session. |
+| Same | `ensureSession` with `resumeSessionId` = the saved id. If acpx cannot load it (`SESSION_RESUME_REQUIRED`), the turn calls `prepareFreshSession`, opens a new session, passes the recap seed as history, sends a `notice`, and records the new id (`how: "lost"` in the log). Never a silent new session, and never a dead thread. |
 | Different | No call to `ensureSession` with the old key. Explicit handoff: settle the old session (12), open a new session with the new identity, send the recap, update the record, and put a `notice` in the receipt: "The helper setup changed, so this thread started a new helper session. Earlier context was passed as a short recap." |
 | No record yet (old thread from the legacy engine) | Adopt: record the current identity, resume the saved session id. |
 
@@ -127,7 +133,7 @@ Which acpx fields make it open a new session (agent name, command, argv, cwd) is
 | Retention (decided) | 30 days after the thread's last turn; total cap 500 MB, oldest thread first. Run at start and once a day. Both are config values. |
 | Delete by hand | `aelios-runner forget <thread>` and `forget --all`. `unpair` deletes the store by default (decided). |
 | Our own record | `state.json` keeps `sessionId`, `cwd`, `plugin`, `launch`, `asks` as now, plus a recap seed (the first prompt, up to 500 characters, redacted). |
-| DSH transcript | DSH has no `session/load`: the session resumes but old messages are not replayed. The first draft of this design kept only the recap seed, which is too thin. The runner now stores the DSH transcript itself in `<home>/transcripts/<thread>.jsonl` (mode `0600`): each prompt, each final text and the step titles, redacted, capped at 200 KB per thread (oldest entries drop first), same retention as the store. The recap for a new DSH session is built from it (`how: "fresh-after-lost"`, as today). Kiro keeps its own sessions and does not need it. |
+| DSH after a restart | DSH has no `session/load`. Its thread gets a new session with a recap built from the thread record and the journal (`how: "fresh-after-lost"`, as today), and a `notice` says so. There is no separate DSH transcript store. |
 
 shortcut: retention scans file times and does not read records, so a thread that is still in use but quiet for 30 days loses its saved conversation; the runner then opens a new session with a recap. Upgrade by touching the record on each turn if that hurts.
 
@@ -141,21 +147,23 @@ acpx has one `timeoutMs`. The runner sets that to the turn cap and puts the othe
 | initialize | spawned | `initialize` response seen in `onAcpMessage` | 60 s |
 | session new/load | `ensureSession` called | it resolves | 90 s |
 | first update | prompt written (`promptStarted`) | first event | 120 s |
-| inactivity | each event | the next event | 300 s |
+| inactivity | each event | the next event | off (when on: 300 s) |
 | cancel ack | cancel sent | turn result is cancelled or the process exits | 10 s |
 | turn cap | prompt written | result | optional; default 30 min (today's `turnTimeoutMs`) |
 
-While a permission request or question is held, the inactivity timer is paused and restarts from zero when the answer is given. A stage that fires cancels the turn and reports its own name (7.3). After the cancel limit the process group is stopped, as `acp.mjs` does now. These are config values under `timeouts`; the defaults are above the 24 s cold start plus MCP time seen on Kiro. The spike checks that acpx itself waits that long for a first start (no shorter hidden limit) and that the version is locked to `0.22.0`. Tune them after the real-helper runs in task 12.
+Inactivity is off by default, because a long silent tool call (a build, a test run) looks like a hang from the outside. When the owner turns it on, the timer is paused while any tool call is in progress (a `toolCallId` started without a final status) and while a permission request or question is held, and restarts from zero afterwards. How a stage timer stops an `ensureSession` that never returns (cancel the call, close the runtime, or kill the process) is a task 1 check (1.6); the stage PR builds on the answer. A stage that fires cancels the turn and reports its own name (7.3). After the cancel limit the process group is stopped, as `acp.mjs` does now. These are config values under `timeouts`; the defaults are above the 24 s cold start plus MCP time seen on Kiro. The spike checks that acpx itself waits that long for a first start (no shorter hidden limit) and that the version is locked to `0.22.0`. Tune them after the real-helper runs in task 12.
 
 ## Environment and streams (8)
 
 `env-allow.mjs` builds three things from `process.env` and the config:
 
-- Base allowlist: `PATH HOME USER LOGNAME SHELL LANG LC_* TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS XDG_*` and the proxy set `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy`.
+- Base allowlist: `PATH HOME USER LOGNAME SHELL LANG LC_* TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS SSH_AUTH_SOCK XDG_*` and the proxy set `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy`.
 - Per plug: `kiro` adds `KIRO_*` and `AWS_*` only if the config asks; `dsh` adds `DEEPSEEK_*` and `DSH_*`; `claude` adds `ANTHROPIC_*`; `codex` adds `OPENAI_*`.
 - Config `env` keys are passed as the owner wrote them.
 
-Decided: allowlist plus config `env`, no full inheritance. This is a behavior change: today a helper inherits the runner's whole environment. After this, a helper that needed an unlisted variable (a token for `gh`, a registry key) stops seeing it until the owner adds it to `env`. The migration note says so. The spike (task 1) also checks that acpx passes this environment, proxy names included, to the child. The runner's pairing token is never read from the environment, and a test proves it is absent.
+acpx takes exact variable names, not patterns. So the runner expands every prefix (`LC_*`, `XDG_*`, `KIRO_*`, `AWS_*`, `DEEPSEEK_*`) against its own `process.env` and hands acpx the resulting exact names.
+
+Decided: allowlist plus config `env`, no full inheritance. This is a behavior change: today a helper inherits the runner's whole environment. After this, a helper that needed an unlisted variable (a token for `gh`, a registry key) stops seeing it until the owner adds it to `env`. The migration note in tasks.md says so (with the expanded prefixes and `SSH_AUTH_SOCK`). The spike (task 1) also checks that acpx passes this environment, proxy names included, to the child. The runner's pairing token is never read from the environment, and a test proves it is absent.
 
 Stdout belongs to JSON-RPC (acpx owns the pipe). Stderr goes to the log through `redact`; the last three lines are used in start-up errors as today.
 
@@ -169,7 +177,7 @@ Stdout belongs to JSON-RPC (acpx owns the pipe). Stderr goes to the log through 
 | succeeded, blocked | `failed` | `error` | final line `BLOCKED:` (as today) |
 | needs_input / question | `needs_you` | | final line `ASK:`; `ask.kind = question` |
 | needs_input / permission | `needs_you` | | the tier refused something (denied list); `ask.kind = permission` |
-| problem (a status report) | `failed` | `refused`, `token_limit` or `no_result` (new, in `reason.mjs`; Waiting shows it as stuck with that reason) | `refusal`, `max_tokens`, `max_turn_requests`, or no text result. Never waiting for an answer (9.6). The text is the report |
+| problem (a status report) | `failed` | `refused`, `token_limit` or `no_result` (new, in `reason.mjs`; sent only after the resident advertises them, otherwise `error` with the name in the message; Waiting shows it as stuck with that reason) | `refusal`, `max_tokens`, `max_turn_requests`, or no text result. Never waiting for an answer (9.6). The text is the report |
 | cancelled | `cancelled` | | stop reason `cancelled`, or our cancel acknowledged |
 | failed | `failed` | `needs_login`, `missing_key`, `helper_missing`, `permission_denied`, `workspace_denied`, `model_selection_unsupported` (in the message), `error` | start failed, ACP error, a model-selection failure, a stage limit before the prompt was written |
 | outcome_unknown | `failed` | `interrupted` | the process died, the stream ended, or a stage limit fired after the prompt was written |
@@ -182,7 +190,9 @@ The prompt is never sent again by the runner. After an `outcome_unknown`, the ru
 
 `ask.kind` is additive and optional (10.4): `permission` or `question`. It is built into the outcome from the start but sent on the wire only after the resident PR (task 13) is merged; until then the field is left out of the receipt. A test pins both behaviors.
 
-Since resident #87 every finished machine turn wakes the resident, so the runner adds no wake logic of its own: each of the five outcomes just has to arrive as a receipt. Handed-back text is never cut mid-way (9.7). The summary is passed whole. If the wire has a limit, the cut is at a paragraph or sentence end with a "shortened" mark, never a fixed clip.
+Since resident #87 every finished machine turn wakes the resident, so the runner adds no wake logic of its own: each of the five outcomes just has to arrive as a receipt. Handed-back text is never cut mid-way (9.7). The summary is passed whole. Two cuts exist in the code today, the 4000-character summary cap in `runner.mjs` and `cut()` in `receipt.mjs`; task 17 removes them.
+
+The new reasons need the resident first. The resident PR adds `refused`, `token_limit` and `no_result` and advertises them on the heartbeat, as for `ask.kind`. The runner does not rely on an old resident turning an unknown reason into `error`. If the wire has a limit, the cut is at a paragraph or sentence end with a "shortened" mark, never a fixed clip.
 
 Helper elicitation is decided as not in this release: the runner does not advertise it (`elicitationModes: []`), so `question` comes only from the `ASK:` marker. It comes later together with `ask.kind` and a resident route like `waiting/permission`.
 
@@ -196,6 +206,10 @@ Helper elicitation is decided as not in this release: the runner does not advert
 4. An exception means acpx falls through to `deny-all`.
 
 The detail shown to the owner always has the full command (13.3).
+
+## Attachments (6.3)
+
+The turn reads `agentCapabilities.promptCapabilities.image` once the session is open (task 1.7 checks that acpx exposes it). If it is true, an image goes in as an image block. Otherwise, and for every non-image file, the attachment stays a path in the prompt text, as the legacy engine does. Tests cover both helper faces with the fake helper.
 
 ## Helper switch (12)
 
