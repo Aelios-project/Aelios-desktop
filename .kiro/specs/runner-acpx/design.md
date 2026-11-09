@@ -1,6 +1,6 @@
 # Design: runner on acpx
 
-What was read for this design: the runner on `main` (`helper.mjs`, `acp.mjs`, `plugins.mjs`, `runner.mjs`, `state.mjs`, `steps.mjs`), the diffs of open PRs #20 (Kiro agent config by tier, permission simplification) and #23 (interrupted turns, permission report retry), and the type declarations of `acpx@0.22.0` (`dist/runtime.d.ts`, `dist/agent-registry.d.ts`). No acpx code was run for this spec. Where the owner and Claude Code already ran something, it is marked "(run by Claude Code)". Anything else about acpx that is a guess is marked "check in task 1".
+What was read for this design: the runner on `main` (`helper.mjs`, `acp.mjs`, `plugins.mjs`, `runner.mjs`, `state.mjs`, `steps.mjs`), the merged code of #20 (`kiro-agent.mjs`, Kiro agent config by tier, permission simplification), #21 (200-character step titles) and #23 (interrupted turns, permission report retry), and the type declarations of `acpx@0.22.0` (`dist/runtime.d.ts`, `dist/agent-registry.d.ts`). No acpx code was run for this spec. Where the owner and Claude Code already ran something, it is marked "(run by Claude Code)". Anything else about acpx that is a guess is marked "check in task 1".
 
 ## Overview
 
@@ -89,7 +89,7 @@ There is no default-model fallback on any path. The same check runs when a threa
 
 ## Stable launch identity (4)
 
-The trap: if the arguments for a thread's helper change between turns, acpx quietly opens a new session and the earlier context is lost (found by Claude Code). After #20 the Kiro argument `--agent aelios-runner-<tier>-<hash>` changes when the tier changes, and `full` uses `--trust-all-tools` with no agent. A tier change is normal (the tier is the lower of the machine's tier and the job's tier, per turn).
+The trap: if the arguments for a thread's helper change between turns, acpx quietly opens a new session and the earlier context is lost (found by Claude Code). On `main` (from #20) the Kiro argument `--agent aelios-runner-<tier>-<hash>` changes when the tier changes, and `full` uses `--trust-all-tools` with no agent. A tier change is normal (the tier is the lower of the machine's tier and the job's tier, per turn).
 
 Two parts: make the launch stable, and catch every change that remains.
 
@@ -99,7 +99,7 @@ Two parts: make the launch stable, and catch every change that remains.
 - `full` (decided): write a third config for `full` (all tools allowed) under the same name. No `--trust-all-tools`, so launch arguments never change with the tier. This needs a check against the real Kiro (task 3): that an `allowedTools: ["*"]` agent opens everything that `--trust-all-tools` opens. If real Kiro refuses it, `full` keeps the flag and Part 2 handles a move to or from `full` as a visible handoff with a recap.
 - DSH and `command`: no tier in the arguments today, nothing to move.
 
-This edits `kiro-agent.mjs` and `plugins.mjs` from #20, so the code PR must start after #20 is merged.
+This edits `kiro-agent.mjs` and `plugins.mjs`, which are already in `main` from #20 (`agentName(tier, cwd)` becomes a name without the tier).
 
 **Part 2. Detect any other change.** At the first session the runner records, in the thread record in `state.json`:
 
@@ -182,7 +182,7 @@ The prompt is never sent again by the runner. After an `outcome_unknown`, the ru
 
 `ask.kind` is additive and optional (10.4): `permission` or `question`. It is built into the outcome from the start but sent on the wire only after the resident PR (task 13) is merged; until then the field is left out of the receipt. A test pins both behaviors.
 
-Handed-back text is never cut mid-way (9.7). The summary is passed whole. If the wire has a limit, the cut is at a paragraph or sentence end with a "shortened" mark, never a fixed clip.
+Since resident #87 every finished machine turn wakes the resident, so the runner adds no wake logic of its own: each of the five outcomes just has to arrive as a receipt. Handed-back text is never cut mid-way (9.7). The summary is passed whole. If the wire has a limit, the cut is at a paragraph or sentence end with a "shortened" mark, never a fixed clip.
 
 Helper elicitation is decided as not in this release: the runner does not advertise it (`elicitationModes: []`), so `question` comes only from the `ASK:` marker. It comes later together with `ask.kind` and a resident route like `waiting/permission`.
 
@@ -190,7 +190,7 @@ Helper elicitation is decided as not in this release: the runner does not advert
 
 `permit.mjs` builds the per-turn `onPermissionRequest` from the existing `answer()` in `permission.mjs`:
 
-1. `answer(tier, params)` gives `{ response, denied, hold }` (after #20: `full` allow once, else hold).
+1. `answer(tier, params)` gives `{ response, denied, hold }` (on `main` since #20: `full` allows once, else hold).
 2. If `hold`, the existing `journal.hold` is called with the redacted detail, which also drives `perm-report.mjs`. While it waits, `stages` pauses the inactivity timer.
 3. The ACP response is mapped to an acpx decision: `selected` with the one-time option id, or `reject_once`. Never `allow_always` or `reject_always`.
 4. An exception means acpx falls through to `deny-all`.
@@ -206,7 +206,7 @@ The detail shown to the owner always has the full command (13.3).
 `events.mjs` turns acpx events into three streams:
 
 - Text: `text_delta` with `stream: "output"`. Joined into the summary as today.
-- Steps: `tool_call` events. The step log is keyed by `toolCallId` and a later event with the same id replaces its status and title in place. `steps.mjs` gets a keyed `patch` (a small addition; it stays under 300 lines or the new part goes in `steps-keyed.mjs`). Titles over the limit use a middle ellipsis (`ellipsis.mjs`); the full command is kept on the step and sent for expand only when the protocol has a field for it (decided: kept locally for now; the field comes when the desktop needs it).
+- Steps: `tool_call` events. The step log is keyed by `toolCallId` and a later event with the same id replaces its status and title in place. `steps.mjs` gets a keyed `patch` (a small addition; it stays under 300 lines or the new part goes in `steps-keyed.mjs`). Titles over the limit (`TITLE_MAX = 200` in `steps.mjs`, from #21) use a middle ellipsis (`ellipsis.mjs`); the full command is kept on the step and sent for expand only when the protocol has a field for it (decided: kept locally for now; the field comes when the desktop needs it).
 - Side streams: `text_delta` with `stream: "thought"` goes to a `think` step title only. `status` events with `used`, `size`, `cost` are summed into a usage record and sent as a `notice` with `fyi: true` at the end of the turn when a cost is present.
 
 ## Research table

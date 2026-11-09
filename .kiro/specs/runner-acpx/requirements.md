@@ -1,6 +1,6 @@
 # Requirements: runner on acpx
 
-Status: design only. No code is written by this spec. The code PR starts from `main` after PRs #20, #23 (and #22 if it touches the runner) are merged. #21 is already merged.
+Status: design only. No code is written by this spec. PRs #20, #21 and #23 are merged, so the spec refers to the code in `main`: `kiro-agent.mjs` and the simplified `permission.mjs` (#20), the 200-character step titles (#21), the `interrupted` reason and the `perm-report.mjs` retry (#23). The resident side has #87 (a wake-up on every finished machine turn) and #88. PR #22 (the onboarding wizard) is open and out of scope.
 
 ## Introduction
 
@@ -52,7 +52,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 
 4.1 One thread SHALL have one acpx session. The session key SHALL be derived from the thread id and the machine, never from text.
 4.2 Each thread SHALL record a launch identity (helper, binary, adapter version, arguments, folder) the first time it opens a session. Every later turn SHALL compare it before the session is opened.
-4.3 A change of tier SHALL NOT change the launch identity. In particular, the Kiro `--agent` name SHALL NOT contain the tier (PR #20 names it `aelios-runner-<tier>-<hash>`; see the design for the change).
+4.3 A change of tier SHALL NOT change the launch identity. In particular, the Kiro `--agent` name SHALL NOT contain the tier (`kiro-agent.mjs` on `main` names it `aelios-runner-<tier>-<hash>`; see the design for the change).
 4.4 When the launch identity differs for any other reason (binary moved, adapter pin raised, folder changed, config edited), the runner SHALL NOT let acpx open a new session silently. It SHALL do an explicit handoff (12) and send a `notice` that says earlier context was passed as a recap.
 4.5 The runner SHALL pass the saved session id to acpx as a resume target, so a session that cannot be reloaded is an error the runner sees, not a quiet new session.
 4.6 Kiro `full` (decided): the runner SHALL NOT use `--trust-all-tools`. It SHALL generate an all-tools agent file, so launch arguments never change with the tier. If real Kiro refuses that file, a thread that moves to or from `full` SHALL get a visible handoff with a recap (12).
@@ -91,7 +91,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 
 9.1 Every turn SHALL end in exactly one of: `succeeded`, `cancelled`, `failed` (with a reason), or `outcome_unknown`. `needs_input` is not terminal.
 9.2 The state SHALL be decided from the prompt's stop reason, acpx errors, process exit and end-of-stream, in one function, with a table test.
-9.3 After a crash or a lost connection once the prompt was written, the state SHALL be `outcome_unknown`. It SHALL be sent as `failed` with `reason: "interrupted"` (from #23). The runner SHALL NOT send that prompt again by itself.
+9.3 After a crash or a lost connection once the prompt was written, the state SHALL be `outcome_unknown`. It SHALL be sent as `failed` with `reason: "interrupted"` (already in `main` from #23). The runner SHALL NOT send that prompt again by itself.
 9.4 A prompt that was never written (a failure before it) MAY be reported as `failed` with its real reason, and the owner decides whether to ask again.
 9.5 After a helper crash the runner SHALL NOT send a prompt that was already written again. It SHALL mark the outcome `outcome_unknown`, read the git state of the folder (`git status -sb`, last commit), put that in the report, and only then leave the decision to the owner.
 9.6 Terminal states SHALL map one-to-one to the resident's notifications: `done`, waiting for approval (permission), waiting for an answer (question), `cancelled`, `failed`. A status report (a refusal, a token limit, no result, stuck) SHALL NOT be labelled as waiting for an answer: it is `failed` with its reason, and its text is the report. Only an `ASK:` line is waiting for an answer.
@@ -106,7 +106,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 
 ### 11. Permissions
 
-11.1 The permission callback SHALL answer by tier exactly as `permission.mjs` does after #20: `full` allows once; any other tier holds the request for the owner (Allow / Deny). Only one-time choices SHALL be picked.
+11.1 The permission callback SHALL answer by tier exactly as `permission.mjs` does on `main` (since #20): `full` allows once; any other tier holds the request for the owner (Allow / Deny). Only one-time choices SHALL be picked.
 11.2 Anything that does not reach the callback or makes it throw SHALL be denied (acpx mode `deny-all`, non-interactive policy `deny`). The runner SHALL fail closed.
 11.3 The runner SHALL turn off acpx's file and terminal callbacks (`fs: false`, `terminal: false`). The client declares neither capability today, so the helper does its own work in its own sandbox.
 

@@ -2,7 +2,7 @@
 
 Written before any code. Nothing is done yet. Order matters: each task leaves `npm test` green (also with `kiro-cli` and `dsh` off `PATH`). Every new file stays at or under 300 lines. New logic goes in a new module, not into `runner.mjs`, `helper.mjs` or `steps.mjs`.
 
-Start condition: PRs #20, #23 (and #22 where it touches the runner) are merged to `main`. The code PRs branch from `main` after them. #21 is merged.
+Start condition: met. PRs #20, #21 and #23 are merged to `main` (and resident #87, #88), so the code PRs branch from `main` as it is. PR #22 (onboarding wizard, open) is out of scope; if it lands first and touches the runner, rebase.
 
 Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5, 6 (launch, state, env), 9 (permissions), 13 (PROTOCOL field), 15 (default flip). Small PRs may be merged after a normal review.
 
@@ -142,5 +142,5 @@ The seven earlier questions are answered and moved into requirements.md: runtime
 ## Open questions for the owner
 
 1. `role-packs.md` is in neither Aelios-resident nor Aelios-desktop. Where should it live (and should the runner read a pack manifest, or does the resident send only a model id and family per job)? This spec assumes the second.
-2. `role-packs.md` says Kiro v3 rejects `--agent` and picks a custom agent as an advertised mode. The existing per-thread agent file design (PR #20) used `--agent`. The task 1 spike checks this. If v3 cannot load our agent file at all, is the v2 engine with `--agent` an acceptable fallback, or must a thread run on the default agent?
+2. `role-packs.md` says Kiro v3 rejects `--agent` and picks a custom agent as an advertised mode. The merged per-thread agent file (`kiro-agent.mjs`, #20) uses `--agent`. The task 1 spike checks this. If v3 cannot load our agent file at all, is the v2 engine with `--agent` an acceptable fallback, or must a thread run on the default agent?
 3. A status report (refusal, token limit, no result) now ends as `failed` instead of `needs_you`, so it never reads as waiting for an answer. Is `failed` right for the resident, or does it need its own note kind?
