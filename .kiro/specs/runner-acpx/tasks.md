@@ -12,7 +12,7 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
   - [ ] 1.3 Write down in design.md: which fields make acpx open a new session (agent name, command, argv, cwd); file modes of its file store; what `onAcpMessage` shows for `initialize`; whether stderr is reachable
   - [ ] 1.4 If 1.2 fails for `createAcpRuntime` (cannot reattach after a restart), use the decided fallback: the shared runtime with state in `~/.acpx/` (5.7). Write the weaker guarantees into design.md and the README
   - [ ] 1.5 Model selection: check that acpx forwards `session/set_config_option` to the agent (against the fake agent, then real Kiro v3 and DSH), and that the reply is readable. If it does not, report to the owner before more code
-  - [ ] 1.6 Kiro v3: check that `kiro-cli acp --agent-engine=v3` without `--agent` runs, that the per-thread agent is selectable as an advertised mode, and that the model option is listed
+  - [ ] 1.6 Kiro v3 mode path: check that `kiro-cli acp --agent-engine=v3` without `--agent` runs, that our per-thread agent is listed as an advertised mode, that `session/set_mode` selects it (and the agent's tier takes effect), and that the model option is listed. If v3 cannot use our agent, switch to the decided v2 fallback (`--agent-engine=v2 --agent <name>`) and note it in design.md
   - [ ] 1.7 Environment and start-up: check that acpx passes the allowlisted environment (proxy names such as `ALL_PROXY`) to the child, and waits at least 60 s for a first start (Kiro cold start is about 24 s). Check the installed version is exactly `0.22.0`
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
@@ -58,7 +58,8 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 
 - [ ] 8. Verdicts and ask kinds
   - [ ] 8.1 `src/verdict.mjs`: pure `verdict(signals)` as in the design table
-  - [ ] 8.2 Table test `verdict.test.mjs`: one row per table line, plus: crash before the prompt is written is `failed` with its reason; crash after it is `interrupted`; a stage limit before and after the prompt; `cancelled` vs our cancel; denied list gives `permission`; `refusal`, `max_tokens` and no result give `failed`, never `needs_you`; only `ASK:` gives `question`; the five outcomes map one-to-one to the five notifications; long result text is passed whole, never clipped (9.7)
+  - [ ] 8.2 Table test `verdict.test.mjs`: one row per table line, plus: crash before the prompt is written is `failed` with its reason; crash after it is `interrupted`; a stage limit before and after the prompt; `cancelled` vs our cancel; denied list gives `permission`; `refusal`, `max_tokens` and no result give `failed` with reasons `refused`, `token_limit`, `no_result`, never `needs_you`; only `ASK:` gives `question`; the five outcomes map one-to-one to the five notifications; long result text is passed whole, never clipped (9.7)
+  - [ ] 8.3b Add `refused`, `token_limit`, `no_result` to `reason.mjs` and PROTOCOL (additive; Waiting shows them as stuck with the reason; an old resident treats an unknown reason as `error`, to check in the resident PR of task 13)
   - [ ] 8.4 After `interrupted`, the report carries `git status -sb` and the last commit line; test with a temp repo (9.5)
   - [ ] 8.3 Reuse `markers.mjs` and `reason.mjs`; do not copy their rules
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 10.1_
@@ -89,6 +90,7 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 - [ ] 11b. Model per role (mechanism)
   - [ ] 11b.1 `src/model.mjs`: `selectModel(session, wanted)` reads the model config option, exact-matches the id, sends `session/set_config_option`, verifies the reply; no fallback. `src/family.mjs`: runner-owned family catalog and the reviewer-versus-author check
   - [ ] 11b.2 Wire it into `turn-acpx.mjs` before the prompt is written, on new and resumed sessions
+  - [ ] 11b.2b Kiro v2 fallback: a job that asks for a specific model fails with `model_selection_unsupported`; test that the fake helper saw no prompt and the default model was not used
   - [ ] 11b.3 Tests in `model.test.mjs`: option found and set; **failure 1**: the agent lists no model option, turn fails with `model_selection_unsupported` and the fake helper saw no prompt; **failure 2**: the id matches no value (near matches such as a different case or a prefix also fail), same result and message lists the offered ids; reply with a different value fails; no default-model fallback on any path; same family fails before the prompt; unknown family fails
   - _Requirements: 3.5, 3.6, 3.8_
 
@@ -137,10 +139,14 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 
 ## Decided (owner answers)
 
-The seven earlier questions are answered and moved into requirements.md: runtime (`createAcpRuntime`, fallback to the shared runtime, 5.1 and 5.7), Kiro `full` without `--trust-all-tools` (4.6), environment allowlist plus config `env` (8.1), no helper elicitation in this release (10.3), retention 30 days and 500 MB with `unpair` deleting by default (5.4, 5.5), full command kept locally (13.2), packaging accepted (2.6).
+The earlier questions are answered and moved into requirements.md: runtime (`createAcpRuntime`, fallback to the shared runtime, 5.1 and 5.7), Kiro `full` without `--trust-all-tools` (4.6), environment allowlist plus config `env` (8.1), no helper elicitation in this release (10.3), retention 30 days and 500 MB with `unpair` deleting by default (5.4, 5.5), full command kept locally (13.2), packaging accepted (2.6).
+
+The last three are answered too:
+
+- Role packs (3.5): the resident sends only a model id and family per job. The runner reads no pack manifest. `role-packs.md` belongs in the Aelios-resident docs.
+- Kiro (3.2, 3.8): v3 first, our agent picked with `session/set_mode`. Fall back to v2 with `--agent` only if v3 cannot use our agent; there a job that asks for a specific model fails with `model_selection_unsupported`.
+- Status reports (9.6): refusal, token limit and no result are `failed` with a reason, shown in Waiting as stuck. `ask.kind` has no `problem`.
 
 ## Open questions for the owner
 
-1. `role-packs.md` is in neither Aelios-resident nor Aelios-desktop. Where should it live (and should the runner read a pack manifest, or does the resident send only a model id and family per job)? This spec assumes the second.
-2. `role-packs.md` says Kiro v3 rejects `--agent` and picks a custom agent as an advertised mode. The merged per-thread agent file (`kiro-agent.mjs`, #20) uses `--agent`. The task 1 spike checks this. If v3 cannot load our agent file at all, is the v2 engine with `--agent` an acceptable fallback, or must a thread run on the default agent?
-3. A status report (refusal, token limit, no result) now ends as `failed` instead of `needs_you`, so it never reads as waiting for an answer. Is `failed` right for the resident, or does it need its own note kind?
+None.

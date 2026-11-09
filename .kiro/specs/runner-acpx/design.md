@@ -59,7 +59,7 @@ One runtime object lives as long as the runner. `Runner.stop()` calls `runtime.s
 
 | Plug | Command | Notes |
 |---|---|---|
-| `kiro` | `kiro-cli acp --agent-engine=v3` | Not `kiro-cli-chat`. v3 is needed for the model-selection API. `role-packs.md` says v3 rejects `--agent`; the per-thread agent file `aelios-runner-<threadhash>` is then picked as an advertised mode after `session/new`. Spike confirms (task 1); `--agent` stays as the v2 fallback. Either way the launch arguments do not change with the tier. |
+| `kiro` | `kiro-cli acp --agent-engine=v3` | Not `kiro-cli-chat`. v3 is needed for the model-selection API. v3 rejects `--agent` (per `role-packs.md`); the per-thread agent file `aelios-runner-<threadhash>` is picked as an advertised mode with `session/set_mode` after `session/new` (decided). The spike confirms the mode path (task 1.6). Fallback only if v3 cannot use our agent: `--agent-engine=v2 --agent <name>`, where a job that asks for a specific model fails with `model_selection_unsupported`. Either way the launch arguments do not change with the tier. |
 | `dsh` | `dsh --profile acp` | Path from `onPath` or the macOS app path, as now. |
 
 Both are registered as a custom agent command in our registry, never taken from acpx's built-in table.
@@ -72,7 +72,7 @@ The registry value is one command string, so paths with spaces (the DSH app path
 
 ### Model per role (3.5, 3.6)
 
-Role packs choose a model per role. The source is the owner's research note `role-packs.md`. It lives in neither `Aelios-resident` nor `Aelios-desktop` (searched); the owner sent it as a file, so it is summarised here and not copied. What this spec takes from it:
+Role packs choose a model per role. Decided: the resident sends only a model id and a family per job. The runner reads no pack manifest; the role pack is one card stored in the cloud. The reference note is `role-packs.md`, which belongs in the Aelios-resident docs (it is not there yet; the owner sent it as a file). It is summarised here and not copied. What this spec takes from it:
 
 - A role pack names an agent, an exact model id and a `modelFamily`. The model option is the ACP config option with `category: "model"`; its values are the only valid ids. There is no `model/list` method and no model argument on `session/new`. The old `session/set_model` is gone; the runner does not use it.
 - Kiro v3 needs `--agent-engine=v3` and rejects `--agent`, `--model`, `--effort`. Claude (`claude-agent-acp`), Codex (`codex-acp`) and DSH all take `configId: "model"` through `session/set_config_option`.
@@ -85,7 +85,7 @@ The runner receives a model id for the turn and does this before the prompt is w
 2. If there is no model option, or the id is not one of its values, end the turn as `failed` with `reason: "error"` and a message that starts with `model_selection_unsupported:`, such as `model "<id>" for role "<role>" not offered by <plug>; offered: <ids>`. The prompt is not written.
 3. Otherwise send `session/set_config_option` and check the reply shows the new value. A reply that does not match is the same failure.
 
-There is no default-model fallback on any path. The same check runs when a thread is resumed, because a resumed session keeps its earlier model. Whether acpx forwards `session/set_config_option` to the agent is a task 1 spike step. If it does not, the runner needs another way to reach the agent connection, and the spike result goes back to the owner before code is written.
+There is no default-model fallback on any path. That includes the Kiro v2 fallback engine, which has no per-role model selection: a job that asks for a specific model there fails with `model_selection_unsupported`. The same check runs when a thread is resumed, because a resumed session keeps its earlier model. Whether acpx forwards `session/set_config_option` to the agent is a task 1 spike step. If it does not, the runner needs another way to reach the agent connection, and the spike result goes back to the owner before code is written.
 
 ## Stable launch identity (4)
 
@@ -169,7 +169,7 @@ Stdout belongs to JSON-RPC (acpx owns the pipe). Stderr goes to the log through 
 | succeeded, blocked | `failed` | `error` | final line `BLOCKED:` (as today) |
 | needs_input / question | `needs_you` | | final line `ASK:`; `ask.kind = question` |
 | needs_input / permission | `needs_you` | | the tier refused something (denied list); `ask.kind = permission` |
-| problem (a status report) | `failed` | `error` | `refusal`, `max_tokens`, `max_turn_requests`, or no text result. Never waiting for an answer (9.6). The text is the report |
+| problem (a status report) | `failed` | `refused`, `token_limit` or `no_result` (new, in `reason.mjs`; Waiting shows it as stuck with that reason) | `refusal`, `max_tokens`, `max_turn_requests`, or no text result. Never waiting for an answer (9.6). The text is the report |
 | cancelled | `cancelled` | | stop reason `cancelled`, or our cancel acknowledged |
 | failed | `failed` | `needs_login`, `missing_key`, `helper_missing`, `permission_denied`, `workspace_denied`, `model_selection_unsupported` (in the message), `error` | start failed, ACP error, a model-selection failure, a stage limit before the prompt was written |
 | outcome_unknown | `failed` | `interrupted` | the process died, the stream ended, or a stage limit fired after the prompt was written |
