@@ -18,7 +18,8 @@ cloud resident <-- HTTPS, runner dials out -- Runner loop -- ACP over stdio -- h
 | `helper.mjs` | One turn with a helper: start, initialize, open or resume the session, send the prompt, collect the answer, map it to a status. |
 | `acp.mjs` | A small JSON-RPC 2.0 client over a child process's stdio. |
 | `plugins.mjs` | How to start each helper (`kiro`, `dsh`, `command`). Nothing else differs between helpers. |
-| `permission.mjs` | Answers `session/request_permission` by tier and workspace. |
+| `permission.mjs` | Answers `session/request_permission`: `full` allows once, anything else is held for the owner. No judging. |
+| `kiro-agent.mjs` | Writes the Kiro agent config for the tier (what Kiro approves itself). |
 | `cloud.mjs` | HTTP calls: pair, register, revoke, heartbeat, poll, receipt. Sorts errors into retry, drop and revoked. |
 | `receipt.mjs` | Builds a receipt and cuts it to fit the size limit. |
 | `state.mjs` | Config and state files (mode 0600) and the home folder. |

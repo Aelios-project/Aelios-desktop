@@ -14,7 +14,7 @@ Honest note: this list was written after the first version of the code. It recor
   - [x] 3.3 Turn time limit
   - [x] 3.4 `ASK:` rule and the English convention line
 - [x] 4. Plugins (`src/plugins.mjs`): `kiro`, `dsh`, `command` (experimental)
-- [x] 5. Permissions (`src/permission.mjs`): tiers, workspace check, symlinks, allow once
+- [x] 5. Permissions (`src/permission.mjs`, `src/kiro-agent.mjs`): the helper's own config by tier, hold the rest, allow once
 - [x] 6. Cloud client (`src/cloud.mjs`): pair, register, revoke, heartbeat, poll, receipt, error sorting
 - [x] 7. Receipts (`src/receipt.mjs`): ids, redaction, size limit, 413 handling
 - [x] 8. Runner loop (`src/runner.mjs`)

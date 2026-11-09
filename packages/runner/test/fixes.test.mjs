@@ -7,7 +7,6 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { acquire, holder } from "../src/lock.mjs";
-import { judge } from "../src/permission.mjs";
 import { fit } from "../src/receipt.mjs";
 import { FakeCloud } from "./fake-cloud.mjs";
 import { final, rig } from "./rig.mjs";
@@ -107,25 +106,6 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.deepEqual(next.resolve, ["restart:" + old.workId]);
   });
 }
-
-test("permissions: a path outside the folder is refused on read and edit, whatever the kind; full is unrestricted", () => {
-  const dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "perm-")));
-  const outside = realpathSync(mkdtempSync(path.join(os.tmpdir(), "perm-out-")));
-  try {
-    writeFileSync(path.join(outside, "secret"), "x");
-    symlinkSync(outside, path.join(dir, "link"));
-    const ask = (kind, ...files) => ({ kind, locations: files.map(file => ({ path: file })) });
-    assert.equal(judge("read", ask("read", path.join(dir, "a")), dir).allow, true);
-    assert.equal(judge("read", ask("read", path.join(outside, "secret")), dir).allow, false);
-    assert.equal(judge("read", ask("search", path.join(dir, "a"), "/etc/passwd"), dir).allow, false, "one bad path is enough");
-    assert.equal(judge("read", ask("read", path.join(dir, "link", "secret")), dir).allow, false, "a link out of the folder is outside");
-    assert.equal(judge("read", ask("read", "relative/path"), dir).allow, false);
-    assert.equal(judge("edit", ask("fetch", "/etc/hosts"), dir).allow, false);
-    assert.equal(judge("edit", ask("fetch"), dir).allow, true, "edit lets the helper use the network");
-    assert.equal(judge("read", ask("fetch"), dir).allow, false);
-    assert.equal(judge("full", ask("read", "/etc/passwd"), dir).allow, true);
-  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
-});
 
 test("lock: one owner; a dead owner's lock is taken over", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "lock-"));

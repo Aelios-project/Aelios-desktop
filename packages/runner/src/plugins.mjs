@@ -2,6 +2,7 @@
 // The helper is chosen by this machine's config, never by a job.
 import { accessSync, constants } from "node:fs";
 import path from "node:path";
+import { writeAgent } from "./kiro-agent.mjs";
 
 const DSH_APP = "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh";
 
@@ -14,10 +15,16 @@ export function onPath(name) {
 }
 
 export const PLUGINS = {
-  // kiro-cli acp. Kiro asks for its own tool trust on the command line, so the "full" tier also opens it there.
+  // kiro-cli acp. Kiro decides for itself what it approves: "full" opens it on the command line, "read" and "edit" give it
+  // a generated agent config (kiro-agent.mjs). Everything else it asks about is held by the runner.
   kiro: {
     bin: () => onPath("kiro-cli") ?? "kiro-cli",
-    args: tier => ["acp", ...(tier === "full" ? ["--trust-all-tools"] : [])]
+    args: (tier, cwd, config) => {
+      if (tier === "full") return ["acp", "--trust-all-tools"];
+      if (!cwd || (tier !== "read" && tier !== "edit")) throw new Error("Kiro requires a workspace and a valid access tier to start with restricted permissions.");
+      const agent = writeAgent(tier, cwd, config.kiroAgentsDir);
+      return ["acp", "--agent", agent];
+    }
   },
   // dsh --profile acp (DeepSeek Harness's automation-only ACP server). It resumes with session/resume, not session/load.
   dsh: {
@@ -29,7 +36,7 @@ export const PLUGINS = {
 };
 
 /** @returns {{command: string, args: string[], env: Record<string,string>}} */
-export function launchOf(config, tier) {
+export function launchOf(config, tier, cwd) {
   const plug = PLUGINS[config.plugin];
   if (!plug) throw new Error(`unknown plugin "${config.plugin}"; use one of ${Object.keys(PLUGINS).join(", ")}`);
   if (config.plugin === "command") {
@@ -37,7 +44,12 @@ export function launchOf(config, tier) {
     return { command: config.command[0], args: config.command.slice(1), env: config.env ?? {} };
   }
   const bin = config.bin ?? process.env[`AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`] ?? plug.bin();
-  return { command: bin, args: [...plug.args(tier), ...(config.args ?? [])], env: config.env ?? {} };
+  const args = plug.args(tier, cwd, config);
+  if (config.plugin === "kiro" && tier !== "full" && (config.args ?? []).some(arg => /^(--agent(?:=|$)|--trust-all-tools(?:=|$)|--trust-tools(?:=|$)|-[^-]*a)/.test(arg))) {
+    throw new Error("Extra Kiro arguments cannot override the restricted agent or trust tools.");
+  }
+  return { command: bin, args: [...args, ...(config.args ?? [])], env: config.env ?? {},
+    ...(config.plugin === "kiro" && tier !== "full" ? { expectedAgent: args[2] } : {}) };
 }
 
 /** Can this command be started at all? Looked for on PATH, or at its path when it has one. */

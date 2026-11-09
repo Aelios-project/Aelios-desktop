@@ -24,7 +24,7 @@ export const CONVENTION = [
 
 export class Turn {
   /**
-   * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function, auto?: Function,
+   * @param {{files?: {saved: object[], failed: string[]}|null, launch: object, cwd: string, sessionId?: string, prompt: string, tier: string, timeoutMs?: number, hold?: Function,
    *          killAfterMs?: number, redact: (text: string) => string, onSession?: (sessionId: string, how: string) => Promise<void>|void,
    *          onStep?: (steps: {kind: string, title: string}[]) => void}} o
    */
@@ -58,13 +58,18 @@ export class Turn {
 
   async #request(method, params) {
     if (method !== "session/request_permission") throw new AcpError("method not found", -32601);
-    let { response, denied, hold, auto } = answer(this.tier, params, this.cwd);
-    for (const shown of [hold, auto]) if (shown?.detail) shown.detail = this.redact(shown.detail); // the folder and the pairing token stay off the owner's screen too
-    if (auto) this.auto?.(auto); // allowed because it only looks at things: written in the journal, never asked
-    // A refusal made by the tier alone waits for the owner. Allowing it covers this one request only.
-    if (hold && this.hold && await this.hold(hold, () => this.cancelled)) ({ response, denied } = answer("full", params, this.cwd));
+    let { response, denied, hold } = answer(this.tier, params);
+    if (hold?.detail) hold.detail = this.redact(hold.detail); // the folder and the pairing token stay off the owner's screen too
+    // A request the helper asked about waits for the owner. Allowing it covers this one request only.
+    if (hold && this.hold && await this.hold(hold, () => this.cancelled)) ({ response, denied } = answer("full", params));
     if (denied) this.denied.push(denied);
     return response;
+  }
+
+  #checkAgent(response) {
+    if (this.launch.expectedAgent && response?.modes?.currentModeId !== this.launch.expectedAgent) {
+      throw new Error("Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.");
+    }
   }
 
   async #open(capabilities) {
@@ -74,12 +79,19 @@ export class Turn {
       const method = capabilities.loadSession ? "session/load" : capabilities.sessionCapabilities?.resume ? "session/resume" : null;
       how = "fresh-after-lost";
       if (method) {
-        try { await this.conn.request(method, { sessionId: this.sessionId, ...base }, 60_000); this.opened = this.sessionId; return method === "session/load" ? "loaded" : "resumed"; }
+        let loaded;
+        try { loaded = await this.conn.request(method, { sessionId: this.sessionId, ...base }, 60_000); }
         catch (error) { if (!(error instanceof AcpError)) throw error; /* the helper says it has no such session */ }
+        if (loaded) {
+          this.#checkAgent(loaded);
+          this.opened = this.sessionId;
+          return method === "session/load" ? "loaded" : "resumed";
+        }
       }
     }
     const created = await this.conn.request("session/new", base, 60_000);
     if (typeof created.sessionId !== "string" || !created.sessionId) throw new AcpError("helper gave no session id", -32603);
+    this.#checkAgent(created);
     this.opened = created.sessionId;
     return how;
   }
