@@ -51,6 +51,20 @@ Only this machine's config picks the helper. A cloud message cannot change it.
 - `command` (experimental): any command that speaks ACP, for example the Claude Code adapter `claude-agent-acp`. In `config.json` write `"plugin": "command", "command": ["claude-agent-acp"]`. Signing in with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
 - Optional config: `bin` (another executable path), `args` (extra arguments), `env` (extra environment variables), `turnTimeoutMs` (longest single turn, default 30 minutes), `pollMs` (how often to fetch work, default 5 seconds), `backoffMaxMs` (longest wait between tries while the cloud is unreachable, default 60 seconds).
 
+### Time limits (acpx engine)
+
+`timeouts` in `config.json` sets a limit per stage, in milliseconds (`0` turns one off). A limit that runs out stops the turn and says which stage it was. A stage before the prompt is written ends `failed`; after it, the turn waits for you and is not sent again.
+
+| Key | Stage | Default |
+|---|---|---|
+| `spawn` | the helper process starts | 15000 |
+| `initialize` | the helper answers `initialize` | 60000 |
+| `session` | the session opens or reloads | 90000 |
+| `firstUpdate` | the first update after the prompt | 120000 |
+| `inactivity` | the next update; paused while a tool call runs or a permission waits for you | 0 (off) |
+| `cancel` | a cancelled helper stops, or it is killed | `killAfterMs`, else 10000 |
+| `turn` | the whole turn after the prompt | `turnTimeoutMs`, else 30 minutes |
+
 ### The helper's environment (acpx engine)
 
 With `"engine": "acpx"` a helper does not get the runner's whole environment. It gets:

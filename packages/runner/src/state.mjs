@@ -3,6 +3,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { checkTimeouts } from "./stages.mjs";
 import { ENGINES } from "./turn.mjs";
 
 export const homeDir = () => process.env.AELIOS_RUNNER_HOME || path.join(os.homedir(), ".aelios-runner");
@@ -38,6 +39,7 @@ export async function readConfig(file) {
   try { config = JSON.parse(await readFile(file, "utf8")); }
   catch (error) { throw new Error(error.code === "ENOENT" ? `no config at ${file}; run "aelios-runner pair" first` : `config is not valid JSON: ${file}`); }
   if (config.engine !== undefined && !ENGINES.includes(config.engine)) throw new Error(`config engine must be one of ${ENGINES.join(", ")}: ${file}`);
+  checkTimeouts(config.timeouts);
   return config;
 }
 export async function writeConfig(file, config) {
