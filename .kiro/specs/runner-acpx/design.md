@@ -59,7 +59,7 @@ One runtime object lives as long as the runner. `Runner.stop()` calls `runtime.s
 
 | Plug | Command | Notes |
 |---|---|---|
-| `kiro` | `kiro-cli acp --agent-engine=v3` | Not `kiro-cli-chat`. v3 is needed for the model-selection API. v3 rejects `--agent` (per `role-packs.md`); the per-thread agent file `aelios-runner-<threadhash>` is picked as an advertised mode with `session/set_mode` after `session/new` (decided). The spike confirms the mode path (task 1.6). Fallback only if v3 cannot use our agent: `--agent-engine=v2 --agent <name>`, where a job that asks for a specific model fails with `model_selection_unsupported`. Either way the launch arguments do not change with the tier. |
+| `kiro` | `kiro-cli acp --agent <name>` | Not `kiro-cli-chat`. This is the v2 path already tested in #20 (`kiro-agent.mjs`). The agent name is `aelios-runner-<threadhash>`, with no tier, so the launch arguments do not change with the tier. Kiro always runs on auto (decided). |
 | `dsh` | `dsh --profile acp` | Path from `onPath` or the macOS app path, as now. |
 
 Both are registered as a custom agent command in our registry, never taken from acpx's built-in table.
@@ -75,9 +75,9 @@ The registry value is one command string, so paths with spaces (the DSH app path
 Role packs choose a model per role. Decided: the resident sends only a model id and a family per job. The runner reads no pack manifest; the role pack is one card stored in the cloud. The reference note is `role-packs.md`, which belongs in the Aelios-resident docs (it is not there yet; the owner sent it as a file). It is summarised here and not copied. What this spec takes from it:
 
 - A role pack names an agent, an exact model id and a `modelFamily`. The model option is the ACP config option with `category: "model"`; its values are the only valid ids. There is no `model/list` method and no model argument on `session/new`. The old `session/set_model` is gone; the runner does not use it.
-- Kiro v3 needs `--agent-engine=v3` and rejects `--agent`, `--model`, `--effort`. Claude (`claude-agent-acp`), Codex (`codex-acp`) and DSH all take `configId: "model"` through `session/set_config_option`.
-- The runner policy is exact match, no fuzzy match, no silent default. Reviewer and author must be in different families, taken from a runner-owned catalog.
-- Not verified in the note (no agent was run): mode ids for Kiro v3 agents, DSH role injection, pinned adapter behavior. The task 1 spike covers the ones that touch this spec.
+- Kiro is not part of model selection: it always runs on its auto model (see below). Claude (`claude-agent-acp`), Codex (`codex-acp`) and DSH all take `configId: "model"` through `session/set_config_option`.
+- The runner policy for every helper except Kiro is exact match, no fuzzy match, no silent default. Reviewer and author must be in different families, taken from a runner-owned catalog. Kiro auto is its own family, `kiro-auto`.
+- Not verified in the note (no agent was run): DSH role injection, pinned adapter behavior. The task 1 spike covers the ones that touch this spec.
 
 The runner receives a model id for the turn and does this before the prompt is written:
 
@@ -85,7 +85,7 @@ The runner receives a model id for the turn and does this before the prompt is w
 2. If there is no model option, or the id is not one of its values, end the turn as `failed` with `reason: "error"` and a message that starts with `model_selection_unsupported:`, such as `model "<id>" for role "<role>" not offered by <plug>; offered: <ids>`. The prompt is not written.
 3. Otherwise send `session/set_config_option` and check the reply shows the new value. A reply that does not match is the same failure.
 
-There is no default-model fallback on any path. That includes the Kiro v2 fallback engine, which has no per-role model selection: a job that asks for a specific model there fails with `model_selection_unsupported`. The same check runs when a thread is resumed, because a resumed session keeps its earlier model. Whether acpx forwards `session/set_config_option` to the agent is a task 1 spike step. If it does not, the runner needs another way to reach the agent connection, and the spike result goes back to the owner before code is written.
+There is no default-model fallback on any path except Kiro. Role packs stay helper-agnostic and may carry a model. When a job goes to Kiro, the runner skips the steps above, drops the model instruction and runs on auto. It does not fail. It writes one line in the thread: `Kiro runs on auto; the model in the role pack was not used (<model id>).` Kiro auto sends no thinking, so Kiro threads show no thinking blocks. The same check runs when a thread is resumed, because a resumed session keeps its earlier model. Whether acpx forwards `session/set_config_option` to the agent is a task 1 spike step. If it does not, the runner needs another way to reach the agent connection, and the spike result goes back to the owner before code is written.
 
 ## Stable launch identity (4)
 

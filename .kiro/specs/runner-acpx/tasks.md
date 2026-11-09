@@ -11,9 +11,8 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
   - [ ] 1.2 Script `test/spike-acpx.mjs` (not part of `npm test`; run by hand): with `createAcpRuntime` and a `stateDir` in a temp folder, against `test/fake-agent.mjs`, check session keep, reattach after a runtime restart, follow-up queueing, cancel, permission callback, `fs:false`, `terminal:false`, `elicitationModes:[]`
   - [ ] 1.3 Write down in design.md: which fields make acpx open a new session (agent name, command, argv, cwd); file modes of its file store; what `onAcpMessage` shows for `initialize`; whether stderr is reachable
   - [ ] 1.4 If 1.2 fails for `createAcpRuntime` (cannot reattach after a restart), use the decided fallback: the shared runtime with state in `~/.acpx/` (5.7). Write the weaker guarantees into design.md and the README
-  - [ ] 1.5 Model selection: check that acpx forwards `session/set_config_option` to the agent (against the fake agent, then real Kiro v3 and DSH), and that the reply is readable. If it does not, report to the owner before more code
-  - [ ] 1.6 Kiro v3 mode path: check that `kiro-cli acp --agent-engine=v3` without `--agent` runs, that our per-thread agent is listed as an advertised mode, that `session/set_mode` selects it (and the agent's tier takes effect), and that the model option is listed. If v3 cannot use our agent, switch to the decided v2 fallback (`--agent-engine=v2 --agent <name>`) and note it in design.md
-  - [ ] 1.7 Environment and start-up: check that acpx passes the allowlisted environment (proxy names such as `ALL_PROXY`) to the child, and waits at least 60 s for a first start (Kiro cold start is about 24 s). Check the installed version is exactly `0.22.0`
+  - [ ] 1.5 Model selection: check that acpx forwards `session/set_config_option` to the agent (against the fake agent, then real DSH; Kiro is not part of model selection), and that the reply is readable. If it does not, report to the owner before more code
+  - [ ] 1.6 Environment and start-up: check that acpx passes the allowlisted environment (proxy names such as `ALL_PROXY`) to the child, and waits at least 60 s for a first start (Kiro cold start is about 24 s). Check the installed version is exactly `0.22.0`
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
 - [ ] 2. Engine switch and the seam
@@ -31,7 +30,7 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 - [ ] 4. Launch registry and launch identity (mechanism)
   - [ ] 4.1 `src/launch.mjs`: `registryOf(config)` (one entry, ours, never the acpx table), `identityOf(launch)`, `sameLaunch(record, current)`, command string quoting
   - [ ] 4.2 `adapters.json` and `src/adapters.mjs` (new plugs `claude`, `codex`, experimental): pinned package, version, integrity; started from a local install path
-  - [ ] 4.3 Tests in `launch.test.mjs`: `kiro` command is `kiro-cli acp --agent-engine=v3`, never `kiro-cli-chat`; `dsh` command is `dsh --profile acp`; both come from our registry, not acpx's table; DSH path with spaces is quoted; `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`; identity is equal across tiers and different when binary, args, version or folder change
+  - [ ] 4.3 Tests in `launch.test.mjs`: `kiro` command is `kiro-cli acp --agent <name>` with no tier in the name, never `kiro-cli-chat`; `dsh` command is `dsh --profile acp`; both come from our registry, not acpx's table; DSH path with spaces is quoted; `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`; identity is equal across tiers and different when binary, args, version or folder change
   - [ ] 4.4 Named tests `tier change keeps the session` and `launch change is a visible handoff, never silent` (see task 9 for the second; the first runs here against the fake helper and checks it saw `session/load`, not `session/new`)
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4, 4.5_
 
@@ -90,7 +89,7 @@ Mechanism PRs (they wait for Claude Code or Codex review): 1 (dependency), 4, 5,
 - [ ] 11b. Model per role (mechanism)
   - [ ] 11b.1 `src/model.mjs`: `selectModel(session, wanted)` reads the model config option, exact-matches the id, sends `session/set_config_option`, verifies the reply; no fallback. `src/family.mjs`: runner-owned family catalog and the reviewer-versus-author check
   - [ ] 11b.2 Wire it into `turn-acpx.mjs` before the prompt is written, on new and resumed sessions
-  - [ ] 11b.2b Kiro v2 fallback: a job that asks for a specific model fails with `model_selection_unsupported`; test that the fake helper saw no prompt and the default model was not used
+  - [ ] 11b.2b Kiro runs on auto: a job with a model goes to Kiro; the runner drops the model instruction, the turn runs, and the thread gets the line `Kiro runs on auto; the model in the role pack was not used (<model id>).`; test that the fake helper saw no `session/set_config_option` and the prompt was written; a job with no model writes no line; the family of a Kiro author or reviewer is `kiro-auto`
   - [ ] 11b.3 Tests in `model.test.mjs`: option found and set; **failure 1**: the agent lists no model option, turn fails with `model_selection_unsupported` and the fake helper saw no prompt; **failure 2**: the id matches no value (near matches such as a different case or a prefix also fail), same result and message lists the offered ids; reply with a different value fails; no default-model fallback on any path; same family fails before the prompt; unknown family fails
   - _Requirements: 3.5, 3.6, 3.8_
 
@@ -144,7 +143,7 @@ The earlier questions are answered and moved into requirements.md: runtime (`cre
 The last three are answered too:
 
 - Role packs (3.5): the resident sends only a model id and family per job. The runner reads no pack manifest. `role-packs.md` belongs in the Aelios-resident docs.
-- Kiro (3.2, 3.8): v3 first, our agent picked with `session/set_mode`. Fall back to v2 with `--agent` only if v3 cannot use our agent; there a job that asks for a specific model fails with `model_selection_unsupported`.
+- Kiro (3.2, 3.8): `kiro-cli acp --agent <name>`, always on auto. A model in a role pack is dropped with one line in the thread; the job does not fail.
 - Status reports (9.6): refusal, token limit and no result are `failed` with a reason, shown in Waiting as stuck. `ask.kind` has no `problem`.
 
 ## Open questions for the owner
