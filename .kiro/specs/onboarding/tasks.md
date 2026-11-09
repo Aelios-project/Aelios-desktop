@@ -8,13 +8,15 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
   - [ ] 1.3 Find how to list the AI Gateway built-in providers live (a `cf` command or the REST route)
   - [ ] 1.4 Deploy the resident on a free-plan account; record what happens with `BROWSER` and `IMAGES`, and decide the fallback
   - [ ] 1.5 Find how the Cloudflare MCP server accepts the `cf` token, and which tools are read-only
+  - [ ] 1.7 Verify that the `cf` profile token can be handed to `wrangler` through `CLOUDFLARE_API_TOKEN` in the child's environment only, and which scopes it needs (script upload, the `assets` directory, Durable Object migrations). If it cannot, `wrangler login` is the fallback. Record whether a second browser approval is needed. If yes, the new-owner count becomes 5 everywhere (requirement 11, design table, task 9.1)
   - [ ] 1.6 Write the answers into `design.md` and remove them from the "Not checked" notes
-  - _Requirements: 4, 5, 8, 9_
+  - _Requirements: 4, 5, 8_
 
 - [ ] 2. Bundles
   - [ ] 2.1 `scripts/build-bundles.mjs`: build Aelios and the resident from two named commits with `wrangler deploy --dry-run --outdir`
   - [ ] 2.2 `bundles/manifest.json` with commit, version tag and hash; a test fails when files and manifest differ
-  - [ ] 2.3 Carry each bundle's license; add both to `THIRD_PARTY_NOTICES.md`
+  - [ ] 2.3 The manifest lists everything in the design's "Bundles" list (assets, `run_worker_first`, migrations, cron, queue consumer, vars); a test fails when one is missing
+  - [ ] 2.4 Carry each bundle's license; add both to `THIRD_PARTY_NOTICES.md`
   - _Requirements: 10, 12_
 
 - [ ] 3. Host core
@@ -25,39 +27,39 @@ Written before any code. Nothing is done yet. Keep every file small and do one j
   - _Requirements: 1, 8, 9.2_
 
 - [ ] 4. Cloudflare and Aelios
-  - [ ] 4.1 `cloudflare.mjs`: auth profile, whoami, list Workers, detect Aelios and resident
-  - [ ] 4.2 `aelios.mjs`: d1, migrations, vectorize (dimension rule), queue, secret, deploy, health, gateway identity with the model pattern (never empty)
-  - [ ] 4.3 Fake `cf`, fake `wrangler` and fake Aelios for tests; test each step twice (second run does nothing) and a failure in the middle (re-run finishes)
+  - [ ] 4.1 `cloudflare.mjs`: auth profile, whoami, list Workers, detect Aelios and resident; a found resident switches to the existing-resident path, a found Aelios alone stops with an explanation, and nothing found is overwritten or rekeyed
+  - [ ] 4.2 `aelios.mjs`: d1, migrations, vectorize (dimension rule), queue, secret, deploy, health, gateway identity with the model pattern (never empty; pre-filled from the chosen model; a mismatch shows the warning and "I know", never blocks)
+  - [ ] 4.3 Secret rule test: local and Cloudflare both present is done; Cloudflare only goes to the "set a new one" card; "Start over" keeps the secrets. Fake `cf`, fake `wrangler` and fake Aelios for tests; test each step twice (second run does nothing) and a failure in the middle (re-run finishes)
   - _Requirements: 2, 4, 6_
 
 - [ ] 5. Resident
   - [ ] 5.1 `resident.mjs`: web key, secrets, deploy, health, pairing code
-  - [ ] 5.2 URL and key path first (works today); service-binding path after task 7.1
+  - [ ] 5.2 URL and key path (works today)
   - _Requirements: 3_
 
-- [ ] 6. Models, helpers, help
-  - [ ] 6.1 `models.mjs`: credits, BYOK built-in (live list), BYOK custom, test call
-  - [ ] 6.2 `codex.mjs`: loopback catch on 127.0.0.1:1455 with a paste fallback
-  - [ ] 6.3 `helpers.mjs`: detect `dsh`, `kiro-cli`, `claude`; reuse `ensurePaired`
-  - [ ] 6.4 `explain.mjs`: Workers AI plus read-only MCP; test that a write tool name waits for approval and that no secret reaches the model
-  - _Requirements: 5, 7, 9_
+- [ ] 6. Models and helpers
+  - [ ] 6.1 `models.mjs`: credits, BYOK built-in (live list), pattern check, test call
+  - [ ] 6.2 `helpers.mjs`: detect `dsh`, `kiro-cli`, `claude`; reuse `ensurePaired`
+  - _Requirements: 5, 6, 7_
 
-- [ ] 7. Changes in other repositories (each its own PR, reviewed before merge)
-  - [ ] 7.1 Aelios: a `WorkerEntrypoint` for the resident; resident: the `AELIOS` binding and its use before `fetch`
-  - [x] 7.2 Settled: an existing resident keeps its Aelios; the wizard asks about the resident first and skips Aelios when one exists
-  - _Requirements: 3.4_
+- [x] 7. Settled: an existing resident keeps its Aelios; the wizard asks about the resident first and skips Aelios
+  - _Requirements: 2.2_
 
 - [ ] 8. Client cards
   - [ ] 8.1 `wizard.mjs`, `secret-field.mjs`, and one `card-*.mjs` per card (A, R, S, H, error)
   - [ ] 8.2 English strings in `client/strings.mjs`; the preview gets a fake host for the wizard
-  - [ ] 8.3 Error card with "Try again" and "Help me check"
-  - _Requirements: 1, 8, 9, 11_
+  - [ ] 8.3 Error card with "Try again"; the "set a new one" card
+  - _Requirements: 1, 6, 8, 9, 11_
 
-- [ ] 9. Update
-  - [ ] 9.1 Compare deployed tag with the manifest; the Update card and the redeploy
-  - _Requirements: 10_
-
-- [ ] 10. Step count and end to end
-  - [ ] 10.1 A test that counts cards per path and fails past 3
-  - [ ] 10.2 One run in a real DSH: from installed plugin to the first line, on a test account
+- [ ] 9. Step count and end to end
+  - [ ] 9.1 A test that counts cards per path and fails past the bound: existing resident 2, new default 4 (5 only if task 1.7 says so)
+  - [ ] 9.2 One run in a real DSH: from installed plugin to the first line, on a test account
   - _Requirements: 11_
+
+- [ ] 10. After the contest
+  - [ ] 10.1 Update: compare deployed tag with the manifest; the Update card and the redeploy (requirement 10)
+  - [ ] 10.2 Has Aelios, no resident: `identities.mjs`, the identity pick (A1)
+  - [ ] 10.3 Codex sign-in `codex.mjs` (A2) and custom provider (A3)
+  - [ ] 10.4 Service binding in both other repositories, each its own PR (A4)
+  - [ ] 10.5 "Help me check" `explain.mjs`; test that a write tool name waits for approval and no secret reaches the model (A5)
+  - _Requirements: 10, A1 to A5_
