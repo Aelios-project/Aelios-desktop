@@ -1,0 +1,64 @@
+{
+  "builtAt": "2026-11-09T07:24:11.467Z",
+  "bundles": {
+    "aelios": {
+      "worker": "companion-memory-proxy",
+      "commit": "98b342449b82be6cef3324d02035b3617c00ac99",
+      "version": "0.1.0-98b3424",
+      "config": "wrangler.toml",
+      "files": {
+        "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+        "index.js": "ce4940d8bf2bec7ded4341481377a94768fc1edd4c4a89c82b129857b9a54cfd",
+        "migrations/0001_init.sql": "921702f59a51ed8223fe023c98ebb47d68b7af4f8093250d3a494951d29d3359",
+        "migrations/0002_v4_assembler_cache.sql": "7935340aaf7129bd7e8c5308dc445087e2bd02c75fde28fe4dcc8ea26f7ac0e2",
+        "migrations/0003_v2_memory_lifecycle.sql": "b6d0a6f6d12e3d46b5d1497590b573ea8439d36da2592038dd9252414e614bc4",
+        "migrations/0004_v2_daily_log.sql": "cc058dcee4956dd4f3ec52b749f51854085fa435ae35af7e1356424dd28e5a5d",
+        "migrations/0005_memory_candidates.sql": "3896762e018a9c7239c21becf1d1fac40a834342f06b4b2314b11c61807aa6d9",
+        "migrations/0006_dream_runs.sql": "c7a488286ff697598d3a4b2d9f73d49d53b7fbe5c60d5435c2cbb2e7d3ffda3b",
+        "migrations/0007_lmc5_relations_versioning_perception.sql": "d9bcdb654f7fc5a9b84e0385308e16d7198325fd2edaf0c19eac9943ac2b60a1",
+        "migrations/0008_weekly_log.sql": "0499745d4cffefe77325b2096d3ac53f883087bee71226e0b4f3e5d4f4e1848b",
+        "migrations/0009_monthly_log.sql": "94d4c3e77b272a1bbbdbac71898a265577332fb21a2bcfa55f50b076cd6b26b3",
+        "migrations/0010_messages_hash_unique.sql": "ee4a6a4b7a019766d9c4dde8be460a903a89bc189a700751e6ac0618e3ebc6e6",
+        "migrations/0011_e_axis_authored.sql": "9934e774b90ef7a686b687092e7d1b03cb1c7859073155c8ba24de35b615439c",
+        "migrations/0012_memory_gateway.sql": "9bb1dd3d1e34b876f36ce2afcd34c76dab85b1723e9176b9c34cf34727906fc0",
+        "migrations/0013_daily_log_sources.sql": "d523b7c8f86f76183412922f11df07f2fb7591ed7e1e38d0a8424388f09547f0",
+        "migrations/0014_quote_fts.sql": "b4c4e239ef4fc054229c6f338a3c3545f7aef51730c52968142f309e23982317",
+        "migrations/0015_message_seq.sql": "bbd497652720badb8469b2d04ead5c9f1e6aa8c5c41d02f53b591b325dc655ed",
+        "migrations/0016_memory_triggers.sql": "9148054d877db2e80196e349d6731f15358cc8ddb6a3f687d710e0d7d4ae3d12",
+        "migrations/0017_memory_import_export.sql": "a5dff280097dca0bc9a2f66faaf7db0f5e002e7b438e8688f09955833603fe2e",
+        "migrations/0018_notebook.sql": "e5d60367252466601dd0f05a6367aff2fe8a6e330796edc0831873cb2aa58fba",
+        "migrations/0019_chatgpt_signin.sql": "8727d2ea01462defb662adec89dcd0c7be4fcd6735b0f9ca9b36d9bfaa09e496",
+        "wrangler.toml": "a718a7616898b0fc08479d33cbe4d35d0fc0997c8a6464cedd5276caae966cca"
+      }
+    },
+    "resident": {
+      "worker": "aelios-resident",
+      "commit": "3b08ff7f64bc12385813208da1b6ac80206ca29c",
+      "version": "0.1.0-3b08ff7",
+      "config": "wrangler.jsonc",
+      "files": {
+        "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+        "index.js": "84e8e72c08ca8128323e1d523dfd5009d7fe59c6056d288e9d2cdabe56ea26f8",
+        "public/app.css": "fbd45628a7bd71ad00782d8405ff1d83958eb4850ac23445dd43aeabfe4f1cc5",
+        "public/app.js": "43d578434baf1dc844783772ec3c7234a1c90781f25e1c02745b95a86a656996",
+        "public/attach.js": "2dffdb75ba35e4041cad5b98c6e2bc769ec691205d99f6d5d2f90cb468737b5f",
+        "public/boxes.js": "e3c33218ca5cb5ca21315fe04c3db6e3b2cda1caf5d7a9295e19385a0a475141",
+        "public/group.js": "66cb0bd22be32841a41d258e26d30fa54c083328dabf65086e36b7421ae585c7",
+        "public/hands.mjs": "29ea87129e2e8897bd07f6a55f5281c2ebf182bf8c9d467d2317f608b0ff34ae",
+        "public/icon-192.png": "0a118bf99f4ff105ff35093aebd8379c6212dc296f7c3c3aa616bb4e1c755537",
+        "public/icon-512.png": "dbe8adbd6dfcfc611a037cbe9c2703d1a4fafb88070eb28cb44318b21301ddeb",
+        "public/index.html": "95f6098ebe9337a11f8f414e23afaba7dbf92f39ee4fbcc793885fa28880fe98",
+        "public/machine.js": "ca6d4551d50fdd446a6eb06fbfde9fdaabb89148bc010eb124a164164026ebe5",
+        "public/markdown.js": "24549309be393a5fe1beaf72493bef081db0efd6e749bc6bba9ad55347437b8f",
+        "public/models.json": "46d95482343ee3e6d9a1798b828534db2b7f9169ed33d3a1450dea5e11aa0621",
+        "public/progress.js": "dfd04c4acdedb6edc8a018c8971cac0be37cbb3a7e7ae5a05dfb1ee366e97fc1",
+        "public/sw.js": "060c60eb8a68c811af8d9f2fd917f6a551fea62f83289f55ab72f6f4f6b838f3",
+        "public/threads.css": "a2d16a4e647ca096c92bf099455257cfefd279bef5e16da4c09cd53bbbf46be5",
+        "public/vendor/alpine-3.14.9.min.js": "3ed1eed252488921df65e363d6715deb04d7f92aaedb9e52199fdf73cb1e0ad3",
+        "public/vendor/alpine-LICENSE.txt": "574eaf2754ffe89d9da3508e0b57ed2b1c8d7359b6cd3e088c948da1e04dd487",
+        "public/waiting.js": "37c683dae3a90703f072a774a44184475b56ffdb7af77720649ad6bdec2214d3",
+        "wrangler.jsonc": "e63364141e71e540f3cacf50758e3429ca9acec086c10e15b2ff5b071e335a05"
+      }
+    }
+  }
+}

@@ -14,7 +14,7 @@ const json = (value, status = 200) => Response.json(value, { status, headers: HE
 export function makeRoute(deps) {
   const { store, supervisor } = deps;
   const local = makeLocal(deps);
-  const onboarding = deps.credentials ? createOnboarding(deps) : null; // the wizard's own state and steps
+  const onboarding = deps.credentials && deps.bundles ? createOnboarding(deps) : null; // the wizard's own state and steps
 
   async function status() {
     const c = await store.get();

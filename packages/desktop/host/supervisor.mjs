@@ -44,7 +44,8 @@ export class Supervisor {
       const lines = buffer.split("\n");
       buffer = lines.pop();
       for (const line of lines.filter(Boolean)) { last = line; this.log = [...this.log, { at: this.now(), text: line }].slice(-LOG_LINES); }
-      if (this.state === "starting" && last) this.#set("running");
+      // Node prints its own warnings (a proxy notice, say) before the runner speaks; only its line means it is up.
+      if (this.state === "starting" && /^aelios-runner:/.test(last)) this.#set("running");
     });
     child.on("error", (e) => { this.child = null; this.#set("crashed", e.message); });
     child.on("close", (code) => { this.child = null; void this.#exited(code, last || buffer); });

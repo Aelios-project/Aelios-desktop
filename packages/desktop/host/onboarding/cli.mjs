@@ -23,7 +23,7 @@ export function makeCli({ spawn = nodeSpawn, env = process.env, redactor, timeou
     return { code, out: cleanOut, err: cleanErr, tail: tailOf(cleanOut, cleanErr), timedOut };
   };
 
-  function run(file, args, { input = null, extraEnv = {}, timeout = timeoutMs, cwd: dir = cwd } = {}) {
+  function run(file, args, { input = null, extraEnv = {}, timeout = timeoutMs, cwd: dir = cwd, onText } = {}) {
     redactor.guard([file, ...args]);
     return new Promise((resolve) => {
       let child;
@@ -48,8 +48,13 @@ export function makeCli({ spawn = nodeSpawn, env = process.env, redactor, timeou
       const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, timeout);
       timer.unref?.();
 
-      child.stdout?.on("data", (chunk) => { out = keep(out + chunk.toString("utf8")); });
-      child.stderr?.on("data", (chunk) => { err = keep(err + chunk.toString("utf8")); });
+      const read = (stream, chunk) => {
+        const text = chunk.toString("utf8");
+        onText?.(redactor.text(text));
+        return keep(stream + text);
+      };
+      child.stdout?.on("data", (chunk) => { out = read(out, chunk); });
+      child.stderr?.on("data", (chunk) => { err = read(err, chunk); });
       child.on("error", (error) => { err = keep(err + error.message); finish(null); });
       child.on("close", (code) => finish(code));
       if (input != null) child.stdin.end(input);

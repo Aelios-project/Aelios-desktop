@@ -141,7 +141,7 @@ Rules.
 - A secret step is `done` only when the secret exists in both places. Local yes, Cloudflare no: put it again. Neither: generate, store, put. Cloudflare yes, local gone: the step is not done; the flow goes to a "set a new one" card that says other clients of that Worker stop working, needs the owner's approval, then stores the new value locally first and puts it.
 - A step that fails stops the flow on its card. Earlier steps stay. Nothing is deleted. "Try again" runs the same step; the wizard restarts at the first step whose `check` is not `done`.
 - "Start over" forgets the saved progress only. It keeps the generated secrets in DSH credentials, so a re-run finds them and no Cloudflare secret is left that nobody knows. It never deletes cloud resources. A person who wants them gone does it in Cloudflare.
-- Order for a new install: auth, d1, migrations, vectorize, queue, secret, deploy Aelios, health, gateway identity, then the resident: secret, deploy, health, pairing.
+- Order for a new install: auth, d1, migrations, vectorize, queue, deploy Aelios, its secret, health, gateway identity, then the resident: deploy, its secrets, health, pairing. The secret comes after the first deploy because wrangler writes a secret onto an existing script; the wizard keeps our Worker name and never writes to one it did not create.
 - The wizard never deploys over, rekeys or changes a Worker it did not create. A found resident switches to the existing-resident path; a found Aelios alone stops the flow with an explanation. The card says that going on would overwrite, and does not offer it in contest scope.
 
 ## Bundles
