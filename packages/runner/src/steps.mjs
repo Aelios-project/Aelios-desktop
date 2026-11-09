@@ -4,6 +4,7 @@
 // on one line, with secrets hidden (detail.mjs) and the workspace folder replaced. The last STEPS_KEPT are kept.
 import path from "node:path";
 import { describeInput } from "./detail.mjs";
+import { middle } from "./ellipsis.mjs";
 
 export const STEPS_KEPT = 10;
 export const TITLE_MAX = 200;
@@ -19,7 +20,8 @@ export class StepLog {
     return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel : path.basename(file);
   }
 
-  #title(kind, update) {
+  /** The title for a call of this kind (also used to re-title a call when an update brings a new title or input). */
+  titleOf(kind, update) {
     const file = this.#place((Array.isArray(update.locations) ? update.locations : [])[0]?.path);
     // Only a command's own words are taken from rawInput: any other input can hold file contents, which never leave this machine.
     const raw = update.rawInput;
@@ -46,12 +48,12 @@ export class StepLog {
       title = this.edited.size > 1 ? `edited ${this.edited.size} files` : `edited ${file || "a file"}`;
       if (last?.kind === "edit") { if (last.title === title) return null; this.steps.pop(); }
     } else {
-      title = this.#title(kind, update);
+      title = this.titleOf(kind, update);
       if (last?.kind === kind && last.title === title) return null;
     }
     title = this.redact(title).replace(/\s+/g, " ").trim();
     if (!title) return null;
-    this.steps.push({ kind, title: title.length > TITLE_MAX ? title.slice(0, TITLE_MAX - 1) + "…" : title });
+    this.steps.push({ kind, title: middle(title, TITLE_MAX) });
     if (this.steps.length > STEPS_KEPT) this.steps.splice(0, this.steps.length - STEPS_KEPT);
     return this.steps.map(step => ({ ...step }));
   }

@@ -1,6 +1,7 @@
 // What a held permission request actually does, in a few words the owner can read before allowing it: the command or
 // arguments from the helper's rawInput, on one line, cut short, with anything that looks like a secret hidden. The
 // helper's title alone is not enough: it is the helper's own word for the action, not the action.
+import { middle } from "./ellipsis.mjs";
 
 export const DETAIL_MAX = 300;
 
@@ -24,11 +25,11 @@ function text(value) {
   return value === undefined || value === null ? "" : String(value);
 }
 
-/** One short, redacted line for a request's rawInput; "" when there is nothing to show. */
-export function describeInput(rawInput) {
+/** One short, redacted line for a request's rawInput, shortened in the middle to `max`; "" when there is nothing to show. */
+export function describeInput(rawInput, max = DETAIL_MAX) {
   let out;
   try { out = text(rawInput).slice(0, 4000); } catch { return ""; }
   out = out.replace(/[\x00-\x1f\x7f]+/g, " ").replace(/\s+/g, " ").trim();
   for (const [pattern, to] of PATTERNS) out = out.replace(pattern, to);
-  return out.length > DETAIL_MAX ? out.slice(0, DETAIL_MAX - 1) + "…" : out;
+  return middle(out, max);
 }

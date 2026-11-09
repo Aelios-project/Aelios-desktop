@@ -3,7 +3,7 @@
 // only retried when acpx says it could not load it, which happens before the prompt is written.
 import { createHash, randomUUID } from "node:crypto";
 import { CONVENTION } from "./convention.mjs";
-import { takeEvent } from "./events.mjs";
+import { takeEvent, usageLine } from "./events.mjs";
 import { NOTICES, joinNotice, seedOf, withRecap } from "./handoff.mjs";
 import { promptBlocks } from "./inbox.mjs";
 import { identityOf, registryOf, resolve, sameLaunch } from "./launch.mjs";
@@ -11,6 +11,7 @@ import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { makePermit } from "./permit.mjs";
 import { reasonOf } from "./reason.mjs";
 import { StepLog } from "./steps.mjs";
+import { KeyedSteps } from "./steps-keyed.mjs";
 
 const hash = text => createHash("sha256").update(text).digest("hex").slice(0, 12);
 const MODE_MESSAGE = "Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.";
@@ -23,6 +24,7 @@ export class AcpxTurn {
     this.cancelled = false; this.timedOut = false; this.modeBad = false; this.handle = null; this.live = null;
     this.current = ""; this.finished = []; this.denied = []; this.opened = null;
     this.stepLog = this.onStep ? new StepLog({ cwd: this.cwd, redact: this.redact }) : null;
+    this.keyed = this.stepLog && new KeyedSteps(this.stepLog);
   }
 
   /** Stop this turn. Safe at any moment: before the prompt is written it is simply never written. */
@@ -120,7 +122,8 @@ export class AcpxTurn {
         attempt = await this.#turn(await this.#prompt(record?.seed ?? ""));
       }
       const outcome = this.#outcome(attempt, how, plugin);
-      return handoff && outcome.sessionId ? { ...outcome, notice: joinNotice(handoff, outcome.notice) } : outcome;
+      const fyi = [handoff && outcome.sessionId ? handoff : "", usageLine(this.usage)].filter(Boolean).join("\n");
+      return fyi ? { ...outcome, notice: joinNotice(fyi, outcome.notice) } : outcome;
     } catch (error) {
       return this.#failed(error, how, plugin);
     } finally { clearTimeout(this.timer); clearTimeout(this.killTimer); }
