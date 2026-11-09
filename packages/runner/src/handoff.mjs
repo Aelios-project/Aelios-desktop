@@ -4,7 +4,8 @@ export const SEED_MAX = 500;
 
 export const NOTICES = {
   changed: "The helper setup changed, so this thread started a new helper session. Earlier context was passed as a short recap.",
-  lost: "The helper could not reload the session, so this thread started a new one. Earlier context was passed as a short recap."
+  lost: "The helper could not reload the session, so this thread started a new one. Earlier context was passed as a short recap.",
+  forgotten: "This thread's saved session was deleted on this machine, so it started a new one. Earlier context was passed as a short recap."
 };
 
 /** The seed to keep in the thread record: the first request, redacted and short. */

@@ -1,7 +1,7 @@
 // One turn through acpx: the same contract as helper.mjs (`new Turn(o).run()` and `cancel()`, the same outcome objects),
 // with acpx doing the process, the JSON-RPC and the session. The prompt is written once and never again: a lost session is
 // only retried when acpx says it could not load it, which happens before the prompt is written.
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { CONVENTION } from "./convention.mjs";
 import { takeEvent, usageLine } from "./events.mjs";
 import { NOTICES, joinNotice, seedOf, withRecap } from "./handoff.mjs";
@@ -10,13 +10,14 @@ import { identityOf, registryOf, resolve, sameLaunch } from "./launch.mjs";
 import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { makePermit } from "./permit.mjs";
 import { reasonOf } from "./reason.mjs";
+import { forget, threadHash } from "./retention.mjs";
 import { buildRecap, gitState } from "./recap.mjs";
 import { closeOld } from "./switch.mjs";
 import { StepLog } from "./steps.mjs";
 import { KeyedSteps } from "./steps-keyed.mjs";
 import { OPENING, Stages, limitsOf, stageMessage } from "./stages.mjs";
 
-const hash = text => createHash("sha256").update(text).digest("hex").slice(0, 12);
+const hash = threadHash; // shared with retention.mjs, which finds a thread's saved sessions by it
 const MODE_MESSAGE = "Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.";
 
 export class AcpxTurn {
@@ -130,7 +131,12 @@ export class AcpxTurn {
       else if (event === "opened") this.stages.stop("session");
     };
     try {
-      if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap
+      if (record?.forgotten) { // its saved session was deleted here (forget, retention): never reload it, start again with a recap
+        const old = record.launch ? `${hash(thread)}:${record.launch.id.slice(0, 8)}` : key;
+        await closeOld(engine, old, record.launch ? `${record.launch.plugin}:${hash(thread)}` : name, "forgotten");
+        forget(engine.home, thread); // a live runtime may have saved the record again while closing it
+        resume = undefined; handoff = NOTICES.forgotten; history = await this.#recap(); how = "handoff";
+      } else if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap
         await closeOld(engine, `${hash(thread)}:${record.launch.id.slice(0, 8)}`, `${record.launch.plugin}:${hash(thread)}`, "launch changed");
         resume = undefined; handoff = NOTICES.changed; history = await this.#recap(); how = "handoff";
       } else if (resume && engine.tiers.get(key) && engine.tiers.get(key) !== this.tier) { // the helper reads its agent file at start: restart it, keep the session
@@ -141,7 +147,7 @@ export class AcpxTurn {
       this.handle = await this.#open(key, name, resume);
       if (!this.handle) return this.#stopped(how);
       this.opened = this.handle.backendSessionId ?? resume;
-      const extras = () => ({ launch: identity, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
+      const extras = () => ({ launch: identity, forgotten: undefined, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
       await this.onSession?.(this.opened, how, extras());
       if (this.cancelled) return this.#stopped(how);
       let attempt = await this.#turn(await this.#prompt(history));

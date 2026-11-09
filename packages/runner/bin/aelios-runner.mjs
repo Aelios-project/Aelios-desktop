@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// aelios-runner pair | start | status | unpair   (see ../README.md)
+// aelios-runner pair | start | status | unpair | forget   (see ../README.md)
 import { mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
@@ -13,6 +13,7 @@ import { PLUGINS, available, binOf } from "../src/plugins.mjs";
 import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
 import { StateFile, homeDir, readConfig, writeConfig } from "../src/state.mjs";
+import { forgetCommand, keepSwept, storeOnUnpair, storeStatus } from "./forget.mjs";
 
 const [command, ...rest] = process.argv.slice(2);
 const home = homeDir();
@@ -63,14 +64,15 @@ async function start() {
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => control.abort());
     const runner = new Runner({ config, state, journal, log: (...args) => console.error(new Date().toISOString(), ...args) });
     console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}`);
-    await runner.start(control.signal);
+    const unsweep = await keepSwept(home, config.retention, state, (...args) => console.error(new Date().toISOString(), ...args));
+    try { await runner.start(control.signal); } finally { unsweep(); }
   } finally { release(); }
 }
 
 async function status() {
   const config = await readConfig(configFile), s = await state.read();
   console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), plugin: config.plugin, access: config.access, workspace: config.workspace,
-    threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length }, null, 2));
+    threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length, store: storeStatus(home) }, null, 2));
 }
 
 async function unpair() {
@@ -83,9 +85,13 @@ async function unpair() {
     try { await revoke({ url: config.url, resident: config.resident, webKey: await webKey(), runnerId: s.device.runnerId }); }
     catch (error) { console.error("The resident did not confirm the revoke (" + error.message + "). Revoke this runner from the web page too."); }
     await state.update(next => { next.device = null; next.claimKey = null; next.queue = []; next.outbox = []; next.current = null; });
-    console.log("Unpaired. Waiting work and unsent receipts are dropped; the threads' sessions are kept.");
+    console.log("Unpaired. Waiting work and unsent receipts are dropped.");
+    console.log(await storeOnUnpair(home, rest, state));
   } finally { release(); }
 }
+
+/** Runs fn while holding the runner lock: refused while `start` runs, so state.json keeps one writer. */
+async function locked(fn) { const release = acquire(lockFile); try { return await fn(); } finally { release(); } }
 
 async function showOverview() { console.log(JSON.stringify(overview(await readConfig(configFile), await state.read(), journal))); }
 
@@ -97,6 +103,6 @@ async function permit() {
   console.log("Recorded.");
 }
 
-const commands = { pair, start, status, unpair, overview: showOverview, permit };
-if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit"); process.exit(2); }
+const commands = { pair, start, status, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)) };
+if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit|forget"); process.exit(2); }
 commands[command]().catch(error => { console.error("aelios-runner:", error.message); process.exit(1); });

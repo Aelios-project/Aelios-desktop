@@ -82,11 +82,21 @@ Migration: a helper that needed another variable (a token for `gh`, a registry k
 
 ```sh
 aelios-runner start      # runs in the foreground; Ctrl-C stops it. On a VPS use systemd or tmux
-aelios-runner status     # pairing, queue, receipts not yet sent
-aelios-runner unpair     # revoke the pairing (the web key is needed again to re-pair)
+aelios-runner status     # pairing, queue, receipts not yet sent, the session store's path and size
+aelios-runner unpair     # revoke the pairing and delete the session store (--keep-store keeps it)
+aelios-runner forget <thread>   # delete one thread's saved helper sessions; forget --all deletes them all
 ```
 
 When it stops, a turn that is running is handed back as `needs_you`. It is not redone on its own.
+
+## What is saved on this machine
+
+With `"engine": "acpx"` the runner keeps the helpers' sessions in `~/.aelios-runner/acpx/` (or `$AELIOS_RUNNER_HOME/acpx/`), folders `0700` and files `0600`. A session file holds the whole conversation, tool input and output included. **It can hold secrets a tool printed** (file contents, command output, tokens). The runner never uploads it and never writes it to its log.
+
+- A thread's sessions are deleted 30 days after its last turn, and the store is kept under 500 MB, oldest thread first. The sweep runs when `start` begins and once a day. Change it with `"retention": { "days": 30, "maxMb": 500 }` in `config.json`.
+- `forget <thread>` and `forget --all` delete by hand. Stop `start` first: `forget` refuses while it runs. `unpair` deletes the store unless you pass `--keep-store`.
+- The runner's own thread record in `state.json` stays, but without the session to reload. So a thread whose sessions were deleted starts a new session with a recap and a notice. It never reloads the old one from the helper.
+- The helper may keep its own copy (Kiro, for example, keeps its sessions under its own folder). `forget` does not touch that.
 
 ## What the permission tiers can and cannot block
 
