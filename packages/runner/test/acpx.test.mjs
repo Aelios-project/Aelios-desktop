@@ -79,7 +79,7 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.match(done.notice.text, /could not reload the session/);
     assert.equal(count(r, "session/new"), 2);
     assert.equal(r.prompts().length, 2, "the lost-session prompt was written once");
-    assert.match(r.prompts()[1].full, /history from an earlier session[^]*first request in this thread was: first/);
+    assert.match(r.prompts()[1].full, /history from an earlier session[^]*first request in this thread\): first/);
     assert.equal((await r.state.read()).threads.t_main.sessionId, "sess-2");
     assert.equal(done.sessionId, "sess-2");
     await restart(r);
