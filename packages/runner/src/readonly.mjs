@@ -10,12 +10,8 @@ const SAFE_LINE = /^[A-Za-z0-9_@%+=:,./~^ ;-]*$/;
 const FLAG = /^-[A-Za-z0-9]+$/;
 const LONG_FLAG = /^--[a-z][a-z-]*(=[A-Za-z0-9_.,:/^~%-]+)?$/;
 const NAME = /^[A-Za-z0-9_.-]+$/;
-const pathLike = word => word.startsWith("/") || word.startsWith("~") || word.split("/").includes("..");
-/** Flags that make git write a file, run a program or read outside the folder. */
-const GIT_NO = /^(--output|--ext-diff|--textconv|--no-index|--exec|--open-files-in-pager|-O)/;
-const GIT_BRANCH_FLAGS = new Set(["-a", "-r", "-v", "-vv", "--list", "--show-current", "--all", "--remotes", "--verbose"]);
 
-/** Every word is a path inside the workspace (or, for a git revision, not path-like at all). */
+/** Every word is a path inside the workspace. */
 function paths(words, cwd, { need = false } = {}) {
   if (need && !words.length) return false;
   return words.every(word => word !== "-" && !word.startsWith("~") && inside(cwd, path.resolve(cwd, word)));
@@ -38,8 +34,9 @@ const RULES = {
   cat: (args, cwd) => args.every(word => word === "-n" || !word.startsWith("-")) && paths(args.filter(word => word !== "-n"), cwd, { need: true }),
   wc: (args, cwd) => args.every(word => /^-[lwcm]$/.test(word) || !word.startsWith("-")) && paths(args.filter(word => !word.startsWith("-")), cwd, { need: true }),
   head: (args, cwd) => counted(args, cwd),
-  tail: (args, cwd) => counted(args, cwd),
-  git: (args, cwd) => git(args, cwd)
+  tail: (args, cwd) => counted(args, cwd)
+  // No git: the helper runs the command, not the runner, so safe flags cannot be forced on it, and git runs what
+  // the repository config says (core.fsmonitor, diff.external, ...). Every git command goes to the owner.
 };
 
 /** head / tail: `-n N`, `-c N`, `-N`, then files. Never `-f` (tail would wait forever). */
@@ -53,19 +50,6 @@ function counted(args, cwd) {
     else files.push(word);
   }
   return paths(files, cwd, { need: true });
-}
-
-function git([sub, ...args], cwd) {
-  if (!["status", "log", "diff", "show", "branch"].includes(sub)) return false;
-  if (sub === "branch") return args.every(word => GIT_BRANCH_FLAGS.has(word)); // a name would create a branch
-  let after = false;
-  for (const word of args) {
-    if (after) { if (!paths([word], cwd)) return false; continue; }
-    if (word === "--") after = true;
-    else if (word.startsWith("-")) { if (GIT_NO.test(word) || !(FLAG.test(word) || LONG_FLAG.test(word))) return false; }
-    else if (pathLike(word) && !paths([word], cwd)) return false; // a revision is not path-like; a path must be inside
-  }
-  return true;
 }
 
 /** The commands of a request's rawInput as lists of words, or null when it is not a plain command line. */

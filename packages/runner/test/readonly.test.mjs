@@ -21,8 +21,8 @@ const no = command => assert.equal(readOnly({ command }, dir), false, command);
 
 test("the listed read-only commands pass, alone or joined by ;", () => {
   for (const command of ["scutil --get ComputerName", "sw_vers", "sw_vers -productVersion", "uname", "uname -m", "uname -a", "hostname", "whoami", "pwd",
-    "ls", "ls -la", "ls src", "ls -la src a.txt", "cat a.txt", "head -n 5 a.txt", "tail -20 a.txt", "wc -l a.txt src/../a.txt", "git status", "git status --porcelain=v1",
-    "git log --oneline -n 5", "git diff", "git diff HEAD~1 -- a.txt", "git show HEAD", "git branch", "git branch -a", "git branch --show-current", "node --version", "npm --version",
+    "ls", "ls -la", "ls src", "ls -la src a.txt", "cat a.txt", "head -n 5 a.txt", "tail -20 a.txt", "wc -l a.txt src/../a.txt",
+    "node --version", "npm --version",
     "which node", "which -a git", `cat ${path.join(dir, "a.txt")}`]) yes(command);
   yes("scutil --get ComputerName; sw_vers; uname -m"); // the real one that started this
   yes("pwd;"); // a trailing ; is nothing
@@ -39,7 +39,8 @@ test("a program or argument off the list is not read-only", () => {
   for (const command of ["rm a.txt", "touch x", "curl http://example.com", "sh -c ls", "bash", "env", "echo hi", "find . -delete", "sed -i s/a/b/ a.txt", "/bin/ls", "./ls", "sudo ls",
     "scutil --set ComputerName x", "scutil --get Other", "hostname newname", "uname x", "whoami x", "tail -f a.txt", "cat", "cat -v a.txt", "head a.txt -z", "wc --files0-from=a.txt",
     "node script.js", "node -e 1", "npm install", "npm run build", "which ../x", "git push", "git commit", "git checkout x", "git branch newname", "git branch -D x", "git -C / status",
-    "git diff --output=x", "git log --ext-diff", "git diff --no-index a b", "git diff -Oorder", "git config x y", "git status -- ../x", "git diff /etc/passwd"]) no(command);
+    "git diff --output=x", "git log --ext-diff", "git diff --no-index a b", "git diff -Oorder", "git config x y", "git status -- ../x", "git diff /etc/passwd",
+    "git status", "git status --porcelain=v1", "git log --oneline -n 5", "git diff", "git show HEAD", "git branch", "git branch --show-current"]) no(command);
 });
 
 test("a path outside the workspace, or a link out of it, is not read-only", () => {
@@ -48,7 +49,7 @@ test("a path outside the workspace, or a link out of it, is not read-only", () =
 
 test("the shape of rawInput: a string, command with args, an argv list; anything else asks", () => {
   assert.equal(readOnly("uname -m", dir), true);
-  assert.equal(readOnly({ command: "git", args: ["status"] }, dir), true);
+  assert.equal(readOnly({ command: "git", args: ["status"] }, dir), false, "git runs what the repository config says");
   assert.equal(readOnly({ cmd: "pwd" }, dir), true);
   assert.equal(readOnly({ command: ["ls", "-la"] }, dir), true);
   assert.equal(readOnly({ command: "git status", args: ["x"] }, dir), false, "a command with spaces and args is ambiguous");
