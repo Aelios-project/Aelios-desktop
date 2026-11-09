@@ -31,7 +31,7 @@ const cancelled = new Set(); const cancelWaiters = new Map();
 const ask = (method, params) => new Promise(resolve => { const id = nextId++; waiting.set(id, resolve); send({ jsonrpc: "2.0", id, method, params }); });
 
 const agentFile = () => { try { const c = JSON.parse(fs.readFileSync(`${process.env.FAKE_AGENTS}/${args[args.indexOf("--agent") + 1]}.json`, "utf8")); return { allowedTools: c.allowedTools, bash: Boolean(c.toolsSettings?.execute_bash) }; } catch { return null; } };
-store(data => data.log.push({ event: "start", args, ...(args.includes("--agent") && process.env.FAKE_AGENTS ? { agentFile: agentFile() } : {}) }));
+store(data => data.log.push({ event: "start", pid: process.pid, args, ...(args.includes("--agent") && process.env.FAKE_AGENTS ? { agentFile: agentFile() } : {}) }));
 const image = process.env.FAKE_IMAGE ? process.env.FAKE_IMAGE === "1" : !dsh;
 process.stdout.write("this line is not JSON, a client must skip it\n");
 
@@ -82,6 +82,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   if (method === "session/cancel") { store(data => data.log.push({ event: method, sessionId: params.sessionId })); cancelled.add(params.sessionId); cancelWaiters.get(params.sessionId)?.(); return; }
   store(data => data.log.push({ event: method, sessionId: params?.sessionId, cwd: params?.cwd, caps: params?.clientCapabilities }));
   if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: { ...(dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true }), ...(image ? { promptCapabilities: { image: true } } : {}) }, authMethods: [] });
+  if (method === "session/new" && process.env.FAKE_HANG_NEW) return; // never answers: a stuck open
   if (method === "session/new") {
     const data = store(d => { d.n += 1; d.sessions[`sess-${d.n}`] = { cwd: params.cwd }; });
     return reply({ sessionId: `sess-${data.n}`, ...mode() });

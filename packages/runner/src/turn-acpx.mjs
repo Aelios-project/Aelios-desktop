@@ -31,12 +31,25 @@ export class AcpxTurn {
     this.cancelled = true;
     void this.live?.cancel().catch(() => {});
     // A helper that does not answer a cancel is stopped for good, so a stuck turn cannot hold the thread.
-    this.killTimer = setTimeout(() => { if (this.handle) void this.engine.runtime.close({ handle: this.handle, reason: "cancel limit" }).catch(() => {}); }, this.killAfterMs);
+    this.killTimer = setTimeout(() => void this.#kill(), this.killAfterMs);
     this.killTimer.unref?.();
   }
 
+  /** Close the helper. While the session is still opening acpx has no handle to close, so the process is stopped by pid. */
+  async #kill() {
+    const { runtime, pids } = this.engine;
+    if (this.handle) await runtime.close({ handle: this.handle, reason: "cancel limit" }).catch(() => {});
+    else if (pids.has(this.slot?.sessionKey)) try { process.kill(pids.get(this.slot.sessionKey), "SIGKILL"); } catch { /* already gone */ }
+    if (!this.handle) { this.gaveUp = true; this.release?.(null); } // run() stops waiting for the open either way
+  }
+
+  /** The handle, or null when a cancel gave up on an open the helper never answered. */
   #open(key, name, resume) {
-    return this.engine.runtime.ensureSession({ sessionKey: key, agent: name, mode: "persistent", cwd: this.cwd, ...(resume ? { resumeSessionId: resume } : {}) });
+    this.slot = { sessionKey: key, agent: name };
+    const opening = this.engine.runtime.ensureSession({ ...this.slot, mode: "persistent", cwd: this.cwd, ...(resume ? { resumeSessionId: resume } : {}) });
+    // When run() has stopped waiting, a late failure is not news and a late session is closed, so no helper is left behind.
+    opening.then(handle => { if (this.gaveUp) void this.engine.runtime.close({ handle, reason: "cancelled while opening" }).catch(() => {}); }, () => {});
+    return Promise.race([opening, new Promise(resolve => { this.release = resolve; })]);
   }
 
   async #closeOpen(key, name, reason) {
@@ -89,6 +102,7 @@ export class AcpxTurn {
       engine.tiers.set(key, this.tier);
       if (resume) how = plugin === "dsh" ? "resumed" : "loaded";
       this.handle = await this.#open(key, name, resume);
+      if (!this.handle) return cancelled(this, how);
       this.opened = this.handle.backendSessionId ?? resume;
       const extras = () => ({ launch: identity, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
       await this.onSession?.(this.opened, how, extras());
@@ -100,6 +114,7 @@ export class AcpxTurn {
         // acpx could not reload the saved session. Nothing was written, so a new session is safe; it gets the recap.
         await engine.runtime.prepareFreshSession({ handle: this.handle });
         this.handle = await this.#open(key, name, undefined);
+        if (!this.handle) return cancelled(this, how);
         this.opened = this.handle.backendSessionId; how = "fresh-after-lost"; handoff = NOTICES.lost;
         await this.onSession?.(this.opened, how, extras());
         attempt = await this.#turn(await this.#prompt(record?.seed ?? ""));

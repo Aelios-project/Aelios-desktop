@@ -11,6 +11,7 @@ export function createEngine(config, home) {
   const registry = new Map(); // registry name -> argv
   const asked = new Map(); // JSON-RPC request id -> {method, sessionId}
   const modes = new Map(); // ACP session id -> current mode id (null when the helper did not say)
+  const pids = new Map(); // session key -> pid of its helper process, so a stuck open can still be stopped
   const sessionStore = createFileSessionStore({ stateDir: openStore(home) });
   const runtime = createAcpRuntime({
     cwd: config.workspace, sessionStore, mcpServers: [],
@@ -20,6 +21,10 @@ export function createEngine(config, home) {
     },
     permissionMode: "deny-all", nonInteractivePermissions: "deny", // fail closed: anything our callback does not answer is refused
     fs: false, terminal: false, elicitationModes: [],
+    processLifecycle: {
+      onSpawned: p => { if (p.scope.kind === "runtime-session") pids.set(p.scope.sessionKey, p.pid); },
+      onExit: p => { if (p.scope.kind === "runtime-session" && pids.get(p.scope.sessionKey) === p.pid) pids.delete(p.scope.sessionKey); }
+    },
     agentProcessEnv: { ...(config.env ?? {}) }, // shortcut: no allowlist yet, the helper also inherits the runner's environment (PR B)
     onAcpMessage: (direction, message) => {
       if (direction === "outbound" && message.id != null) asked.set(message.id, { method: message.method, sessionId: message.params?.sessionId });
@@ -29,7 +34,7 @@ export function createEngine(config, home) {
     }
   });
   return {
-    runtime, sessionStore, modes,
+    runtime, sessionStore, modes, pids,
     tiers: new Map(), // session key -> the tier its open helper process was started with
     register: entries => { for (const [name, argv] of Object.entries(entries)) registry.set(name, argv); },
     shutdown: () => runtime.shutdown()
