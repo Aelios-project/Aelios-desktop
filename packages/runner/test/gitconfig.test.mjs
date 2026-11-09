@@ -9,6 +9,11 @@ import { configRisky, gitConfigSafe } from "../src/gitconfig.mjs";
 import { judge } from "../src/permission.mjs";
 import { readOnly } from "../src/readonly.mjs";
 
+// The caller may export GIT_* variables (GIT_PAGER is common). The code is right to hold on those, but these
+// tests judge the repository config, so they run without them.
+for (const name of Object.keys(process.env)) {
+  if (/^GIT_/i.test(name) && name !== "GIT_TERMINAL_PROMPT") delete process.env[name];
+}
 const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "aelios-gc-")));
 test.after(() => rmSync(root, { recursive: true, force: true }));
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, stdio: "pipe", env: { PATH: process.env.PATH, HOME: root } });
