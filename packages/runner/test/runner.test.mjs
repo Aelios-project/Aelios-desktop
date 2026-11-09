@@ -13,6 +13,10 @@ import { CONVENTION } from "../src/helper.mjs";
 import { agentName } from "../src/kiro-agent.mjs";
 import { final, rig } from "./rig.mjs";
 
+// The second pass (RUNNER_TEST_ENGINE=acpx) runs these same cases through acpx. acpx keeps the helper process between turns,
+// so a later turn does not reopen the session; reopening after a restart is tested in acpx.test.mjs.
+const acpx = process.env.RUNNER_TEST_ENGINE === "acpx";
+
 test("Kiro restricted config failure reports an error without starting the helper", async () => {
   const r = await rig("kiro");
   try {
@@ -67,10 +71,10 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(prompt.full, `hello CWD\n\n${CONVENTION}`, "the instruction, then the one-line ASK: convention, nothing about who the user is");
     assert.equal(prompt.cwd, r.workspace, "extra fields from the cloud do not choose the folder");
     const init = r.log().find(e => e.event === "initialize");
-    assert.deepEqual(init.caps, {}, "no file or terminal capability is offered");
+    assert.deepEqual(init.caps, acpx ? { fs: { readTextFile: false, writeTextFile: false }, terminal: false } : {}, "no file or terminal capability is offered");
     const args = r.log().find(e => e.event === "start").args;
     if (plugin === "dsh") assert.deepEqual(args, ["--profile", "acp"]);
-    else assert.deepEqual(args, ["acp", "--agent", agentName("edit", r.workspace)], "Kiro starts with the generated agent of this tier and folder");
+    else assert.deepEqual(args, ["acp", "--agent", agentName("t_main", r.workspace)], "Kiro starts with the generated agent of this thread and folder, no tier in the name");
     const saved = (await r.state.read()).threads.t_main;
     assert.deepEqual([saved.sessionId, saved.cwd], ["sess-1", r.workspace]);
   });
@@ -85,11 +89,13 @@ for (const plugin of ["kiro", "dsh"]) {
     const log = r.log();
     assert.equal(log.filter(e => e.event === "session/new").length, 1);
     const reopen = log.find(e => e.event === (plugin === "dsh" ? "session/resume" : "session/load"));
-    assert.equal(reopen.sessionId, "sess-1");
+    if (acpx) assert.equal(reopen, undefined, "acpx keeps the helper running, so the session is not reopened");
+    else assert.equal(reopen.sessionId, "sess-1");
     assert.deepEqual(r.prompts().map(p => [p.sessionId, p.text]), [["sess-1", "first"], ["sess-1", "second"]]);
   });
 
   t("a session the helper no longer has: a new one is opened and the work still runs", async r => {
+    if (acpx) return; // the helper process is still running with the session; the lost-session case is in acpx.test.mjs
     r.start();
     await final(r, r.cloud.push({ text: "first" }));
     writeFileSync(r.store, JSON.stringify({ ...JSON.parse(readFileSync(r.store, "utf8")), sessions: {} }));
@@ -202,7 +208,7 @@ for (const plugin of ["kiro", "dsh"]) {
       const down = await final(full, full.cloud.push({ text: "PERM:execute", access: "read" }));
       assert.equal(down.status, "needs_you");
       const start = full.log().find(e => e.event === "start");
-      if (plugin === "kiro") assert.ok(start.args.includes("--trust-all-tools"));
+      if (plugin === "kiro") assert.deepEqual(start.args, ["acp", "--agent", agentName("t_main", full.workspace)], "full has its own agent file, not a flag");
     } finally { await full.done(); }
   });
 

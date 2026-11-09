@@ -75,7 +75,7 @@ The rest of the runner calls `new Turn({...}).run()` and `turn.cancel()` and rea
 6.1 `job`, `say`, `mail` and `cancel` SHALL behave as today (PROTOCOL). `say` stops the running turn and starts the new one; `mail` waits.
 6.2 Cancel SHALL ask the helper to stop through acpx. If the helper does not acknowledge within the cancel limit (7.1), the runner SHALL stop the process and report `cancelled`, as it does today.
 
-6.3 An image SHALL be sent as an image block only when the helper advertises `agentCapabilities.promptCapabilities.image`. Every other file, and an image for a helper without that capability, SHALL stay a path in the prompt text. There SHALL be a test per helper face (with and without the capability).
+6.3 An image SHALL always be sent as an image block (owner decision; the runner does not branch on the helper's capability). If the helper does not declare `agentCapabilities.promptCapabilities.image`, acpx refuses the turn before the prompt is written (`UNSUPPORTED_PROMPT_CONTENT`), and the turn SHALL fail with a clear message that names the helper ("<helper> does not accept pictures"). There SHALL be no silent fallback to a path for an image. Every other file SHALL stay a path in the prompt text. There SHALL be a test for each case (image accepted, image refused).
 
 ### 7. Timeouts
 
