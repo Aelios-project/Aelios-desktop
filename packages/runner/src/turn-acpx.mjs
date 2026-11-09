@@ -10,6 +10,8 @@ import { identityOf, registryOf, resolve, sameLaunch } from "./launch.mjs";
 import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { makePermit } from "./permit.mjs";
 import { reasonOf } from "./reason.mjs";
+import { buildRecap, gitState } from "./recap.mjs";
+import { closeOld } from "./switch.mjs";
 import { StepLog } from "./steps.mjs";
 import { KeyedSteps } from "./steps-keyed.mjs";
 
@@ -18,7 +20,7 @@ const MODE_MESSAGE = "Kiro did not confirm the restricted agent. Check that its 
 const LIMIT = "The helper did not finish within the time limit and was stopped.";
 
 export class AcpxTurn {
-  /** The options of helper.mjs `Turn`, plus `engine` (runtime.mjs), `config`, `thread` and `record` (the thread record, or undefined). */
+  /** The options of helper.mjs `Turn`, plus `engine` (runtime.mjs), `config`, `thread`, `record` (the thread record, or undefined) and `journal` (for the recap). */
   constructor(o) {
     Object.assign(this, { timeoutMs: 30 * 60_000, killAfterMs: 10_000 }, Object.fromEntries(Object.entries(o).filter(([, value]) => value !== undefined)));
     this.cancelled = false; this.timedOut = false; this.modeBad = false; this.handle = null; this.live = null;
@@ -54,12 +56,9 @@ export class AcpxTurn {
     return Promise.race([opening, new Promise(resolve => { this.release = resolve; })]);
   }
 
-  async #closeOpen(key, name, reason) {
-    const { runtime, modes } = this.engine;
-    const known = await runtime.findSession({ sessionKey: key, agent: name }).catch(() => undefined);
-    if (!known) return;
-    await runtime.close({ handle: known, reason }).catch(() => {});
-    modes.delete(known.backendSessionId);
+  /** The recap for a new session of this thread (recap.mjs). */
+  async #recap() {
+    return buildRecap({ seed: this.record?.seed, thread: this.thread, journal: this.journal, git: await gitState(this.cwd), redact: this.redact });
   }
 
   /** The prompt as acpx takes it: the text, and every picture as an image block. Other files stay paths in the text. */
@@ -96,10 +95,10 @@ export class AcpxTurn {
     let resume = this.sessionId, how = "new", handoff = null, history = null;
     try {
       if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap
-        await this.#closeOpen(`${hash(thread)}:${record.launch.id.slice(0, 8)}`, `${record.launch.plugin}:${hash(thread)}`, "launch changed");
-        resume = undefined; handoff = NOTICES.changed; history = record.seed ?? ""; how = "handoff";
+        await closeOld(engine, `${hash(thread)}:${record.launch.id.slice(0, 8)}`, `${record.launch.plugin}:${hash(thread)}`, "launch changed");
+        resume = undefined; handoff = NOTICES.changed; history = await this.#recap(); how = "handoff";
       } else if (resume && engine.tiers.get(key) && engine.tiers.get(key) !== this.tier) { // the helper reads its agent file at start: restart it, keep the session
-        await this.#closeOpen(key, name, "tier change");
+        await closeOld(engine, key, name, "tier change");
       }
       engine.tiers.set(key, this.tier);
       if (resume) how = plugin === "dsh" ? "resumed" : "loaded";
@@ -119,7 +118,7 @@ export class AcpxTurn {
         if (!this.handle) return cancelled(this, how);
         this.opened = this.handle.backendSessionId; how = "fresh-after-lost"; handoff = NOTICES.lost;
         await this.onSession?.(this.opened, how, extras());
-        attempt = await this.#turn(await this.#prompt(record?.seed ?? ""));
+        attempt = await this.#turn(await this.#prompt(await this.#recap()));
       }
       const outcome = this.#outcome(attempt, how, plugin);
       const fyi = [handoff && outcome.sessionId ? handoff : "", usageLine(this.usage)].filter(Boolean).join("\n");

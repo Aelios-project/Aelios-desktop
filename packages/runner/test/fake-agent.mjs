@@ -32,7 +32,8 @@ const cancelled = new Set(); const cancelWaiters = new Map();
 const ask = (method, params) => new Promise(resolve => { const id = nextId++; waiting.set(id, resolve); send({ jsonrpc: "2.0", id, method, params }); });
 
 const agentFile = () => { try { const c = JSON.parse(fs.readFileSync(`${process.env.FAKE_AGENTS}/${args[args.indexOf("--agent") + 1]}.json`, "utf8")); return { allowedTools: c.allowedTools, bash: Boolean(c.toolsSettings?.execute_bash) }; } catch { return null; } };
-store(data => data.log.push({ event: "start", pid: process.pid, envNames: Object.keys(process.env), probe: Object.fromEntries((process.env.FAKE_PROBE ?? "").split(",").filter(Boolean).map(n => [n, process.env[n]])), args, ...(args.includes("--agent") && process.env.FAKE_AGENTS ? { agentFile: agentFile() } : {}) }));
+const running = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+store(data => data.log.push({ event: "start", pid: process.pid, alive: data.log.filter(e => e.event === "start" && running(e.pid)).map(e => e.pid), envNames: Object.keys(process.env), probe: Object.fromEntries((process.env.FAKE_PROBE ?? "").split(",").filter(Boolean).map(n => [n, process.env[n]])), args, ...(args.includes("--agent") && process.env.FAKE_AGENTS ? { agentFile: agentFile() } : {}) }));
 const image = process.env.FAKE_IMAGE ? process.env.FAKE_IMAGE === "1" : !dsh;
 process.stdout.write("this line is not JSON, a client must skip it\n");
 
