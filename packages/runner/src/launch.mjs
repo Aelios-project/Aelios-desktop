@@ -16,9 +16,9 @@ export const registryOf = (config, thread, launch) => {
   return { [name]: argv };
 };
 
-/** What the thread record keeps. `adapterVersion` is null until adapters exist (a later PR). */
+/** What the thread record keeps. `adapterVersion` is the pinned adapter version for `claude` and `codex`, else null. */
 export function identityOf(config, launch, cwd) {
-  const parts = { plugin: config.plugin, command: launch.command, args: launch.args, adapterVersion: null, cwd };
+  const parts = { plugin: config.plugin, command: launch.command, args: launch.args, adapterVersion: launch.adapterVersion ?? null, cwd };
   return { ...parts, id: hash(JSON.stringify(parts), 32) };
 }
 
