@@ -14,6 +14,7 @@ import readline from "node:readline";
 
 const args = process.argv.slice(2);
 const dsh = args.join(" ") === "--profile acp";
+const mode = () => dsh || !args.includes("--agent") ? {} : { modes: { currentModeId: process.env.FAKE_MODE ?? args[args.indexOf("--agent") + 1] } };
 if (!dsh && args[0] !== "acp") process.exit(64);
 const file = process.env.FAKE_STORE;
 const load = () => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return { sessions: {}, log: [], n: 0 }; } };
@@ -79,12 +80,12 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true, promptCapabilities: { image: true } }, authMethods: [] });
   if (method === "session/new") {
     const data = store(d => { d.n += 1; d.sessions[`sess-${d.n}`] = { cwd: params.cwd }; });
-    return reply({ sessionId: `sess-${data.n}` });
+    return reply({ sessionId: `sess-${data.n}`, ...mode() });
   }
   if (method === "session/load" || method === "session/resume") {
     if (!load().sessions[params.sessionId]) return send({ jsonrpc: "2.0", id, error: { code: -32002, message: "session not found" } });
     if (method === "session/load") chunk(params.sessionId, "OLD HISTORY replayed on load");
-    return reply({});
+    return reply(mode());
   }
   if (method === "session/close") return reply({});
   if (method === "session/prompt") return prompt(id, params);

@@ -66,6 +66,12 @@ export class Turn {
     return response;
   }
 
+  #checkAgent(response) {
+    if (this.launch.expectedAgent && response?.modes?.currentModeId !== this.launch.expectedAgent) {
+      throw new Error("Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.");
+    }
+  }
+
   async #open(capabilities) {
     const base = { cwd: this.cwd, mcpServers: [] };
     let how = "new";
@@ -73,12 +79,19 @@ export class Turn {
       const method = capabilities.loadSession ? "session/load" : capabilities.sessionCapabilities?.resume ? "session/resume" : null;
       how = "fresh-after-lost";
       if (method) {
-        try { await this.conn.request(method, { sessionId: this.sessionId, ...base }, 60_000); this.opened = this.sessionId; return method === "session/load" ? "loaded" : "resumed"; }
+        let loaded;
+        try { loaded = await this.conn.request(method, { sessionId: this.sessionId, ...base }, 60_000); }
         catch (error) { if (!(error instanceof AcpError)) throw error; /* the helper says it has no such session */ }
+        if (loaded) {
+          this.#checkAgent(loaded);
+          this.opened = this.sessionId;
+          return method === "session/load" ? "loaded" : "resumed";
+        }
       }
     }
     const created = await this.conn.request("session/new", base, 60_000);
     if (typeof created.sessionId !== "string" || !created.sessionId) throw new AcpError("helper gave no session id", -32603);
+    this.#checkAgent(created);
     this.opened = created.sessionId;
     return how;
   }

@@ -21,8 +21,9 @@ export const PLUGINS = {
     bin: () => onPath("kiro-cli") ?? "kiro-cli",
     args: (tier, cwd, config) => {
       if (tier === "full") return ["acp", "--trust-all-tools"];
-      const agent = cwd && writeAgent(tier, cwd, config.kiroAgentsDir);
-      return ["acp", ...(agent ? ["--agent", agent] : [])];
+      if (!cwd || (tier !== "read" && tier !== "edit")) throw new Error("Kiro requires a workspace and a valid access tier to start with restricted permissions.");
+      const agent = writeAgent(tier, cwd, config.kiroAgentsDir);
+      return ["acp", "--agent", agent];
     }
   },
   // dsh --profile acp (DeepSeek Harness's automation-only ACP server). It resumes with session/resume, not session/load.
@@ -43,7 +44,12 @@ export function launchOf(config, tier, cwd) {
     return { command: config.command[0], args: config.command.slice(1), env: config.env ?? {} };
   }
   const bin = config.bin ?? process.env[`AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`] ?? plug.bin();
-  return { command: bin, args: [...plug.args(tier, cwd, config), ...(config.args ?? [])], env: config.env ?? {} };
+  const args = plug.args(tier, cwd, config);
+  if (config.plugin === "kiro" && tier !== "full" && (config.args ?? []).some(arg => /^(--agent(?:=|$)|--trust-all-tools(?:=|$)|--trust-tools(?:=|$)|-[^-]*a)/.test(arg))) {
+    throw new Error("Extra Kiro arguments cannot override the restricted agent or trust tools.");
+  }
+  return { command: bin, args: [...args, ...(config.args ?? [])], env: config.env ?? {},
+    ...(config.plugin === "kiro" && tier !== "full" ? { expectedAgent: args[2] } : {}) };
 }
 
 /** Can this command be started at all? Looked for on PATH, or at its path when it has one. */

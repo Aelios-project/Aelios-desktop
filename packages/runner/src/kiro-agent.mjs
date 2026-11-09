@@ -40,7 +40,7 @@ export function agentConfig(tier, cwd) {
   };
 }
 
-/** Writes the config for this tier and workspace and returns the agent name, or null when `full` (trust all) or it cannot be written. */
+/** Writes the restricted config and returns its agent name; throws if it cannot be written. */
 export function writeAgent(tier, cwd, dir = path.join(os.homedir(), ".kiro", "agents")) {
   if (tier !== "read" && tier !== "edit") return null;
   const config = agentConfig(tier, cwd);
@@ -53,5 +53,7 @@ export function writeAgent(tier, cwd, dir = path.join(os.homedir(), ".kiro", "ag
     writeFileSync(temp, text, { mode: 0o600 });
     renameSync(temp, file);
     return config.name;
-  } catch { return null; } // without it Kiro runs its own default agent, and what that does not approve is held
+  } catch (error) {
+    throw new Error(`Cannot write the restricted Kiro agent config in ${dir}. Check that the directory is writable and try again.`, { cause: error });
+  }
 }

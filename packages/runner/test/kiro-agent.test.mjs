@@ -45,7 +45,7 @@ test("writeAgent: written outside the workspace, mode 0600, rewritten when chang
   assert.equal(writeAgent("edit", cwd, dir), name);
   assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).allowedTools, []);
   assert.deepEqual(readdirSync(dir).filter(item => item.endsWith(".tmp")), [], "no temp file left");
-  assert.equal(writeAgent("edit", cwd, path.join(file, "no")), null, "a folder that cannot be written: Kiro's own default, everything else is held");
+  assert.throws(() => writeAgent("edit", cwd, path.join(file, "no")), /Cannot write the restricted Kiro agent config/);
 });
 
 test("tier mapping in the kiro plug: full trusts all, read and edit name the generated agent", () => {
@@ -56,6 +56,14 @@ test("tier mapping in the kiro plug: full trusts all, read and edit name the gen
     assert.deepEqual(args, ["acp", "--agent", agentName(tier, cwd)]);
     assert.ok(!args.includes("--trust-all-tools"));
   }
-  assert.deepEqual(launchOf(config, "edit").args, ["acp"], "no folder yet (the start-up check): nothing is written");
+  assert.throws(() => launchOf(config, "edit"), /requires a workspace/);
+  const blocked = path.join(dir, "blocked");
+  writeFileSync(blocked, "not a directory");
+  for (const tier of ["read", "edit"]) {
+    assert.throws(() => launchOf({ ...config, kiroAgentsDir: blocked }, tier, cwd), /Cannot write the restricted Kiro agent config/);
+  }
+  for (const arg of ["--agent=other", "--agent", "--trust-all-tools", "--trust-tools=fs_write", "-a", "-av"]) {
+    assert.throws(() => launchOf({ ...config, args: [arg] }, "read", cwd), /cannot override/);
+  }
   assert.deepEqual(launchOf({ plugin: "dsh", bin: "dsh" }, "edit", cwd).args, ["--profile", "acp"]);
 });

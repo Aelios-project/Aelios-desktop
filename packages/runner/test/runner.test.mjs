@@ -13,6 +13,43 @@ import { CONVENTION } from "../src/helper.mjs";
 import { agentName } from "../src/kiro-agent.mjs";
 import { final, rig } from "./rig.mjs";
 
+test("Kiro restricted config failure reports an error without starting the helper", async () => {
+  const r = await rig("kiro");
+  try {
+    const blocked = path.join(r.dir, "not-a-directory");
+    writeFileSync(blocked, "file");
+    r.config.kiroAgentsDir = blocked;
+    r.start();
+    for (const access of ["read", "edit"]) {
+      const work = r.cloud.push({ text: "must not run", access });
+      const done = await final(r, work);
+      assert.equal(done.status, "failed");
+      assert.equal(done.reason, "error");
+      assert.match(done.summary, /writable/);
+      assert.deepEqual(r.cloud.got(work.workId, "started"), []);
+    }
+    assert.deepEqual(r.log(), []);
+  } finally { await r.done(); }
+});
+
+test("Kiro refuses unconfirmed agents on new and loaded sessions before sending a prompt", async () => {
+  const r = await rig("kiro");
+  try {
+    r.config.env.FAKE_MODE = "kiro_default";
+    r.start();
+    const first = r.cloud.push({ text: "must not run" });
+    assert.match((await final(r, first)).summary, /did not confirm the restricted agent/);
+    assert.equal(r.prompts().length, 0);
+    delete r.config.env.FAKE_MODE;
+    assert.equal((await final(r, r.cloud.push({ text: "safe first turn" }))).status, "done");
+    r.config.env.FAKE_MODE = "kiro_default";
+    const second = r.cloud.push({ text: "must not run on load" });
+    assert.match((await final(r, second)).summary, /did not confirm the restricted agent/);
+    assert.equal(r.prompts().length, 1);
+    assert.ok(r.log().some(e => e.event === "session/load"));
+  } finally { await r.done(); }
+});
+
 for (const plugin of ["kiro", "dsh"]) {
   const t = (name, fn) => test(`[${plugin}] ${name}`, async () => { const r = await rig(plugin); try { await fn(r); } finally { await r.done(); } });
 

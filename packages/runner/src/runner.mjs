@@ -183,9 +183,16 @@ export class Runner {
     const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
+    let launch;
+    try { launch = launchOf(this.config, tier, cwd); }
+    catch (error) {
+      this.log("helper launch configuration failed", work.workId, error?.message);
+      this.journal?.end(work, "failed", "helper configuration");
+      return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: "The helper could not be configured safely. Check the runner logs and ensure the Kiro agents directory is writable, then try again." })]);
+    }
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
     const turn = new Turn({
-      files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier, cwd), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
+      files, onStep: steps => progress.push(steps), launch, cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
       onSession: async (sessionId, how) => {

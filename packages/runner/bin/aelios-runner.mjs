@@ -40,7 +40,7 @@ async function pair() {
   const config = { url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: values.access, plugin: values.plugin };
   if (values.command) config.command = JSON.parse(values.command);
   // Fails now, not on the first job, if the helper cannot be started.
-  const launch = launchOf(config, config.access);
+  const launch = launchOf(config, "full"); // Only check the executable here; no helper is started.
   if (!available(launch.command)) throw new Error(`cannot find "${launch.command}" to start the ${config.plugin} helper; install it, or set AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`);
   const release = acquire(lockFile);
   try {
