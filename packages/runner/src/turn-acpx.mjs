@@ -1,7 +1,7 @@
 // One turn through acpx: the same contract as helper.mjs (`new Turn(o).run()` and `cancel()`, the same outcome objects),
 // with acpx doing the process, the JSON-RPC and the session. The prompt is written once and never again: a lost session is
 // only retried when acpx says it could not load it, which happens before the prompt is written.
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { CONVENTION } from "./convention.mjs";
 import { takeEvent, usageLine } from "./events.mjs";
 import { NOTICES, joinNotice, seedOf, withRecap } from "./handoff.mjs";
@@ -10,13 +10,14 @@ import { identityOf, registryOf, resolve, sameLaunch } from "./launch.mjs";
 import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { makePermit } from "./permit.mjs";
 import { reasonOf } from "./reason.mjs";
+import { threadHash } from "./retention.mjs";
 import { buildRecap, gitState } from "./recap.mjs";
 import { closeOld } from "./switch.mjs";
 import { StepLog } from "./steps.mjs";
 import { KeyedSteps } from "./steps-keyed.mjs";
 import { OPENING, Stages, limitsOf, stageMessage } from "./stages.mjs";
 
-const hash = text => createHash("sha256").update(text).digest("hex").slice(0, 12);
+const hash = threadHash; // shared with retention.mjs, which finds a thread's saved sessions by it
 const MODE_MESSAGE = "Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.";
 
 export class AcpxTurn {

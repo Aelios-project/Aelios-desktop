@@ -3,6 +3,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { checkRetention } from "./retention.mjs";
 import { checkTimeouts } from "./stages.mjs";
 import { ENGINES } from "./turn.mjs";
 
@@ -40,6 +41,7 @@ export async function readConfig(file) {
   catch (error) { throw new Error(error.code === "ENOENT" ? `no config at ${file}; run "aelios-runner pair" first` : `config is not valid JSON: ${file}`); }
   if (config.engine !== undefined && !ENGINES.includes(config.engine)) throw new Error(`config engine must be one of ${ENGINES.join(", ")}: ${file}`);
   checkTimeouts(config.timeouts);
+  checkRetention(config.retention);
   return config;
 }
 export async function writeConfig(file, config) {
