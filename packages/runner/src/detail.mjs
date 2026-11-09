@@ -28,8 +28,19 @@ function text(value) {
 /** One short, redacted line for a request's rawInput, shortened in the middle to `max`; "" when there is nothing to show. */
 export function describeInput(rawInput, max = DETAIL_MAX) {
   let out;
-  try { out = text(rawInput).slice(0, 4000); } catch { return ""; }
-  out = out.replace(/[\x00-\x1f\x7f]+/g, " ").replace(/\s+/g, " ").trim();
+  try { out = text(rawInput); } catch { return ""; }
+  out = ends(out.replace(/[\x00-\x1f\x7f]+/g, " ").replace(/\s+/g, " ").trim());
   for (const [pattern, to] of PATTERNS) out = out.replace(pattern, to);
   return middle(out, max);
+}
+
+// The secret patterns slow down sharply on very long runs of name characters, so the text they scan is bounded.
+// shortcut: a command over SCAN_MAX characters keeps its two ends, cut at spaces so no word is split, and loses its middle
+// (also in the copy kept on this machine); upgrade to a linear-time scanner if such commands turn out to matter.
+export const SCAN_MAX = 20_000;
+function ends(line) {
+  if (line.length <= SCAN_MAX) return line;
+  const half = SCAN_MAX / 2, head = line.slice(0, half), tail = line.slice(-half);
+  const cutHead = head.lastIndexOf(" "), cutTail = tail.indexOf(" ");
+  return (cutHead > 0 ? head.slice(0, cutHead) : head) + " … " + (cutTail >= 0 ? tail.slice(cutTail + 1) : tail);
 }

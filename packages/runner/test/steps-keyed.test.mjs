@@ -1,7 +1,7 @@
 // Steps by toolCallId, the middle ellipsis, thinking and usage on the acpx engine (task 10).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { describeInput } from "../src/detail.mjs";
+import { SCAN_MAX, describeInput } from "../src/detail.mjs";
 import { middle } from "../src/ellipsis.mjs";
 import { usageLine } from "../src/events.mjs";
 import { answer } from "../src/permission.mjs";
@@ -33,6 +33,28 @@ test("an update with the same toolCallId changes the step in place and adds none
   assert.deepEqual(Object.keys(after[0]).sort(), ["kind", "title"], "the wire step stays kind and title");
   steps.take({ tag: "tool_call", toolCallId: "c2", kind: "read", title: "Read", locations: [{ path: "/w/a.js" }] });
   assert.equal(steps.log.steps.length, 2, "a new id is a new step");
+});
+
+test("two ids with the same command are two steps with their own records; an update reaches only its own", () => {
+  const steps = keyed();
+  steps.take({ tag: "tool_call", toolCallId: "a", kind: "execute", title: "Run", status: "pending", rawInput: { command: "npm test" } });
+  steps.take({ tag: "tool_call", toolCallId: "b", kind: "execute", title: "Run", status: "pending", rawInput: { command: "npm test" } });
+  assert.equal(steps.log.steps.length, 2);
+  steps.take({ tag: "tool_call_update", toolCallId: "b", status: "completed", rawInput: { command: "npm test -- --watch=false" } });
+  assert.deepEqual([steps.of("a").status, steps.of("b").status], ["pending", "completed"]);
+  assert.deepEqual(steps.log.steps.map(s => s.title), ["ran npm test", "ran npm test -- --watch=false"]);
+  assert.equal(steps.of("a").command, "npm test");
+});
+
+test("a command past 4000 and past the scan bound keeps its real end, locally and in the title", () => {
+  const steps = keyed(), long = "echo " + "x".repeat(4500) + " --last-argument";
+  steps.take({ tag: "tool_call", toolCallId: "l", kind: "execute", title: "Run", rawInput: { command: long } });
+  assert.equal(steps.of("l").command, long, "kept whole");
+  assert.ok(steps.log.steps[0].title.endsWith("--last-argument"));
+  const huge = "run " + "word ".repeat(SCAN_MAX / 4) + "--token sk_live_value123 --very-last";
+  const kept = describeInput(huge, Infinity);
+  assert.ok(kept.startsWith("run word") && kept.endsWith("--token [hidden] --very-last") && kept.includes(" … "), kept.slice(-60));
+  assert.ok(kept.length <= SCAN_MAX + 3);
 });
 
 test("a permission request shows the command from its input, cut in the middle, never a step title", () => {

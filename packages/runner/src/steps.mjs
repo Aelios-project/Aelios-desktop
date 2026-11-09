@@ -35,8 +35,11 @@ export class StepLog {
     return said || "working";
   }
 
-  /** Takes one ACP `tool_call` update; returns the steps as they stand now (a new array), or null when nothing changed. */
-  add(update) {
+  /**
+   * Takes one ACP `tool_call` update; returns the steps as they stand now (a new array), or null when nothing changed.
+   * `distinct`: the update is a call of its own (keyed by id), so a title equal to the last one is still a new step.
+   */
+  add(update, { distinct = false } = {}) {
     const kind = KIND[update?.kind] ?? "other";
     const last = this.steps.at(-1);
     let title;
@@ -49,7 +52,7 @@ export class StepLog {
       if (last?.kind === "edit") { if (last.title === title) return null; this.steps.pop(); }
     } else {
       title = this.titleOf(kind, update);
-      if (last?.kind === kind && last.title === title) return null;
+      if (!distinct && last?.kind === kind && last.title === title) return null;
     }
     title = this.redact(title).replace(/\s+/g, " ").trim();
     if (!title) return null;
