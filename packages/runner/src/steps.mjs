@@ -6,7 +6,7 @@ import path from "node:path";
 import { describeInput } from "./detail.mjs";
 
 export const STEPS_KEPT = 10;
-export const TITLE_MAX = 80;
+export const TITLE_MAX = 200;
 const KIND = { read: "read", edit: "edit", delete: "edit", move: "edit", execute: "run", search: "search", fetch: "fetch", think: "think" };
 
 export class StepLog {

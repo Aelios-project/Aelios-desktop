@@ -59,7 +59,7 @@ How many runners a resident may have is decided by the cloud. The runner knows o
 { "ok": true }            // or { "ok": true, "ignored": true } when that work has already finished
 ```
 
-- `steps` is the thread's last steps, at most 10, oldest first; each list replaces the one before. A step has exactly `kind` and `title`; any other field, an unknown kind, an empty title or one over 80 characters is refused (400 `INVALID_PROGRESS`). `kind` is one of `read`, `edit`, `run`, `search`, `fetch`, `think`, `other`.
+- `steps` is the thread's last steps, at most 10, oldest first; each list replaces the one before. A step has exactly `kind` and `title`; any other field, an unknown kind, an empty title or one over 200 characters is refused (400 `INVALID_PROGRESS`). `kind` is one of `read`, `edit`, `run`, `search`, `fetch`, `think`, `other`.
 - A title says what the helper started doing, on one line: `read src/parser.js`, `ran npm test`, `edited 2 files` (edits in a row are one step). It never holds file contents or command output. The runner takes only a command's own words from the helper's input, hides things that look like keys, tokens or passwords, and replaces the workspace folder.
 - The resident shows the newest three on the thread's card and page while it works, lets its own `find` tool return them, and drops them when the turn's final receipt arrives. A body that carries the runner's token is refused. `workId` and `token` are the work's, as for a receipt (409 `UNKNOWN_WORK` / `INVALID_TOKEN`).
 - The runner needs no answer: a failed or lost send is not repeated, the next list replaces it. An older resident without this address answers 404; the runner ignores it.

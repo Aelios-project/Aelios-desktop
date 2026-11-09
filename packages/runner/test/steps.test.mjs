@@ -17,7 +17,7 @@ test("steps: a kind and a short title; edits in a row are one step; secrets and 
   assert.equal(steps.steps.length, 3);
   assert.ok(!JSON.stringify(steps.steps).includes("FILE BODY") && !JSON.stringify(steps.steps).includes("abc123456789"));
   assert.equal(steps.steps[0].title, "read src/parser.js");
-  assert.equal(log().add({ kind: "execute", rawInput: { command: "x".repeat(500) } }).at(-1).title.length, 80);
+  assert.equal(log().add({ kind: "execute", rawInput: { command: "x".repeat(500) } }).at(-1).title.length, 200);
 });
 
 test("steps: only the last ten are kept", () => {
@@ -49,7 +49,7 @@ test("a working thread's steps reach the resident, without the token, contents o
     const last = r.cloud.progresses.at(-1);
     assert.deepEqual(Object.keys(last).sort(), ["steps", "token", "workId"]);
     assert.equal(last.workId, work.workId);
-    assert.ok(last.steps.length >= 1 && last.steps.every(step => Object.keys(step).sort().join() === "kind,title" && step.title.length <= 80));
+    assert.ok(last.steps.length >= 1 && last.steps.every(step => Object.keys(step).sort().join() === "kind,title" && step.title.length <= 200));
     const all = JSON.stringify(r.cloud.progresses.map(item => item.steps));
     assert.ok(!all.includes("FILE BODY") && !all.includes("abc123456789"));
   } finally { await r.done(); }
