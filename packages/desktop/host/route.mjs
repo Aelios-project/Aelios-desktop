@@ -2,6 +2,8 @@
 import { ConnectError, connect, defaultWorkspace, disconnect, ensurePaired } from "./connect.mjs";
 import { switchHelper } from "./helper.mjs";
 import { makeLocal } from "./local.mjs";
+import { OnboardingError, createOnboarding } from "./onboarding/route.mjs";
+import { StepError } from "./onboarding/run.mjs";
 import { ProxyError, forward, forwardBytes, forwardRaw } from "./proxy.mjs";
 
 export const ROUTE = "/api/aelios-desktop";
@@ -12,6 +14,7 @@ const json = (value, status = 200) => Response.json(value, { status, headers: HE
 export function makeRoute(deps) {
   const { store, supervisor } = deps;
   const local = makeLocal(deps);
+  const onboarding = deps.credentials ? createOnboarding(deps) : null; // the wizard's own state and steps
 
   async function status() {
     const c = await store.get();
@@ -67,10 +70,16 @@ export function makeRoute(deps) {
       const text = await request.text();
       if (text.length > MAX_BODY) return json({ error: "too large" }, 413);
       const input = JSON.parse(text);
+      if (typeof input?.action === "string" && input.action.startsWith("onboarding.")) {
+        if (!onboarding) return json({ error: "The wizard is not available" }, 503);
+        return json(await onboarding(input));
+      }
       const act = Object.hasOwn(actions, input?.action) ? actions[input.action] : null;
       if (!act) return json({ error: "unknown action" }, 400);
       return json(await act(input));
     } catch (error) {
+      if (error instanceof StepError) return json({ error: error.message, step: error.step, code: error.code, tail: error.tail }, 400);
+      if (error instanceof OnboardingError) return json({ error: error.message }, 400);
       if (error instanceof ConnectError) return json({ error: error.message, code: "CONNECT" }, 400);
       if (error instanceof ProxyError) return json({ error: error.message }, error.status);
       if (error instanceof SyntaxError) return json({ error: "bad JSON" }, 400);
