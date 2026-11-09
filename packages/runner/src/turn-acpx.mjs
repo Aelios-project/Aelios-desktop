@@ -14,19 +14,22 @@ import { buildRecap, gitState } from "./recap.mjs";
 import { closeOld } from "./switch.mjs";
 import { StepLog } from "./steps.mjs";
 import { KeyedSteps } from "./steps-keyed.mjs";
+import { OPENING, Stages, limitsOf, stageMessage } from "./stages.mjs";
 
 const hash = text => createHash("sha256").update(text).digest("hex").slice(0, 12);
 const MODE_MESSAGE = "Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.";
-const LIMIT = "The helper did not finish within the time limit and was stopped.";
 
 export class AcpxTurn {
   /** The options of helper.mjs `Turn`, plus `engine` (runtime.mjs), `config`, `thread`, `record` (the thread record, or undefined) and `journal` (for the recap). */
   constructor(o) {
-    Object.assign(this, { timeoutMs: 30 * 60_000, killAfterMs: 10_000 }, Object.fromEntries(Object.entries(o).filter(([, value]) => value !== undefined)));
+    Object.assign(this, Object.fromEntries(Object.entries(o).filter(([, value]) => value !== undefined)));
     this.cancelled = false; this.timedOut = false; this.modeBad = false; this.handle = null; this.live = null;
     this.current = ""; this.finished = []; this.denied = []; this.opened = null;
     this.stepLog = this.onStep ? new StepLog({ cwd: this.cwd, redact: this.redact }) : null;
     this.keyed = this.stepLog && new KeyedSteps(this.stepLog);
+    // `timeoutMs` and `killAfterMs` are the config's turnTimeoutMs and killAfterMs; `timeouts` refines them per stage.
+    this.limits = limitsOf({ turnTimeoutMs: this.timeoutMs, killAfterMs: this.killAfterMs, timeouts: this.config?.timeouts });
+    this.stages = new Stages(this.limits, name => this.#ranOut(name));
   }
 
   /** Stop this turn. Safe at any moment: before the prompt is written it is simply never written. */
@@ -35,8 +38,25 @@ export class AcpxTurn {
     this.cancelled = true;
     void this.live?.cancel().catch(() => {});
     // A helper that does not answer a cancel is stopped for good, so a stuck turn cannot hold the thread.
-    this.killTimer = setTimeout(() => void this.#kill(), this.killAfterMs);
+    if (!this.limits.cancel) return; // 0: the cancel limit is off
+    this.killTimer = setTimeout(() => void this.#kill(), this.limits.cancel);
     this.killTimer.unref?.();
+  }
+
+  /** A stage ran out. Before the prompt is written nothing needs a cancel, so the helper is stopped at once. */
+  #ranOut(name) {
+    this.stage = name;
+    this.limitText = stageMessage(name, this.limits[name]);
+    if (!OPENING.has(name)) this.timedOut = true;
+    this.cancel();
+    if (OPENING.has(name)) void this.#kill();
+  }
+
+  /** How a stopped turn ends: a stage before the prompt fails with its name, a stage after it waits for the owner, a cancel is cancelled. */
+  #stopped(how) {
+    if (this.stage && OPENING.has(this.stage)) return { status: "failed", summary: this.limitText, reason: "error", sessionId: this.opened, how };
+    if (this.timedOut) return stuck(this, how, this.limitText);
+    return cancelled(this, how);
   }
 
   /** Close the helper. While the session is still opening acpx has no handle to close, so the process is stopped by pid. */
@@ -50,10 +70,12 @@ export class AcpxTurn {
   /** The handle, or null when a cancel gave up on an open the helper never answered. */
   #open(key, name, resume) {
     this.slot = { sessionKey: key, agent: name };
+    this.stages.start("session");
     const opening = this.engine.runtime.ensureSession({ ...this.slot, mode: "persistent", cwd: this.cwd, ...(resume ? { resumeSessionId: resume } : {}) });
     // When run() has stopped waiting, a late failure is not news and a late session is closed, so no helper is left behind.
     opening.then(handle => { if (this.gaveUp) void this.engine.runtime.close({ handle, reason: "cancelled while opening" }).catch(() => {}); }, () => {});
-    return Promise.race([opening, new Promise(resolve => { this.release = resolve; })]);
+    const done = () => { for (const stage of OPENING) this.stages.stop(stage); };
+    return Promise.race([opening, new Promise(resolve => { this.release = resolve; })]).finally(done);
   }
 
   /** The recap for a new session of this thread (recap.mjs). */
@@ -70,7 +92,7 @@ export class AcpxTurn {
 
   async #turn(prompt) {
     const { modes } = this.engine, expected = this.launch.expectedAgent, session = this.opened;
-    const permit = makePermit({ tier: this.tier, redact: this.redact, denied: this.denied, hold: this.hold, stopped: () => this.cancelled });
+    const permit = makePermit({ tier: this.tier, redact: this.redact, denied: this.denied, hold: this.hold && this.#paused(this.hold), stopped: () => this.cancelled });
     const turn = this.live = this.engine.runtime.startTurn({
       handle: this.handle, text: prompt.text, ...(prompt.attachments.length ? { attachments: prompt.attachments } : {}), mode: "prompt", requestId: randomUUID(), onPermissionRequest: permit,
       // Runs after the session is loaded and before the prompt is written: the place for the fail-closed checks.
@@ -80,9 +102,14 @@ export class AcpxTurn {
       }
     });
     let written = false;
-    turn.promptStarted.then(() => { written = true; }, () => {});
-    try { for await (const event of turn.events) takeEvent(this, event); } catch { /* the result carries the failure */ }
+    turn.promptStarted.then(() => { written = true; this.stages.start("firstUpdate"); this.stages.start("turn"); this.stages.watch(); }, () => {});
+    try { for await (const event of turn.events) { this.stages.update(event); takeEvent(this, event); } } catch { /* the result carries the failure */ }
     return { result: await turn.result, written };
+  }
+
+  /** While the owner is asked, the inactivity limit is paused. */
+  #paused(hold) {
+    return async (...args) => { this.stages.pause(); try { return await hold(...args); } finally { this.stages.resume(); } };
   }
 
   /** @returns {Promise<{status: string, summary: string, sessionId: string|null, how: string, ask?: object}>} */
@@ -93,6 +120,11 @@ export class AcpxTurn {
     const key = `${hash(thread)}:${identity.id.slice(0, 8)}`; // a changed launch is a new key, never a silent new session under the old one
     engine.register(registryOf(config, thread, this.launch));
     let resume = this.sessionId, how = "new", handoff = null, history = null;
+    const watch = engine.watch = event => { // the helper process of this turn, as acpx starts it
+      if (event === "spawning") this.stages.start("spawn");
+      else if (event === "spawned") { this.stages.stop("spawn"); this.stages.start("initialize"); }
+      else if (event === "initialized") this.stages.stop("initialize");
+    };
     try {
       if (resume && record?.launch && !sameLaunch(record, identity)) { // changed setup: close the old helper, start a new session with a recap
         await closeOld(engine, `${hash(thread)}:${record.launch.id.slice(0, 8)}`, `${record.launch.plugin}:${hash(thread)}`, "launch changed");
@@ -103,19 +135,17 @@ export class AcpxTurn {
       engine.tiers.set(key, this.tier);
       if (resume) how = plugin === "dsh" ? "resumed" : "loaded";
       this.handle = await this.#open(key, name, resume);
-      if (!this.handle) return cancelled(this, how);
+      if (!this.handle) return this.#stopped(how);
       this.opened = this.handle.backendSessionId ?? resume;
       const extras = () => ({ launch: identity, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
       await this.onSession?.(this.opened, how, extras());
-      if (this.cancelled) return cancelled(this, how);
-      this.timer = setTimeout(() => { this.timedOut = true; this.cancel(); }, this.timeoutMs);
-      this.timer.unref?.();
+      if (this.cancelled) return this.#stopped(how);
       let attempt = await this.#turn(await this.#prompt(history));
       if (attempt.result.status === "failed" && attempt.result.error?.detailCode === "SESSION_RESUME_REQUIRED" && !attempt.written && resume && !this.cancelled) {
         // acpx could not reload the saved session. Nothing was written, so a new session is safe; it gets the recap.
         await engine.runtime.prepareFreshSession({ handle: this.handle });
         this.handle = await this.#open(key, name, undefined);
-        if (!this.handle) return cancelled(this, how);
+        if (!this.handle) return this.#stopped(how);
         this.opened = this.handle.backendSessionId; how = "fresh-after-lost"; handoff = NOTICES.lost;
         await this.onSession?.(this.opened, how, extras());
         attempt = await this.#turn(await this.#prompt(await this.#recap()));
@@ -125,13 +155,12 @@ export class AcpxTurn {
       return fyi ? { ...outcome, notice: joinNotice(fyi, outcome.notice) } : outcome;
     } catch (error) {
       return this.#failed(error, how, plugin);
-    } finally { clearTimeout(this.timer); clearTimeout(this.killTimer); }
+    } finally { this.stages.stopAll(); clearTimeout(this.killTimer); if (engine.watch === watch) engine.watch = null; }
   }
 
   #outcome({ result, written }, how, plugin) {
     if (this.modeBad) return { status: "failed", summary: MODE_MESSAGE, reason: "error", sessionId: this.opened, how };
-    if (this.timedOut) return stuck(this, how, LIMIT);
-    if (this.cancelled) return cancelled(this, how);
+    if (this.cancelled) return this.#stopped(how);
     if (result.status === "completed") return outcomeOf(this, String(result.stopReason ?? "end_turn"), how);
     if (result.status === "cancelled") return cancelled(this, how);
     return this.#failed(Object.assign(new Error(result.error?.message ?? "the helper failed"), result.error), how, plugin, written);
@@ -140,8 +169,7 @@ export class AcpxTurn {
   /** An error from acpx (thrown, or in the result of a turn). `written` says whether the prompt had been written. */
   #failed(error, how, plugin, written = false) {
     const text = this.redact(String(error.message));
-    if (this.cancelled && !this.timedOut) return cancelled(this, how);
-    if (this.timedOut) return stuck(this, how, LIMIT);
+    if (this.cancelled) return this.#stopped(how);
     if (error.detailCode === "UNSUPPORTED_PROMPT_CONTENT") return { status: "failed", summary: `${plugin} does not accept pictures. Send the picture another way, or use a helper that does.`, reason: "error", sessionId: this.opened, how };
     const spawn = String(error.detailCode ?? "").startsWith("AGENT_SPAWN");
     if (spawn || (error.detailCode === "AGENT_DISCONNECTED" && !written)) {

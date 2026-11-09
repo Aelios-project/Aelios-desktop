@@ -42,7 +42,7 @@ async function prompt(id, params) {
   const session = load().sessions[sessionId];
   store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd, blocks: params.prompt }));
   chunk(sessionId, "starting. ");
-  send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "look around", kind: "read" } } });
+  send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "look around", kind: "read", status: "completed" } } });
   if (text.includes("STEPSME")) { // several tool calls: a command with a secret and file contents in its input, two edits, a read
     const call = (n, update) => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "s" + n, ...update } } });
     call(1, { title: "Run tests", kind: "execute", rawInput: { command: "npm test --token=abc123456789", stdin: "FILE BODY SECRET" } });
@@ -92,6 +92,7 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   const reply = result => send({ jsonrpc: "2.0", id, result });
   if (method === "session/cancel") { store(data => data.log.push({ event: method, sessionId: params.sessionId })); cancelled.add(params.sessionId); cancelWaiters.get(params.sessionId)?.(); return; }
   store(data => data.log.push({ event: method, sessionId: params?.sessionId, cwd: params?.cwd, caps: params?.clientCapabilities }));
+  if (method === "initialize" && process.env.FAKE_HANG_INIT) return; // never answers: a stuck start
   if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: { ...(dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true }), ...(image ? { promptCapabilities: { image: true } } : {}) }, authMethods: [] });
   if (method === "session/new" && process.env.FAKE_HANG_NEW) return; // never answers: a stuck open
   if (method === "session/new") {
