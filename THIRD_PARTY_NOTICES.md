@@ -2,7 +2,7 @@
 
 This repository is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only). See [LICENSE](LICENSE).
 
-Nothing from a third party is copied into this repository yet. The runner has no dependencies.
+Nothing from a third party is copied into this repository. The runner has one runtime dependency, acpx (below), which npm installs; its own dependencies come with it.
 
 Both licenses below can be combined into an AGPL-3.0 work. Their notices must stay with the code. This file is where they go.
 
@@ -27,3 +27,7 @@ When code is copied from [DS Bot](https://github.com/Fei2411/DS-Bot): put the Ap
 ## Runner and DSH
 
 The runner can start the `dsh` command as a helper over ACP. That runs DSH as a separate program on your machine and does not include its code here.
+
+## Runner and acpx
+
+The runner uses [acpx](https://github.com/openclaw/acpx) (`acpx/runtime`, pinned to an exact version in `packages/runner/package.json`) to start ACP helpers and keep their sessions. acpx is MIT licensed (Copyright (c) 2025 OpenClaw Team). It is installed by npm, not copied into this repository, and its own dependencies come with it through npm. Its license text is in `node_modules/acpx/LICENSE` after install and is kept in the published package.
