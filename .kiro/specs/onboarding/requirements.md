@@ -8,6 +8,8 @@ Terms. **Aelios** is the memory service (Worker `companion-memory-proxy`). The *
 
 Decisions already taken. The wizard needs no model to finish. Every secret is typed into a secret card handled by shell code. The plugin carries the Aelios and resident code and deploys it; there is no GitHub fork. Boxes are not part of the wizard; they are added later in settings.
 
+Scope for the contest. Two paths only: **existing resident** (close to today's connect form) and **new, one-click defaults** (Aelios and resident deployed and linked by address and key). Everything else is in "After the contest" at the end: Codex sign-in, custom providers, the service binding, "Help me check", and the path for an owner who has Aelios but no resident. Update stays in this spec but is scheduled after the contest.
+
 Out of scope. Boxes. Telegram and other messengers. Deleting cloud resources.
 
 ## Requirements
@@ -29,19 +31,17 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 2. WHEN the owner answers yes THEN the wizard SHALL ask for its address and web key (secret card), check it, read which Aelios it uses from the resident itself, and go straight to the helper card. It SHALL NOT ask for Aelios details and SHALL NOT change the resident's Aelios.
 3. WHEN the owner answers no THEN the wizard SHALL go on to the Aelios card (below), then deploy a resident (requirement 3).
 
-### 2a. Aelios: use mine or make one (only when there is no resident yet)
+### 2a. Aelios: make one (only when there is no resident yet)
 
-1. The Aelios card SHALL ask "Do you already run Aelios?" with two answers.
-2. WHEN the owner answers yes THEN the wizard SHALL ask for its address and API key (secret card), call a read-only health check, and go on only when it answers.
-3. WHEN the owner answers no THEN the wizard SHALL start Cloudflare authorization (requirement 4) and then deploy the bundled Aelios (requirement 6).
-4. WHEN Aelios was deployed by the wizard THEN the wizard SHALL show its address and a generated password once, and SHALL ask what the assistant is called.
-5. The generated password SHALL also be stored in DSH credentials, and SHALL NOT be shown again by the shell except by a "generate a new one" action.
+1. The Aelios card SHALL start Cloudflare authorization (requirement 4) and then deploy the bundled Aelios (requirement 6). (For contest scope the card does not ask "Do you already run Aelios?"; that branch is in "After the contest".)
+2. WHEN Aelios was deployed by the wizard THEN the wizard SHALL show its address and a generated password once, and SHALL ask what the assistant is called.
+3. The generated password SHALL also be stored in DSH credentials, and SHALL NOT be shown again by the shell except by a "generate a new one" action.
 
 ### 3. A new resident
 
 1. WHEN the owner has no resident THEN the wizard SHALL deploy the bundled resident bound to the Aelios from requirement 2a (requirement 7) and SHALL show its address and a generated web key once.
 2. There is no path with an existing resident and a new Aelios: a resident never exists without Aelios.
-3. WHEN Aelios is in the same Cloudflare account THEN the resident SHALL reach it through a service binding and SHALL NOT store an Aelios key. Otherwise it SHALL get the Aelios address and key as a variable and a secret.
+3. The resident SHALL reach Aelios by address and key: the Aelios address as a variable and the key as a secret. (The service binding is in "After the contest".)
 
 ### 4. Cloudflare authorization
 
@@ -53,19 +53,17 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 
 ### 5. Main model (new Aelios only)
 
-1. The card SHALL offer: (a) Cloudflare models, built-in or paid with Cloudflare credits (unified billing); (b) bring your own key; (c) Codex subscription. Boxes SHALL be absent.
+1. The card SHALL offer: (a) Cloudflare models, built-in or paid with Cloudflare credits (unified billing); (b) bring your own key from an AI Gateway built-in provider. Boxes SHALL be absent.
 2. The default SHALL be (a), so the owner can press one button.
-3. WHEN (b) THEN the owner SHALL choose "AI Gateway built-in provider" or "custom provider".
-4. For a built-in provider the wizard SHALL read the provider list from Cloudflare when the card opens, SHALL NOT hard-code it, and SHALL store the pasted key as an AI Gateway provider key.
-5. For a custom provider the wizard SHALL ask for a name, a base URL and a key, and SHALL create the AI Gateway custom provider and store the key.
-6. WHEN (c) THEN the wizard SHALL run Aelios's own Codex sign-in. The shell SHALL catch the loopback redirect itself so the owner does not paste an address; if the port is busy it SHALL fall back to pasting.
-7. The model choice SHALL be applied once both Aelios and the resident exist.
+3. For (b) the wizard SHALL read the provider list from Cloudflare when the card opens, SHALL NOT hard-code it, and SHALL store the pasted key as an AI Gateway provider key.
+4. The model choice SHALL be applied once both Aelios and the resident exist.
 
 ### 6. Which models read and write memory
 
-1. WHEN the wizard deploys a new Aelios THEN the card SHALL show a model pattern with the default `*claude-opus-4*`, editable.
-2. The wizard SHALL refuse an empty pattern. The pattern SHALL be saved in the Aelios gateway identity as its main-model list.
-3. The wizard SHALL NOT change the pattern of an Aelios it did not deploy.
+1. WHEN the wizard deploys a new Aelios THEN the "your assistant" card SHALL show a model pattern, pre-filled with the main model chosen on the same card (for the default Cloudflare path, `glm-4.7-flash`). WHEN the owner changes the model and has not edited the pattern THEN the pattern SHALL follow the model.
+2. The pattern SHALL be editable and SHALL NEVER be empty; the wizard SHALL refuse an empty one. It is saved in the Aelios gateway identity as its main-model list.
+3. WHEN the owner edits the pattern so that it does not match the chosen main model THEN the card SHALL show one line: this model will not be remembered, with an "I know" button that confirms. It SHALL NOT block: an owner may limit memory to one model on purpose. Matching SHALL use Aelios's own rule for main models.
+4. The wizard SHALL NOT change the pattern of an Aelios it did not deploy.
 
 ### 7. Helpers, pairing, first line
 
@@ -81,17 +79,17 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 3. The host half SHALL hand a secret to `cf` or `wrangler` on standard input or in a file that only the owner can read, and SHALL delete that file right after.
 4. All child-process output SHALL pass through a redactor that removes every secret the wizard holds before it is stored or shown.
 5. Secrets SHALL live in DSH credentials (`ctx.credentials`) and in Cloudflare secrets, nowhere else.
+6. No secret SHALL exist that nobody knows. A secret step counts as done only WHEN the secret exists both locally and in Cloudflare. WHEN Cloudflare has it and the local copy is gone THEN the wizard SHALL go to a "set a new one" card and SHALL NOT claim success. Replacing a secret on a Worker needs the owner's explicit approval, as in requirement 4.5.
+7. WHEN the wizard runs `wrangler` for the Worker upload THEN it SHALL get its login without a second browser approval and without a token in an environment variable (8.2). If that is not possible the second approval SHALL be counted in the step table (design, Task 1.7).
 
-### 9. Failure, re-run, "Help me check"
+### 9. Failure and re-run
 
-1. WHEN a step fails THEN its card SHALL show the step name, a plain message, the redacted tail of the output, and the buttons "Try again" and "Help me check".
+1. WHEN a step fails THEN its card SHALL show the step name, a plain message, the redacted tail of the output, and a "Try again" button.
 2. Re-running SHALL be safe: it SHALL skip what exists and finish what is missing (design: idempotent steps).
-3. WHEN the owner presses "Help me check" THEN the host half MAY ask Workers AI (glm-4.7-flash) on the owner's own account, together with the Cloudflare MCP server (`https://mcp.cloudflare.com/mcp`) used read-only, to explain the failure.
-4. The explainer SHALL receive only the step name, the error code and the redacted output. It SHALL NOT receive a secret.
-5. A call that changes anything SHALL be refused unless the owner approves that one call on a card. This SHALL be enforced in code, not in a prompt.
-6. WHEN Workers AI or the MCP server is not available THEN the button SHALL say so and the plain message SHALL stay.
 
-### 10. Update
+### 10. Update (scheduled after the contest)
+
+Wizard installs have no fork, so Update is the only way they get new bundled code.
 
 1. The settings sheet SHALL have an "Update" action for a deployment the wizard made.
 2. WHEN the bundled code is newer than the deployed one THEN Update SHALL show what changes and, after approval, redeploy it.
@@ -100,10 +98,10 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 
 ### 11. Steps (the goal)
 
-1. From an installed plugin to the resident's first line, a returning owner (a resident exists, so Aelios does too) SHALL need 2 steps: the resident card, the helper card.
-2. A new owner with the default choices SHALL need 3 steps: the first card with Cloudflare approval, the "your assistant" card (name, model, pattern), the helper card that also shows the new keys.
-3. Choosing bring-your-own-key or Codex SHALL add typing or a browser approval inside the same card, not a new step.
-4. An owner with Aelios but no resident SHALL need 4 steps: the resident card (no), the Aelios card with its key, the Cloudflare approval, the helper card.
+1. From an installed plugin to the resident's first line, an owner with a resident (so Aelios too) SHALL need **2** steps: the resident card, the helper card.
+2. A new owner with the default choices SHALL need **4** steps: the resident card (no), the Aelios card with the Cloudflare approval, the "your assistant" card (name, model, pattern), the helper card that also shows the new keys.
+3. Choosing bring-your-own-key from a built-in provider SHALL add typing inside the same card, not a new step.
+4. WHEN Task 1.7 finds that `wrangler` needs its own browser approval THEN the new-owner count becomes 5 and every place that states it (PR text, this requirement, the design table, the test in task 9.1) SHALL change together.
 5. The design SHALL list the count per path, and a test SHALL fail when a path grows past it.
 
 ### 12. House rules
@@ -111,3 +109,33 @@ A resident works only with Aelios, so a resident that exists already has its Ael
 1. Files SHALL be small and do one job. New code SHALL go in new modules under `host/onboarding/` and `client/onboarding/`.
 2. All text in the repository SHALL be English. The user is "the owner" or "they". No names or personal details in code, tests or fixtures.
 3. The shell SHALL NOT write anything outside its own folder, DSH credentials and the owner's chosen workspace.
+
+## After the contest
+
+Not scheduled before the contest. Kept here so the design leaves room for them.
+
+### A1. Aelios: use mine (an owner who has Aelios but no resident)
+
+1. The Aelios card SHALL ask "Do you already run Aelios?". WHEN yes THEN it SHALL ask for its address and API key (secret card) and call a read-only health check.
+2. The card SHALL then read Aelios's read-only `GET /v1/hook/identities` with that key and let the owner pick an identity. Each identity SHALL be shown with its name and its main models.
+3. The picked identity SHALL be used for the new resident (its `AELIOS_IDENTITY` variable). The wizard SHALL NOT change that Aelios.
+4. This path counts 4 steps: the resident card (no), the Aelios card (yes, key, pick an identity), the Cloudflare approval, the helper card.
+
+### A2. Codex sign-in
+
+Run Aelios's own Codex sign-in. The shell catches the loopback redirect itself; if the port is busy it falls back to pasting. It adds a browser approval inside the same card.
+
+### A3. Custom provider
+
+Ask for a name, a base URL and a key; create the AI Gateway custom provider and store the key.
+
+### A4. Service binding
+
+WHEN Aelios is in the same Cloudflare account THEN the resident SHALL reach it through a service binding and SHALL NOT store an Aelios key.
+
+### A5. "Help me check"
+
+1. WHEN a step fails THEN the error card SHALL also offer "Help me check". The host half MAY ask Workers AI (glm-4.7-flash) on the owner's own account, together with the Cloudflare MCP server (`https://mcp.cloudflare.com/mcp`) used read-only, to explain the failure.
+2. The explainer SHALL receive only the step name, the error code and the redacted output. It SHALL NOT receive a secret.
+3. A call that changes anything SHALL be refused unless the owner approves that one call on a card. This SHALL be enforced in code, not in a prompt.
+4. WHEN Workers AI or the MCP server is not available THEN the button SHALL say so and the plain message SHALL stay.
