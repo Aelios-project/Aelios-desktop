@@ -1,7 +1,7 @@
 // Steps by toolCallId, the middle ellipsis, thinking and usage on the acpx engine (task 10).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SCAN_MAX, describeInput } from "../src/detail.mjs";
+import { describeInput } from "../src/detail.mjs";
 import { middle } from "../src/ellipsis.mjs";
 import { usageLine } from "../src/events.mjs";
 import { answer } from "../src/permission.mjs";
@@ -46,15 +46,38 @@ test("two ids with the same command are two steps with their own records; an upd
   assert.equal(steps.of("a").command, "npm test");
 });
 
-test("a command past 4000 and past the scan bound keeps its real end, locally and in the title", () => {
+test("the rewritten secret patterns hide what the old ones hid", () => {
+  const cases = {
+    "foo-token abc": "foo-token [hidden]", "-api_key=x": "-api_key=[hidden]", "x.token=abc d": "x.token=[hidden] d", "MY_API_KEY: v": "MY_API_KEY: [hidden]",
+    '--password "a b c" z': "--password [hidden] z", "a--token z": "a--token [hidden]", "https://u:p@h": "https://u:[hidden]@h", "-http://u:p@h": "-http://u:[hidden]@h",
+    "1http://u:p@h": "1http://u:p@h", "Authorization: Bearer abcdefghij": "Authorization: [hidden] [hidden]", "plain words only": "plain words only"
+  };
+  for (const [input, want] of Object.entries(cases)) assert.equal(describeInput(input, Infinity), want, input);
+});
+
+test("a command past 4000 characters keeps its real end, locally and in the title", () => {
   const steps = keyed(), long = "echo " + "x".repeat(4500) + " --last-argument";
   steps.take({ tag: "tool_call", toolCallId: "l", kind: "execute", title: "Run", rawInput: { command: long } });
   assert.equal(steps.of("l").command, long, "kept whole");
   assert.ok(steps.log.steps[0].title.endsWith("--last-argument"));
-  const huge = "run " + "word ".repeat(SCAN_MAX / 4) + "--token sk_live_value123 --very-last";
-  const kept = describeInput(huge, Infinity);
-  assert.ok(kept.startsWith("run word") && kept.endsWith("--token [hidden] --very-last") && kept.includes(" … "), kept.slice(-60));
-  assert.ok(kept.length <= SCAN_MAX + 3);
+});
+
+test("a quoted secret that starts deep in a long command stays hidden in the detail, the title and the local copy", () => {
+  const command = "echo " + "word ".repeat(2400) + ' --password "' + "vv ".repeat(5000) + 'SYNTHETIC_PRIVATE_TAIL" --last';
+  const { hold } = answer("read", { toolCall: { title: "Run", kind: "execute", rawInput: { command } }, options: [{ optionId: "a", kind: "allow_once" }] });
+  const steps = keyed();
+  steps.take({ tag: "tool_call", toolCallId: "p", kind: "execute", title: "Run", rawInput: { command } });
+  for (const [where, shown] of [["detail", hold.detail], ["title", steps.log.steps[0].title], ["local", steps.of("p").command]]) {
+    assert.ok(!shown.includes("SYNTHETIC_PRIVATE_TAIL") && !shown.includes("vv vv"), where);
+    assert.ok(shown.endsWith("--last"), where);
+  }
+  assert.ok(steps.of("p").command.includes('--password [hidden] --last'), "the local copy is whole, with the secret replaced");
+});
+
+test("redaction stays fast on long runs that never match", () => {
+  const started = Date.now();
+  for (const line of ["a-".repeat(50_000), "key-".repeat(25_000), "a.".repeat(50_000) + "://u:p", "-a".repeat(50_000)]) describeInput(line, Infinity);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 });
 
 test("a permission request shows the command from its input, cut in the middle, never a step title", () => {
