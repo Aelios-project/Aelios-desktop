@@ -1569,6 +1569,16 @@ function MessageActions({ line, resident, last, onChanged }) {
   );
 }
 
+// client/row.mjs
+function myWords(line) {
+  return String(line?.text ?? "").trim() ? [line.text] : [];
+}
+function drawsRow(line) {
+  if (!line) return false;
+  if (line.role !== "user") return true;
+  return myWords(line).length > 0 || (line.pictures ?? 0) > 0 || (line.attached ?? []).length > 0 || (line.files ?? []).length > 0 || (line.stickers ?? []).length > 0 || Boolean(line.voice?.key) || Boolean(line.voice?.missed);
+}
+
 // client/thread-chip.mjs
 var import_react10 = require("react");
 
@@ -1797,17 +1807,23 @@ function Voice({ voice, resident }) {
     (0, import_react11.createElement)("span", { className: "len" }, voice.missed ? t.missed : voiceLength(voice.seconds))
   );
 }
-function Stickers({ stickers }) {
-  return (0, import_react11.createElement)("div", { className: "ad-stickers" }, stickers.map((sticker) => (0, import_react11.createElement)(
+function Stickers({ stickers, at }) {
+  return (0, import_react11.createElement)("div", { className: "ad-stickers" }, stickers.map((sticker, i) => (0, import_react11.createElement)(
     "div",
-    { key: sticker.url, className: "ad-sticker" },
-    sticker.video ? (0, import_react11.createElement)("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers }) : (0, import_react11.createElement)("img", { src: sticker.url, alt: "", loading: "lazy" })
+    { key: sticker.url, className: "ad-sticker-wrap" },
+    (0, import_react11.createElement)(
+      "div",
+      { className: "ad-sticker" },
+      sticker.video ? (0, import_react11.createElement)("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers }) : (0, import_react11.createElement)("img", { src: sticker.url, alt: "", loading: "lazy" })
+    ),
+    i === stickers.length - 1 && at ? (0, import_react11.createElement)("span", { className: "ad-meta" }, clock(at)) : null
   )));
 }
 function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
-  const bubbles = me ? String(line.text || "").trim() ? [line.text] : [] : bubbleTexts(line.text);
+  const bubbles = me ? myWords(line) : bubbleTexts(line.text);
+  if (!drawsRow(line)) return null;
   return (0, import_react11.createElement)(
     "div",
     { className: `ad-row ${me ? "me" : "ai"}` },
@@ -1823,7 +1839,7 @@ function Message({ line, resident, last = false, onChanged = null, cards = [] })
     me && (line.attached ?? []).length > 0 && (0, import_react11.createElement)(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && (0, import_react11.createElement)(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && (0, import_react11.createElement)(Voice, { voice: line.voice, resident }),
-    (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers }),
+    (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers, at: line.at }),
     cards.length > 0 && (0, import_react11.createElement)(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && (0, import_react11.createElement)(MessageActions, { line, resident, last, onChanged })
   );
@@ -4146,9 +4162,12 @@ var CHAT = `
 .ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
 .ad-voice-play svg { width: 13px; height: 13px; }
 .ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-stickers { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.ad-sticker-wrap { display: flex; flex-direction: column; align-items: flex-start; }
 .ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
-.ad-sticker img, .ad-sticker video { display: block; width: 112px; height: auto; image-rendering: pixelated; }
+.ad-sticker img, .ad-sticker video { display: block; width: 128px; height: auto; image-rendering: pixelated; }
+.ad-sticker-wrap .ad-meta { margin: 2px 2px 0; }
+.ad-row.me .ad-stickers, .ad-row.me .ad-sticker-wrap { align-items: flex-end; }
 
 .ad-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
 .ad-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); font-size: 12.5px; }

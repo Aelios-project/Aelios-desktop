@@ -8,6 +8,7 @@ import { Icon } from "./icons.mjs";
 import { Md } from "./md.mjs";
 import { MessageActions } from "./message-actions.mjs";
 import { voiceLength } from "./media.mjs";
+import { drawsRow, myWords } from "./row.mjs";
 import { words } from "./strings.mjs";
 import { ThreadChips } from "./thread-chip.mjs";
 
@@ -109,19 +110,23 @@ function Voice({ voice, resident }) {
     h("span", { className: "len" }, voice.missed ? t.missed : voiceLength(voice.seconds)));
 }
 
-/** Stickers a reply carried: a still picture, or the short loop it is. */
-function Stickers({ stickers }) {
-  return h("div", { className: "ad-stickers" }, stickers.map((sticker) => h("div", { key: sticker.url, className: "ad-sticker" },
-    sticker.video
-      ? h("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers })
-      : h("img", { src: sticker.url, alt: "", loading: "lazy" }))));
+/** Stickers a line carried: a still picture, or the short loop it is; `at` shows the time when nothing else does. */
+function Stickers({ stickers, at }) {
+  return h("div", { className: "ad-stickers" }, stickers.map((sticker, i) => h("div", { key: sticker.url, className: "ad-sticker-wrap" },
+    h("div", { className: "ad-sticker" },
+      sticker.video
+        ? h("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers })
+        : h("img", { src: sticker.url, alt: "", loading: "lazy" })),
+    i === stickers.length - 1 && at ? h("span", { className: "ad-meta" }, clock(at)) : null)));
 }
 
 /** `last` marks the newest reply (it can be taken back); `onChanged` reads the conversation again after. */
 export function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
-  const bubbles = me ? (String(line.text || "").trim() ? [line.text] : []) : bubbleTexts(line.text);
+  const bubbles = me ? myWords(line) : bubbleTexts(line.text);
+  // A sticker sent on its own (from the picker) has no words: the picture is the whole message, so it still needs a row.
+  if (!drawsRow(line)) return null;
   return h("div", { className: `ad-row ${me ? "me" : "ai"}` },
     busy && h(Busy, { busy }),
     line.quote && h("span", { className: "ad-quote" }, line.quote.text),
@@ -132,7 +137,7 @@ export function Message({ line, resident, last = false, onChanged = null, cards 
     me && (line.attached ?? []).length > 0 && h(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && h(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && h(Voice, { voice: line.voice, resident }),
-    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers }),
+    (line.stickers ?? []).length > 0 && h(Stickers, { stickers: line.stickers, at: line.at }),
     cards.length > 0 && h(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && h(MessageActions, { line, resident, last, onChanged }));
 }
