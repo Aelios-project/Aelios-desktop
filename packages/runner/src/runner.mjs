@@ -202,7 +202,7 @@ export class Runner {
     }
     let engine;
     try { engine = this.#engine(); }
-    catch (error) { // the session store cannot be made safe: refuse to run, with the reason
+    catch (error) { // the session store cannot be made safe, or the helper environment conflicts: refuse to run, with the reason
       this.journal?.end(work, "failed", "session store");
       return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: error.message })]);
     }

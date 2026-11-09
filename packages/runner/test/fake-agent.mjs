@@ -8,7 +8,8 @@
 //   PERM:kind[:path]   asks permission first and says what it was told; with RAW=<url-encoded command> the request carries it as rawInput
 //   CWD        says the folder it was started in
 // Env: FAKE_MODE (the mode Kiro reports), FAKE_NOMODE=1 (report no mode at all), FAKE_IMAGE=0|1 (take pictures or not; default: Kiro face yes, DSH face no),
-//      FAKE_AGENTS (the folder of Kiro agent files; the start is logged with the file it was started with)
+//      FAKE_AGENTS (the folder of Kiro agent files; the start is logged with the file it was started with),
+//      FAKE_PROBE (comma-separated names whose values the start log records)
 // It wears two faces, picked by how it is started: `acp` (Kiro: session/load) or `--profile acp` (DSH: session/resume + close).
 // Everything it is asked is appended to the file in FAKE_STORE, which also keeps its sessions between runs.
 import fs from "node:fs";
@@ -31,7 +32,7 @@ const cancelled = new Set(); const cancelWaiters = new Map();
 const ask = (method, params) => new Promise(resolve => { const id = nextId++; waiting.set(id, resolve); send({ jsonrpc: "2.0", id, method, params }); });
 
 const agentFile = () => { try { const c = JSON.parse(fs.readFileSync(`${process.env.FAKE_AGENTS}/${args[args.indexOf("--agent") + 1]}.json`, "utf8")); return { allowedTools: c.allowedTools, bash: Boolean(c.toolsSettings?.execute_bash) }; } catch { return null; } };
-store(data => data.log.push({ event: "start", pid: process.pid, envNames: Object.keys(process.env), args, ...(args.includes("--agent") && process.env.FAKE_AGENTS ? { agentFile: agentFile() } : {}) }));
+store(data => data.log.push({ event: "start", pid: process.pid, envNames: Object.keys(process.env), probe: Object.fromEntries((process.env.FAKE_PROBE ?? "").split(",").filter(Boolean).map(n => [n, process.env[n]])), args, ...(args.includes("--agent") && process.env.FAKE_AGENTS ? { agentFile: agentFile() } : {}) }));
 const image = process.env.FAKE_IMAGE ? process.env.FAKE_IMAGE === "1" : !dsh;
 process.stdout.write("this line is not JSON, a client must skip it\n");
 

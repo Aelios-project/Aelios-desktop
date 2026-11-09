@@ -60,6 +60,8 @@ With `"engine": "acpx"` a helper does not get the runner's whole environment. It
 - every `LC_*` and `XDG_*` variable; for `kiro` also every `KIRO_*` and `AWS_*`; for `dsh` every `DEEPSEEK_*` and `DSH_*`;
 - the keys in the config's `env`, as written.
 
+acpx adds one exception of its own: every non-empty `ACPX_AUTH_<NAME>` in the runner's environment reaches the helper, also copied as `<NAME>`, and acpx lets nothing override either name. If the config's `env` sets one of those names, the runner refuses the turn with a message instead of letting the value be silently replaced. Unset the `ACPX_AUTH_` variable or drop the key.
+
 Migration: a helper that needed another variable (a token for `gh`, a registry key) stops seeing it on the acpx engine. Add it to `env` in `config.json`. The legacy engine still passes the whole environment.
 
 ## Run
