@@ -158,7 +158,7 @@ Inactivity is off by default, because a long silent tool call (a build, a test r
 `env-allow.mjs` builds three things from `process.env` and the config:
 
 - Base allowlist: `PATH HOME USER LOGNAME SHELL LANG LC_* TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS SSH_AUTH_SOCK XDG_*` and the proxy set `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY http_proxy https_proxy all_proxy no_proxy`.
-- Per plug: `kiro` adds `KIRO_*` and `AWS_*` only if the config asks; `dsh` adds `DEEPSEEK_*` and `DSH_*`; `claude` adds `ANTHROPIC_*`; `codex` adds `OPENAI_*`.
+- Per plug: `kiro` adds `KIRO_*` and `AWS_*` (tasks.md 6.1 and the migration note list both; there is no separate config switch); `dsh` adds `DEEPSEEK_*` and `DSH_*`; `claude` adds `ANTHROPIC_*`; `codex` adds `OPENAI_*`.
 - Config `env` keys are passed as the owner wrote them.
 
 acpx takes exact variable names, not patterns. So the runner expands every prefix (`LC_*`, `XDG_*`, `KIRO_*`, `AWS_*`, `DEEPSEEK_*`) against its own `process.env` and hands acpx the resulting exact names.

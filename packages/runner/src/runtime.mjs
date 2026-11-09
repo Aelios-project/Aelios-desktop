@@ -3,6 +3,7 @@
 // The mode is not in getStatus and not in the saved record; it is only in the reply to session/new or session/load, which
 // onAcpMessage lets us see. shortcut: onAcpMessage is documented as best effort; an unseen mode fails the Kiro check closed.
 import { createAcpRuntime, createFileSessionStore } from "acpx/runtime";
+import { envFor } from "./env-allow.mjs";
 import { openStore } from "./store.mjs";
 
 const OPENING = new Set(["session/new", "session/load", "session/resume"]);
@@ -12,6 +13,7 @@ export function createEngine(config, home) {
   const asked = new Map(); // JSON-RPC request id -> {method, sessionId}
   const modes = new Map(); // ACP session id -> current mode id (null when the helper did not say)
   const pids = new Map(); // session key -> pid of its helper process, so a stuck open can still be stopped
+  const helperEnv = envFor(config.plugin, config, process.env);
   const sessionStore = createFileSessionStore({ stateDir: openStore(home) });
   const runtime = createAcpRuntime({
     cwd: config.workspace, sessionStore, mcpServers: [],
@@ -25,7 +27,7 @@ export function createEngine(config, home) {
       onSpawned: p => { if (p.scope.kind === "runtime-session") pids.set(p.scope.sessionKey, p.pid); },
       onExit: p => { if (p.scope.kind === "runtime-session" && pids.get(p.scope.sessionKey) === p.pid) pids.delete(p.scope.sessionKey); }
     },
-    agentProcessEnv: { ...(config.env ?? {}) }, // shortcut: no allowlist yet, the helper also inherits the runner's environment (PR B)
+    agentProcessEnvAllow: helperEnv.allow, agentProcessEnv: helperEnv.env, // an allowlist, not the runner's whole environment
     onAcpMessage: (direction, message) => {
       if (direction === "outbound" && message.id != null) asked.set(message.id, { method: message.method, sessionId: message.params?.sessionId });
       const request = direction === "inbound" && message.id != null && message.method === undefined ? asked.get(message.id) : null;

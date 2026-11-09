@@ -51,6 +51,19 @@ Only this machine's config picks the helper. A cloud message cannot change it.
 - `command` (experimental): any command that speaks ACP, for example the Claude Code adapter `claude-agent-acp`. In `config.json` write `"plugin": "command", "command": ["claude-agent-acp"]`. Signing in with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
 - Optional config: `bin` (another executable path), `args` (extra arguments), `env` (extra environment variables), `turnTimeoutMs` (longest single turn, default 30 minutes), `pollMs` (how often to fetch work, default 5 seconds), `backoffMaxMs` (longest wait between tries while the cloud is unreachable, default 60 seconds).
 
+### The helper's environment (acpx engine)
+
+With `"engine": "acpx"` a helper does not get the runner's whole environment. It gets:
+
+- `PATH HOME USER LOGNAME SHELL LANG TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS SSH_AUTH_SOCK`;
+- the proxies `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY` and their lowercase forms;
+- every `LC_*` and `XDG_*` variable; for `kiro` also every `KIRO_*` and `AWS_*`; for `dsh` every `DEEPSEEK_*` and `DSH_*`;
+- the keys in the config's `env`, as written.
+
+acpx adds one exception of its own: every non-empty `ACPX_AUTH_<NAME>` in the runner's environment reaches the helper, also copied as `<NAME>`, and acpx lets nothing override either name. If the config's `env` sets one of those names, the runner refuses the turn with a message instead of letting the value be silently replaced. Unset the `ACPX_AUTH_` variable or drop the key.
+
+Migration: a helper that needed another variable (a token for `gh`, a registry key) stops seeing it on the acpx engine. Add it to `env` in `config.json`. The legacy engine still passes the whole environment.
+
 ## Run
 
 ```sh
