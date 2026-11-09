@@ -53,11 +53,15 @@ Written before any code. Task 1 (checks) is done; nothing else is. Keep every fi
   - [ ] 2.4 Carry each bundle's license; add both to `THIRD_PARTY_NOTICES.md`
   - _Requirements: 10, 12_
 
-- [ ] 3. Host core
-  - [ ] 3.1 `redact.mjs` and its test (a secret never leaves)
-  - [ ] 3.2 `cli.mjs`: spawn `cf` or `npx wrangler@<pin>`, clean environment, secrets on stdin, output through `redact`
-  - [ ] 3.3 `state.mjs`, `steps.mjs`, `run.mjs`: check, do, verify; saved progress in DSH credentials without secrets
-  - [ ] 3.4 `route.mjs` and the one line in `host/route.mjs`
+- [x] 3. Host core
+  - [x] 3.1 `redact.mjs` and its test (a secret never leaves)
+    - `host/onboarding/redact.mjs`: text and nested values, longest secret first, and `guard` so a held secret cannot become a command-line argument. `secrets.mjs` is the DSH side of rule 8.5: a generated secret is stored locally before Cloudflare sees it.
+  - [x] 3.2 `cli.mjs`: spawn `cf` or `npx wrangler@<pin>`, clean environment, secrets on stdin, output through `redact`
+    - `host/onboarding/cli.mjs`: only `PATH` and `HOME` are inherited (plus the one `CLOUDFLARE_API_TOKEN` exception, for the upload step), `npx --yes` so a cache refresh cannot wait for an answer, a timeout, and the last 40 lines redacted as the card's tail.
+  - [x] 3.3 `state.mjs`, `steps.mjs`, `run.mjs`: check, do, verify; saved progress in DSH credentials without secrets
+    - `run.mjs` treats the cloud as the truth: a step is done only when its `check` says so, so a re-run skips it; a failure saves the step, the redacted message and the tail, and a retry resumes there. `steps.mjs` holds the two paths and the deploy order.
+  - [x] 3.4 `route.mjs` and the one line in `host/route.mjs`
+    - Actions: `status`, `start`, `run`, `retry`, `reset`. `host/route.mjs` sends every `onboarding.` action there and maps `StepError` to a 400 with the step, code and tail. The step handlers are empty until task 4; a step without a handler says so.
   - _Requirements: 1, 8, 9.2_
 
 - [ ] 4. Cloudflare and Aelios
@@ -86,7 +90,8 @@ Written before any code. Task 1 (checks) is done; nothing else is. Keep every fi
   - _Requirements: 1, 6, 8, 9, 11_
 
 - [ ] 9. Step count and end to end
-  - [ ] 9.1 A test that counts cards per path and fails past the bound: existing resident 2, new default 4 (task 1.7 found no second approval, so not 5)
+  - [x] 9.1 A test that counts cards per path and fails past the bound: existing resident 2, new default 4 (task 1.7 found no second approval, so not 5)
+    - `test/onboarding-flow.test.mjs` asserts both numbers and that each path is a list that starts at the resident card and ends at the helpers.
   - [ ] 9.2 One run in a real DSH: from installed plugin to the first line, on a test account
   - _Requirements: 11_
 

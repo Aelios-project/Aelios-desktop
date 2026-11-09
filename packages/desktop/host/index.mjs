@@ -12,7 +12,7 @@ export function apply(ctx) {
   const node = nodeBin();
   const store = new Store(ctx.credentials);
   const supervisor = new Supervisor({ entry, node });
-  const route = makeRoute({ entry, node, store, supervisor });
+  const route = makeRoute({ entry, node, store, supervisor, credentials: ctx.credentials });
 
   // Start the runner with DSH when a connection exists; stop it when DSH stops this plugin.
   ctx.effect(() => {
