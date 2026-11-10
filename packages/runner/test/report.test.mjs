@@ -96,3 +96,19 @@ test("the fake resident refuses a summary over its limit with 400, as the real o
     assert.equal((await send("x".repeat(SUMMARY_MAX))).status, 200);
   } finally { await r.done(); }
 });
+
+test("BLOCKED: after a long narrative keeps its reason, and the narrative gives way", () => {
+  const out = outcomeOf(turn([], "Earlier detail.\n".repeat(500) + "BLOCKED: NEEDS_NETWORK_SENTINEL"), "end_turn", "new");
+  assert.equal(out.status, "failed");
+  assert.ok(out.summary.startsWith("Blocked: NEEDS_NETWORK_SENTINEL\n\n") && out.summary.length <= SUMMARY_MAX && MARK.test(out.summary));
+});
+
+test("a question-only ASK: is the summary, not '(no content)'", () => {
+  const out = outcomeOf(turn([], "ASK: Which one?"), "end_turn", "new");
+  assert.equal(out.status, "needs_you");
+  assert.equal(out.summary, "Which one?");
+});
+
+test("a BLOCKED: line alone is the summary", () => {
+  assert.equal(outcomeOf(turn([], "BLOCKED: no network"), "end_turn", "new").summary, "Blocked: no network");
+});

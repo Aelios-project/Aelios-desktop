@@ -2,7 +2,7 @@
 // which holds `finished`, `current`, `denied`, `opened`, `tier`, `timedOut` and `redact`.
 import { createHash } from "node:crypto";
 import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";
-import { fitReport } from "./report.mjs";
+import { fitReport, SUMMARY_MAX } from "./report.mjs";
 
 const short = text => createHash("sha1").update(text).digest("hex").slice(0, 12);
 
@@ -53,10 +53,13 @@ export function outcomeOf(t, stopReason, how) {
   if (!parts.length && notes.length) return { ...base, status: "done", summary: t.redact(notes.join("\n")) };
   if (!parts.length) return { ...base, status: "needs_you", summary: "The turn ended, but the helper left no text result.", ask: { key: "silent:" + short(String(t.opened) + Date.now()), question: "The turn ended, but the helper left no text result. Ask again?" } };
   const said = lastMarker(text);
-  const earlier = said ? [...parts.slice(0, -1), dropLastLine(final)] : parts; // the text before the marker line, last part kept apart
+  const earlier = said ? [...parts.slice(0, -1), dropLastLine(final)].filter(Boolean) : parts; // the text before the marker line, last part kept apart
   if (said?.kind === "blocked") {
     const reason = t.redact(said.text || "(no reason given)");
-    return { ...base, status: "failed", reason: "error", summary: fitReport([`Blocked: ${reason}`, ...earlier.map(part => whole(t, part)).filter(Boolean)]) };
+    const head = `Blocked: ${reason}`; // the reason is never cut: the earlier text gets the room that is left
+    const rest = earlier.map(part => whole(t, part)).filter(Boolean);
+    const room = SUMMARY_MAX - head.length - 2;
+    return { ...base, status: "failed", reason: "error", summary: rest.length && room > 100 ? `${head}\n\n${fitReport(rest, room)}` : fitReport([head]) };
   }
   if (said?.kind === "ask") {
     const question = t.redact(said.text || "(the helper wants you to decide, but wrote no question)");
