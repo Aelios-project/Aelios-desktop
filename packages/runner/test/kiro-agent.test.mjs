@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { homeDir } from "../src/state.mjs";
 import { agentConfig, agentName, writeAgent } from "../src/kiro-agent.mjs";
 import { launchOf } from "../src/plugins.mjs";
 import { ASK_WORDS, allowAllBut } from "../src/shell-allow.mjs";
@@ -32,7 +33,9 @@ test("read: Kiro approves reads inside the workspace only; neither tier trusts t
 test("edit: reads anywhere, any shell command except the ask words, nothing refused outright", () => {
   const { allowedTools, toolsSettings } = agentConfig("edit", thread, cwd);
   assert.deepEqual(allowedTools, ["fs_read", "glob", "grep"]);
-  assert.deepEqual(Object.keys(toolsSettings), ["execute_bash", "fs_write"], "no path limit on reads");
+  assert.deepEqual(Object.keys(toolsSettings).sort(), ["execute_bash", "fs_read", "fs_write", "glob", "grep"]);
+  const home = homeDir();
+  for (const tool of ["fs_read", "glob", "grep"]) assert.deepEqual(toolsSettings[tool], { deniedPaths: [home, `${home}/**`] }, "no path limit on reads except the runner's home");
   assert.deepEqual(toolsSettings.execute_bash, { allowedCommands: [allowAllBut()] });
 });
 
