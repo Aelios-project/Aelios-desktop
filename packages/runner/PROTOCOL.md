@@ -43,12 +43,16 @@ How many runners a resident may have is decided by the cloud. The runner knows o
 
 ```jsonc
 // request
-{ "plugin": "kiro", "busy": "thread-id or null", "label": "the computer's name" }
+{ "plugin": "kiro", "busy": "thread-id or null", "label": "the computer's name", "engine": "acpx@0.22.0" }
 // response
-{ "ok": true, "protocol": "aelios-runner/1" }
+{ "ok": true, "protocol": "aelios-runner/1", "accepts": ["heartbeat.engine", "receipt.ahead", "reason.refused", "reason.token_limit", "reason.no_result"], "limits": { "summary": 4000 } }
 ```
 
-`label` is optional: the computer's name (macOS: the Computer Name; elsewhere the host name), at most 60 characters. The cloud shows it as the machine's name and updates it when it changes, so a machine paired before names existed gets its name without pairing again. Pairing sends the same name as `label`. A heartbeat with any field other than these three is refused (400). The cloud uses it to decide "online", and to renew the lease (5 minutes) on work the runner holds without a receipt yet. When a lease runs out, the cloud marks that work "state to be confirmed" and **does not send it again**.
+`engine` is optional: how the runner talks to the helper, `acpx@<version>` or `legacy` (the same label `status` shows), at most 40 characters of letters, digits and `@._+-`. The runner sends it only once the resident's `accepts` lists `heartbeat.engine`, so the first heartbeat after start never has it and the next one (a few seconds later) does.
+
+`accepts` and `limits` are in the answer: what this resident takes beyond the first version of the protocol, and its limits. The runner keeps the values of the last answer. An answer without `accepts` (an older resident) means the first version: the runner sends no `engine`, no `ahead` and no later `reason`, and cuts a summary at 4000 characters. A name not listed is never sent, because an older resident answers 400 and the runner would drop the receipt. The names so far: `heartbeat.engine`, `receipt.ahead`, `reason.refused`, `reason.token_limit`, `reason.no_result`. `limits.summary` is the most characters a `summary` may have; the runner fits its report to it.
+
+`label` is optional: the computer's name (macOS: the Computer Name; elsewhere the host name), at most 60 characters. The cloud shows it as the machine's name and updates it when it changes, so a machine paired before names existed gets its name without pairing again. Pairing sends the same name as `label`. A heartbeat with any field other than these four is refused (400). The cloud uses it to decide "online", and to renew the lease (5 minutes) on work the runner holds without a receipt yet. When a lease runs out, the cloud marks that work "state to be confirmed" and **does not send it again**.
 
 ## progress
 
@@ -128,19 +132,20 @@ A request below the `full` tier is held for the owner (10 minutes; no answer cou
   "workId": "w_…",
   "token": "wt_…",
   "type": "started",          // started | queued | final
+  "ahead": 2,                 // queued only, optional: turns before this one on this machine, the running one included (1 to 99). Sent only when accepts lists receipt.ahead
   "sessionId": "…",           // optional, the ACP session id (opaque, at most 160 characters; replaced by a short digest if it fails the check)
   // only final carries the rest:
   "status": "done",           // done | failed | needs_you | cancelled
-  "reason": "needs_login",    // failed only, optional: why. One of permission_denied, needs_login, missing_key, helper_missing, workspace_denied, interrupted, error
-  "summary": "…",             // at most 4000 characters: every text part of the turn in order, `NOTE:` lines taken out; the runner replaces workspace paths and tokens that appear as is, then, if the text is longer, keeps the last part whole and the start of the rest, with `[... N characters left out ...]` where text was dropped; a last part that alone is over the limit keeps its end, with the mark first
+  "reason": "needs_login",    // failed only, optional: why. One of permission_denied, needs_login, missing_key, helper_missing, workspace_denied, interrupted, error, and (only when accepts lists reason.<name>) refused, token_limit, no_result
+  "summary": "…",             // at most limits.summary characters (4000 when the resident names no limit): every text part of the turn in order, `NOTE:` lines taken out; the runner replaces workspace paths and tokens that appear as is, then, if the text is longer, keeps the last part whole and the start of the rest, with `[... N characters left out ...]` where text was dropped; a last part that alone is over the limit keeps its end, with the mark first
   "ask":    { "key": "…", "question": "…", "options": ["…"], "recommend": "…" },
   "notice": { "text": "…", "fyi": true },
   "resolve": ["key", "…"]
 }
 ```
 
-- `started`: the helper session is made or resumed, and work begins. `queued`: this `mail` is waiting behind. `final`: this work is finished. A work has only one `final`.
-- `reason` (only on a `failed` final; any other status with a `reason`, or a code not in the list, is refused with 400): what the runner knows about the failure. `needs_login` / `missing_key`: the helper said it needs a login or a key (ACP `auth_required`, or those words in its error). `permission_denied`: the helper was refused a permission. `helper_missing`: the helper program could not be started. `workspace_denied`: the workspace folder could not be made or used. `interrupted`: the runner was stopped or restarted in the middle of the turn, or hit an error handling it, so the outcome is not known (never an ask: the owner opens the thread and decides). `error`: anything else (a `BLOCKED:` line, an unreadable message, an unclassified helper error). The resident lists a failed thread in its waiting list only for `needs_login`, `missing_key`, `permission_denied` and `interrupted`; without a `reason` (an older runner) it falls back to matching words in the summary.
+- `started`: the helper session is made or resumed, and work begins. `queued`: this `mail` is waiting behind (`ahead` says how many turns are before it). `final`: this work is finished. A work has only one `final`.
+- `reason` (only on a `failed` final; any other status with a `reason`, or a code not in the list, is refused with 400): what the runner knows about the failure. `needs_login` / `missing_key`: the helper said it needs a login or a key (ACP `auth_required`, or those words in its error). `permission_denied`: the helper was refused a permission. `helper_missing`: the helper program could not be started. `workspace_denied`: the workspace folder could not be made or used. `interrupted`: the runner was stopped or restarted in the middle of the turn, or hit an error handling it, so the outcome is not known (never an ask: the owner opens the thread and decides). `refused`: the helper stopped the turn with a refusal (ACP stop reason `refusal`). `token_limit`: it stopped at its token limit (`max_tokens`). `no_result`: the turn ended and the helper left no text. These three are `failed`, never `needs_you`, and the summary says what happened; when the resident does not list the name, the runner sends the same text as `needs_you` with an `ask` instead, as before. `error`: anything else (a `BLOCKED:` line, an unreadable message, an unclassified helper error). The resident lists a failed thread in its waiting list only for `needs_login`, `missing_key`, `permission_denied`, `interrupted`, `refused`, `token_limit` and `no_result`; without a `reason` (an older runner) it falls back to matching words in the summary.
 - `status`: `done` finished; `failed` not done (the helper errored); `needs_you` the user must decide, **always with `ask`**; `cancelled` interrupted by `say` or stopped by `cancel`.
 - **`ask`** is one item in the "waiting for you" list. `key` is a stable id for the same matter: while a `key` is open it is not asked again. The cloud lists it under "waiting for you" and does not post it into the chat. `options` and `recommend` are optional.
 - **`notice`** only informs. `fyi:true` means no reply is needed.

@@ -43,7 +43,7 @@ async function prompt(id, params) {
   const { sessionId } = params, full = params.prompt.map(part => part.text).join(""), text = full.split("\n\nHow to talk to the user.")[0];
   const session = load().sessions[sessionId];
   store(data => data.log.push({ event: "prompt", sessionId, text, full, cwd: session?.cwd, blocks: params.prompt }));
-  chunk(sessionId, "starting. ");
+  if (!text.includes("SILENTME")) chunk(sessionId, "starting. ");
   send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "t1", title: "look around", kind: "read", status: "completed" } } });
   if (text.includes("STEPSME")) { // several tool calls: a command with a secret and file contents in its input, two edits, a read
     const call = (n, update) => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "s" + n, ...update } } });
@@ -87,6 +87,8 @@ async function prompt(id, params) {
   const parts = /PARTS:(\d+)/.exec(text);
   if (parts) for (let n = 1; n <= Number(parts[1]); n++) { chunk(sessionId, `part ${n} ` + "y".repeat(990)); toolCall(n); }
   if (text.includes("NOTEME")) chunk(sessionId, "NOTE: found two config files\nWorking on it.\n");
+  if (text.includes("SILENTME")) return send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } }); // no text at all
+  if (/REFUSEME|MAXTOKME/.test(text)) { chunk(sessionId, "Partial answer."); return send({ jsonrpc: "2.0", id, result: { stopReason: text.includes("REFUSEME") ? "refusal" : "max_tokens" } }); }
   chunk(sessionId, text.includes("BLOCKME") ? "Tried two ways.\nBLOCKED: no network from this machine" : text.includes("ASKME") ? "I need you to decide.\nASK: Which one first?" : text.includes("QUESTION") ? "Done. Shall I carry on?" : `done: ${text}${said}`);
   send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
 }
