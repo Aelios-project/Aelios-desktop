@@ -9,6 +9,7 @@ import { Journal } from "../src/journal.mjs";
 import { computerName } from "../src/machine-name.mjs";
 import { acquire, stopHolder } from "../src/lock.mjs";
 import { overview } from "../src/overview.mjs";
+import { engineLabel } from "../src/engine-label.mjs";
 import { PLUGINS, available, binOf } from "../src/plugins.mjs";
 import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
@@ -64,7 +65,7 @@ async function start() {
     const control = new AbortController();
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => control.abort());
     const runner = new Runner({ config, state, journal, log: (...args) => console.error(new Date().toISOString(), ...args) });
-    console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}`);
+    console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}, engine ${engineLabel(config)}`);
     const unsweep = await keepSwept(home, config.retention, state, (...args) => console.error(new Date().toISOString(), ...args));
     try { await runner.start(control.signal); } finally { unsweep(); }
   } finally { release(); }
@@ -72,7 +73,7 @@ async function start() {
 
 async function status() {
   const config = await readConfig(configFile), s = await state.read();
-  console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), plugin: config.plugin, access: config.access, workspace: config.workspace,
+  console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), engine: engineLabel(config), plugin: config.plugin, access: config.access, workspace: config.workspace,
     threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length, store: storeStatus(home) }, null, 2));
 }
 
