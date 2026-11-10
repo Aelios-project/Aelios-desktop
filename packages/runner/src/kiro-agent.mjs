@@ -2,9 +2,9 @@
 // whatever Kiro does not approve itself reaches the runner as a permission request, and is held for the owner).
 // Kiro reads agent configs only from a folder by name, so this one lives in Kiro's own agents folder, outside the
 // workspace, and is rewritten before each turn, so a thread cannot loosen it.
-// `read`: reads inside the workspace. `edit`: reads anywhere, and every shell command except the ask words in
-// shell-allow.mjs (push, deleting files, sudo, git config), which are held. Kiro's file-write tool is never approved,
-// so a write outside the workspace is held. `full`: every tool.
+// `read`: reads inside the workspace. `edit`: reads anywhere, writes with Kiro's write tool inside the workspace, and
+// every shell command except the ask words in shell-allow.mjs, which are held. A write outside the workspace is held.
+// `full`: every tool.
 // The name has no tier (one name per thread and folder), so a change of tier never changes how Kiro is started.
 // shortcut: the shell filter looks at the words as typed, so it is a guard against accidents, not a sandbox.
 import { createHash } from "node:crypto";
@@ -27,7 +27,7 @@ export function agentConfig(tier, thread, cwd) {
     includeMcpJson: false,
     tools: ["*"],
     allowedTools: tier === "full" ? ["*"] : tier === "edit" ? READS : [], // a tool listed here is trusted for any path; the per-path settings below are what limit it
-    toolsSettings: tier === "full" ? {} : tier === "edit" ? { execute_bash: { allowedCommands: [allowAllBut()] } } : { fs_read: inWorkspace, glob: inWorkspace, grep: inWorkspace }
+    toolsSettings: tier === "full" ? {} : tier === "edit" ? { execute_bash: { allowedCommands: [allowAllBut()] }, fs_write: inWorkspace } : { fs_read: inWorkspace, glob: inWorkspace, grep: inWorkspace }
   };
 }
 

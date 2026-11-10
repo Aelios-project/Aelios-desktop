@@ -9,8 +9,8 @@ const WORD = "A-Za-z0-9_";
 const NON_WORD = `[^${WORD}]`;
 const both = char => char + char.toUpperCase();
 
-/** Words that stay held for the owner: publishing, deleting files, running as another user, and changing git config. */
-export const ASK_WORDS = ["push", "rm", "rmdir", "unlink", "shred", "trash", "delete", "clean", "sudo", "doas", "config"];
+/** Words that stay held for the owner: leaving the machine (push, publish, deploy, merge, release), deleting files, running as another user. */
+export const ASK_WORDS = ["push", "publish", "deploy", "merge", "release", "rm", "rmdir", "unlink", "shred", "trash", "delete", "clean", "sudo", "doas"];
 
 function trieOf(words) {
   const root = { kids: new Map(), end: false };

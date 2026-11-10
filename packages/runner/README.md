@@ -37,7 +37,7 @@ aelios-runner pair --code pc_… \
 | `--code` | The pairing code from the settings page. Without it, the web key is needed. |
 | `--resident` | Resident id. Default `default`. |
 | `--workspace` | The fixed folder where the helper works. Absolute path. Each thread records it on first use and never changes it. |
-| `--access` | The highest permission tier this machine allows: `read`, `edit` (also reads anywhere and any Kiro shell command, except push, deleting files, sudo and git config; file writes are still held), or `full` (everything). Default `read`. |
+| `--access` | The highest permission tier this machine allows: `read`, `edit` (Kiro: reads anywhere, writes files inside the workspace, and runs any shell command unasked, except one that contains the word push, publish, deploy, merge, release, rm, rmdir, unlink, shred, trash, delete, clean, sudo or doas, which waits for the owner; this is a word filter, not a sandbox: other commands that destroy or send data run unasked, and `edit` trusts the helper with everything this user can read and with the network; a write outside the workspace, with the write tool or a `>` redirect, waits for the owner), or `full` (everything). Default `read`. |
 | `--plugin` | Which helper: `kiro`, `dsh`, or `command`. Default `kiro`. |
 
 The config is in `~/.aelios-runner/config.json`. Credentials and thread records are in `state.json` beside it (readable only by you). Set `AELIOS_RUNNER_HOME` to move the folder.

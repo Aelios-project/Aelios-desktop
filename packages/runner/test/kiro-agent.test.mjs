@@ -19,7 +19,8 @@ test("read: Kiro approves reads inside the workspace only; neither tier trusts t
   assert.equal(read.toolsSettings.execute_bash, undefined, "the read tier: every command is held");
   for (const tier of ["read", "edit"]) {
     const config = agentConfig(tier, thread, cwd);
-    assert.equal(config.toolsSettings.fs_write, undefined, "writes are never approved by Kiro");
+    assert.ok(!config.allowedTools.includes("fs_write"), "the write tool is never trusted for any path");
+    assert.deepEqual(config.toolsSettings.fs_write, tier === "edit" ? { allowedPaths: [cwd] } : undefined, "only edit writes unasked, and only inside the workspace");
     assert.ok(!config.allowedTools.some(tool => /write|bash|shell/.test(tool)));
     assert.equal(config.includeMcpJson, false);
     assert.equal(config.name, agentName(thread, cwd));
@@ -31,16 +32,16 @@ test("read: Kiro approves reads inside the workspace only; neither tier trusts t
 test("edit: reads anywhere, any shell command except the ask words, nothing refused outright", () => {
   const { allowedTools, toolsSettings } = agentConfig("edit", thread, cwd);
   assert.deepEqual(allowedTools, ["fs_read", "glob", "grep"]);
-  assert.deepEqual(Object.keys(toolsSettings), ["execute_bash"], "no path limit on reads");
+  assert.deepEqual(Object.keys(toolsSettings), ["execute_bash", "fs_write"], "no path limit on reads");
   assert.deepEqual(toolsSettings.execute_bash, { allowedCommands: [allowAllBut()] });
 });
 
 test("the shell filter lets everything through except commands holding an ask word", () => {
   const allowed = command => new RegExp(`^(?:${allowAllBut()})$`).test(command);
   for (const command of ["for i in 1 2 3; do echo $i; done", "sleep 1; echo done", "gh pr list --limit 2", "npm ls -g --depth=0", "grep -rl x ~/Desktop", "cat /etc/hosts", "git status -sb",
-    "git fetch origin", "git branch newb", "npm run format", "echo firmware", "pushd .", "rms a", "x_rm y", "cat ../a", "ls /", "echo ok > a.txt", "node -e 'process.exit(0)'"]) assert.ok(allowed(command), command);
+    "git fetch origin", "git branch newb", "npm run format", "echo firmware", "pushd .", "rms a", "x_rm y", "cat ../a", "ls /", "echo ok > a.txt", "cat vite.config.ts", "npx eslint --config eslint.config.js .", "git config --get remote.origin.url", "ls ~/.config", "node -e 'process.exit(0)'"]) assert.ok(allowed(command), command);
   for (const command of ["git push origin main", "git push --dry-run", "git -C a push", "rm a", "rm -rf a", "RM a", "/bin/rm a", "echo a; rm a", "bash -c 'rm a'", "cd a && sudo ls", "find . -delete",
-    "git clean -fd", "git config user.name x", "rmdir a", "unlink a", "shred a", "trash a", "doas ls", "echo a\nrm a", "if true; then rm a; fi"]) assert.ok(!allowed(command), command);
+    "git clean -fd", "npm publish", "npx wrangler deploy", "npm run deploy", "gh pr merge 32", "gh release create v1", "rmdir a", "unlink a", "shred a", "trash a", "doas ls", "echo a\nrm a", "if true; then rm a; fi"]) assert.ok(!allowed(command), command);
   for (const word of ASK_WORDS) assert.ok(!allowed(`x ${word}`) && !allowed(word.toUpperCase()), word);
 });
 
