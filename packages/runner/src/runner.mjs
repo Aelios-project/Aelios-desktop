@@ -15,12 +15,12 @@ import { createEngine } from "./runtime.mjs";
 import { makeTurn } from "./turn.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
+import { SUMMARY_MAX } from "./report.mjs";
 
 const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
 const THREAD = /^[A-Za-z0-9_.:-]{1,160}$/;
 const KINDS = ["job", "say", "mail", "cancel"];
 const TEXT_MAX = 16_000;
-const SUMMARY_MAX = 4000;
 const safeId = id => (THREAD.test(id) ? id : "acp_" + createHash("sha1").update(id).digest("hex").slice(0, 24));
 
 /** Remember a question that is open on a thread, so a later finished turn can close it. */
@@ -30,11 +30,11 @@ function remember(state, thread, key) {
 }
 
 function redactor(secrets, places) {
-  return text => {
+  return (text, max = SUMMARY_MAX) => { // `max` Infinity: the caller fits the text itself (outcome.mjs)
     let out = String(text);
     for (const place of places) if (place) out = out.split(place).join("[workspace]");
     for (const secret of secrets) if (secret) out = out.split(secret).join("[token]");
-    return out.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").trim().slice(0, SUMMARY_MAX);
+    return out.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").trim().slice(0, max);
   };
 }
 

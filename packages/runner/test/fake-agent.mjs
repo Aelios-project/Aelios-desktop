@@ -7,6 +7,8 @@
 //   CRASH      dies mid-turn
 //   PERM:kind[:path]   asks permission first and says what it was told; with RAW=<url-encoded command> the request carries it as rawInput
 //   CWD        says the folder it was started in
+//   PARTSME    three text parts with a tool call between each (a NOTE: in the first)
+//   PARTS:n    n parts of 1000 characters each ("part 1 ..."), a tool call between each, then the usual last part
 // Env: FAKE_MODE (the mode Kiro reports), FAKE_NOMODE=1 (report no mode at all), FAKE_IMAGE=0|1 (take pictures or not; default: Kiro face yes, DSH face no),
 //      FAKE_AGENTS (the folder of Kiro agent files; the start is logged with the file it was started with),
 //      FAKE_PROBE (comma-separated names whose values the start log records)
@@ -80,6 +82,10 @@ async function prompt(id, params) {
   const long = /LONG:(\d+)/.exec(text);
   if (long) said += " " + "x".repeat(Number(long[1]));
   if (text.includes("CWD")) said += ` cwd=${session?.cwd}`;
+  const toolCall = n => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "p" + n, title: "step " + n, kind: "read", status: "completed" } } });
+  if (text.includes("PARTSME")) { chunk(sessionId, "NOTE: saw it\nFirst part."); toolCall(1); chunk(sessionId, "Second part."); toolCall(2); }
+  const parts = /PARTS:(\d+)/.exec(text);
+  if (parts) for (let n = 1; n <= Number(parts[1]); n++) { chunk(sessionId, `part ${n} ` + "y".repeat(990)); toolCall(n); }
   if (text.includes("NOTEME")) chunk(sessionId, "NOTE: found two config files\nWorking on it.\n");
   chunk(sessionId, text.includes("BLOCKME") ? "Tried two ways.\nBLOCKED: no network from this machine" : text.includes("ASKME") ? "I need you to decide.\nASK: Which one first?" : text.includes("QUESTION") ? "Done. Shall I carry on?" : `done: ${text}${said}`);
   send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
