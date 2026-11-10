@@ -1,7 +1,7 @@
 // Why a turn failed, as a code the resident can act on (PROTOCOL.md, "reason"). The runner says only what it knows: the
 // helper could not be started, the workspace could not be used, or the helper's own error says it needs a login, a key
 // or a permission (ACP's auth_required code, -32000, or those words in its error text). Anything else is "error".
-export const REASONS = ["permission_denied", "needs_login", "missing_key", "helper_missing", "workspace_denied", "interrupted", "error"];
+export const REASONS = ["permission_denied", "needs_login", "missing_key", "helper_missing", "workspace_denied", "interrupted", "error", "refused", "token_limit", "no_result"];
 
 const AUTH_REQUIRED = -32000; // ACP: authentication required
 const KEY = /api[ _-]?key|no key\b|credential|missing[^.]{0,20}token/i;

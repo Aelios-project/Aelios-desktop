@@ -16,6 +16,8 @@ import { makeTurn } from "./turn.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
 import { SUMMARY_MAX } from "./report.mjs";
+import { Wire } from "./wire.mjs";
+import { engineLabel } from "./engine-label.mjs";
 
 const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
 const THREAD = /^[A-Za-z0-9_.:-]{1,160}$/;
@@ -29,8 +31,8 @@ function remember(state, thread, key) {
   if (!entry.asks.includes(key)) entry.asks.push(key);
 }
 
-function redactor(secrets, places) {
-  return (text, max = SUMMARY_MAX) => { // `max` Infinity: the caller fits the text itself (outcome.mjs)
+function redactor(secrets, places, limit = SUMMARY_MAX) {
+  return (text, max = limit) => { // `max` Infinity: the caller fits the text itself (outcome.mjs)
     let out = String(text);
     for (const place of places) if (place) out = out.split(place).join("[workspace]");
     for (const secret of secrets) if (secret) out = out.split(secret).join("[token]");
@@ -43,6 +45,7 @@ export class Runner {
   constructor({ config, state, cloud, journal = null, log = () => {}, request = fetch }) {
     this.config = config; this.state = state; this.log = log; this.request = request; this.journal = journal;
     this.cloud = cloud ?? null;
+    this.wire = new Wire(); // what the resident takes beyond the first version, from its heartbeat answers
     this.perms = new PermReport({ cloud: () => this.#cloud(), journal, log });
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
@@ -141,7 +144,7 @@ export class Runner {
         state.queue.splice(at, 0, work);
         stop = Boolean(this.live && this.live.work.thread === work.thread);
       } else {
-        if (this.live || state.queue.length) receipts.push(this.#receipt(work, "queued"));
+        if (this.live || state.queue.length) receipts.push(this.#receipt(work, "queued", this.wire.queued((this.live ? 1 : 0) + state.queue.length)));
         state.queue.push(work);
       }
     });
@@ -190,7 +193,7 @@ export class Runner {
       }
     }
     const tier = lowest(tierOf(this.config.access) ?? "read", work.access ?? this.config.access ?? "read");
-    const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
+    const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace], this.wire.summaryMax);
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
     let launch;
@@ -208,7 +211,7 @@ export class Runner {
     }
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
     const turn = makeTurn({
-      thread: work.thread, record, engine, journal: this.journal,
+      thread: work.thread, record, engine, journal: this.journal, summaryMax: this.wire.summaryMax,
       files, onStep: steps => progress.push(steps), launch, cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
@@ -227,6 +230,7 @@ export class Runner {
       // Not a question: the owner opens the thread and decides. Reported as a failure so it is a stuck item, never an ask.
       outcome = { ...outcome, status: "failed", reason: "interrupted", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically." };
     }
+    outcome = this.wire.verdict(outcome);
     const receipt = { status: outcome.status, summary: outcome.summary || "(no content)", ...(outcome.status === "failed" && outcome.reason ? { reason: outcome.reason } : {}) };
     await this.state.update(s => {
       if (outcome.status === "needs_you" && outcome.ask) remember(s, work.thread, outcome.ask.key);
@@ -267,8 +271,9 @@ export class Runner {
     try {
       const cloud = await this.#cloud();
       if (Date.now() - this.lastBeat >= this.heartbeatMs) {
-        await cloud.heartbeat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() });
-        this.lastBeat = Date.now();
+        const body = this.wire.beat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() }, (this.engineName ??= engineLabel(this.config)));
+        this.wire.learn(await cloud.heartbeat(body));
+        this.lastBeat = body.engine === undefined && this.wire.has("heartbeat.engine") ? 0 : Date.now(); // the first answer names it: beat again at once with the engine
       }
       await this.flush();
       const busy = Boolean(this.live) || state.queue.length > 0;

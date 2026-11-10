@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import http from "node:http";
 
 import { REASONS } from "../src/reason.mjs";
+const LATER = ["refused", "token_limit", "no_result"]; // reasons an old resident refuses
 const STATUSES = ["done", "failed", "needs_you", "cancelled"];
 
 export class FakeCloud {
@@ -12,6 +13,7 @@ export class FakeCloud {
     this.deviceToken = "rr_" + crypto.randomBytes(16).toString("hex");
     this.down = false; this.revoked = false; this.forbidden = false; this.receiptMax = 16 * 1024; this.summaryMax = 4000; this.refused = []; this.receiptHits = 0; this.drops = {}; // drops.poll = 1: handle the next poll, then cut the line before answering
     this.seq = 0;
+    this.accepts = null; this.limits = null; // null: an old resident that names nothing; it then refuses what it does not know (400), like the real one
   }
   async listen() {
     this.server = http.createServer((req, res) => this.#handle(req, res));
@@ -67,7 +69,7 @@ export class FakeCloud {
       (this.permissions ??= []).push(body);
       return reply(200, { ok: true });
     }
-    if (action === "heartbeat") { this.beats++; (this.beatBodies ??= []).push(body); return reply(200, { ok: true, protocol: "aelios-runner/1" }); }
+    if (action === "heartbeat") { this.beats++; (this.beatBodies ??= []).push(body); if (!this.accepts?.includes("heartbeat.engine") && "engine" in body) return reply(400, { error: "field", code: "INVALID_HEARTBEAT" }); return reply(200, { ok: true, protocol: "aelios-runner/1", ...(this.accepts ? { accepts: this.accepts } : {}), ...(this.limits ? { limits: this.limits } : {}) }); }
     if (action === "poll") {
       this.polls.push(body);
       const known = this.claims.get(body.claimKey);
@@ -84,10 +86,11 @@ export class FakeCloud {
       if (!entry || entry.work.token !== body.token) return reply(409, { error: "token", code: "INVALID_TOKEN" });
       if (JSON.stringify(body).includes(this.deviceToken)) return reply(400, { error: "credential in receipt", code: "INVALID_RECEIPT" });
       if (!["started", "queued", "final"].includes(body.type) || body.receiptId !== `${body.workId}:${body.type}`) return reply(400, { error: "type", code: "INVALID_RECEIPT" });
+      if ("ahead" in body && (body.type !== "queued" || !this.accepts?.includes("receipt.ahead") || !(body.ahead >= 1 && body.ahead <= 99))) return reply(400, { error: "ahead", code: "INVALID_RECEIPT" });
       if (body.type === "final") {
         if (!STATUSES.includes(body.status) || typeof body.summary !== "string") return reply(400, { error: "final", code: "INVALID_RECEIPT" });
         if (body.summary.length > this.summaryMax) { this.refused.push(body); return reply(400, { error: "summary too long", code: "INVALID_RECEIPT" }); } // like the real one: the runner must cut
-        if (body.reason !== undefined && (body.status !== "failed" || !REASONS.includes(body.reason))) return reply(400, { error: "reason", code: "INVALID_RECEIPT" });
+        if (body.reason !== undefined && (body.status !== "failed" || !REASONS.includes(body.reason) || (LATER.includes(body.reason) && !this.accepts?.includes("reason." + body.reason)))) return reply(400, { error: "reason", code: "INVALID_RECEIPT" });
         if (body.status === "needs_you" && !body.ask?.key) return reply(400, { error: "ask", code: "INVALID_RECEIPT" });
       }
       const fingerprint = JSON.stringify(body);
