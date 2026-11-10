@@ -10,7 +10,7 @@ export class FakeCloud {
   constructor() {
     this.works = []; this.claims = new Map(); this.receipts = new Map(); this.accepted = []; this.polls = []; this.beats = 0;
     this.deviceToken = "rr_" + crypto.randomBytes(16).toString("hex");
-    this.down = false; this.revoked = false; this.forbidden = false; this.receiptMax = 16 * 1024; this.receiptHits = 0; this.drops = {}; // drops.poll = 1: handle the next poll, then cut the line before answering
+    this.down = false; this.revoked = false; this.forbidden = false; this.receiptMax = 16 * 1024; this.summaryMax = 4000; this.refused = []; this.receiptHits = 0; this.drops = {}; // drops.poll = 1: handle the next poll, then cut the line before answering
     this.seq = 0;
   }
   async listen() {
@@ -85,7 +85,8 @@ export class FakeCloud {
       if (JSON.stringify(body).includes(this.deviceToken)) return reply(400, { error: "credential in receipt", code: "INVALID_RECEIPT" });
       if (!["started", "queued", "final"].includes(body.type) || body.receiptId !== `${body.workId}:${body.type}`) return reply(400, { error: "type", code: "INVALID_RECEIPT" });
       if (body.type === "final") {
-        if (!STATUSES.includes(body.status) || typeof body.summary !== "string" || body.summary.length > 4000) return reply(400, { error: "final", code: "INVALID_RECEIPT" });
+        if (!STATUSES.includes(body.status) || typeof body.summary !== "string") return reply(400, { error: "final", code: "INVALID_RECEIPT" });
+        if (body.summary.length > this.summaryMax) { this.refused.push(body); return reply(400, { error: "summary too long", code: "INVALID_RECEIPT" }); } // like the real one: the runner must cut
         if (body.reason !== undefined && (body.status !== "failed" || !REASONS.includes(body.reason))) return reply(400, { error: "reason", code: "INVALID_RECEIPT" });
         if (body.status === "needs_you" && !body.ask?.key) return reply(400, { error: "ask", code: "INVALID_RECEIPT" });
       }

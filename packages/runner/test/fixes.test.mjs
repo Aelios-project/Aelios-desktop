@@ -36,6 +36,7 @@ for (const plugin of ["kiro", "dsh"]) {
     const done = await final(r, r.cloud.push({ text: "LONG:6000" }));
     assert.equal(done.status, "done");
     assert.ok(done.summary.length < 4001 && done.summary.length > 1000);
+    assert.match(done.summary, /^\[\.\.\. \d+ characters left out \.\.\.\]\n\nx+$/, "a visible mark, then the end of the answer");
     assert.ok(bytes(done) <= 15_000);
   });
 

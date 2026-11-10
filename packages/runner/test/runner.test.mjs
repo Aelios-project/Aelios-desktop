@@ -154,7 +154,7 @@ for (const plugin of ["kiro", "dsh"]) {
     const blocked = await final(r, r.cloud.push({ text: "BLOCKME fetch it" }));
     assert.equal(blocked.status, "failed");
     assert.equal(blocked.ask, undefined);
-    assert.match(blocked.summary, /^Blocked: no network from this machine\n\nTried two ways\./);
+    assert.match(blocked.summary, /^Blocked: no network from this machine\n\nstarting\.\n\nTried two ways\./);
   });
 
   t("NOTE: lines leave the result and go in the notice, mid-turn or last; a plain question mark stays done", async r => {
@@ -180,7 +180,7 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(asked.status, "needs_you");
     assert.match(asked.ask.key, /^q:/);
     assert.equal(asked.ask.question, "Which one first?");
-    assert.equal(asked.summary, "I need you to decide.");
+    assert.equal(asked.summary, "starting.\n\nI need you to decide.");
     const next = await final(r, r.cloud.push({ kind: "say", text: "the first one" }));
     assert.equal(next.status, "done");
     assert.deepEqual(next.resolve, [asked.ask.key]);
