@@ -132,7 +132,7 @@ A request below the `full` tier is held for the owner (10 minutes; no answer cou
   // only final carries the rest:
   "status": "done",           // done | failed | needs_you | cancelled
   "reason": "needs_login",    // failed only, optional: why. One of permission_denied, needs_login, missing_key, helper_missing, workspace_denied, interrupted, error
-  "summary": "…",             // at most 4000 characters: every text part of the turn in order, `NOTE:` lines taken out; the runner replaces workspace paths and tokens that appear as is, then, if the text is longer, keeps the last part whole and the start of the rest, with `[... N characters left out ...]` where text was dropped
+  "summary": "…",             // at most 4000 characters: every text part of the turn in order, `NOTE:` lines taken out; the runner replaces workspace paths and tokens that appear as is, then, if the text is longer, keeps the last part whole and the start of the rest, with `[... N characters left out ...]` where text was dropped; a last part that alone is over the limit keeps its end, with the mark first
   "ask":    { "key": "…", "question": "…", "options": ["…"], "recommend": "…" },
   "notice": { "text": "…", "fyi": true },
   "resolve": ["key", "…"]

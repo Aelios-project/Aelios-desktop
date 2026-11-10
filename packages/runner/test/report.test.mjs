@@ -34,9 +34,15 @@ test("the cut falls at a paragraph end when there is one, and never in the middl
   assert.equal(fitReport(["short", "text"]), "short\n\ntext", "nothing is cut when it fits");
 });
 
-test("a last part over the limit alone: the start of the turn, then the mark", () => {
-  const out = fitReport(["first", "z".repeat(9000)]);
-  assert.ok(out.length <= SUMMARY_MAX && out.startsWith("first\n\nzzz") && MARK.test(out));
+test("a last part over the limit alone: the mark first, then the end of the turn from a line start", () => {
+  const body = Array.from({ length: 600 }, (_, n) => `line ${n}`).join("\n");
+  const out = fitReport(["first", body]);
+  const tail = out.slice(out.indexOf("\n\n") + 2);
+  assert.ok(out.length <= SUMMARY_MAX && MARK.test(out) && out.startsWith("[... ") && out.endsWith("line 599") && tail.startsWith("line "));
+  assert.equal(Number(MARK.exec(out)[1]), `first\n\n${body}`.length - tail.length, "the count is what was dropped");
+  assert.ok(!/^line \d+\n.*first/s.test(out) && !out.includes("first"), "the start is gone");
+  const emoji = fitReport(["😀".repeat(9000)]);
+  assert.ok(emoji.length <= SUMMARY_MAX && !/\n\n[\udc00-\udfff]/.test(emoji));
 });
 
 test("redaction comes before the cut: a secret across the cut leaves no piece of itself", () => {

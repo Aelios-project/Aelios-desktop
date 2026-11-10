@@ -14,10 +14,20 @@ function cutAt(text, room) {
   return (/[\ud800-\udbff]$/.test(out) ? out.slice(0, -1) : out).trimEnd(); // not in the middle of a character
 }
 
+/** The longest end of `text` within `room` that starts at a paragraph or a line; a hard cut when the first break is in the last half. */
+function cutFrom(text, room) {
+  if (room <= 0) return "";
+  if (text.length <= room) return text;
+  const tail = text.slice(-room), paragraph = tail.indexOf("\n\n"), line = tail.indexOf("\n");
+  const at = paragraph >= 0 && paragraph < room / 2 ? paragraph + 2 : line >= 0 && line < room / 2 ? line + 1 : 0;
+  const out = tail.slice(at);
+  return (/^[\udc00-\udfff]/.test(out) ? out.slice(1) : out).trimStart(); // not in the middle of a character
+}
+
 /**
  * The parts, in order, joined by a blank line. When that is over `max`: the last part stays whole (it is the answer), the
  * earlier text fills the rest of the room from its start, and the mark stands where text was dropped.
- * shortcut: a last part that alone is over `max` is cut from its start too (the end of it is lost), upgrade if answers that long are common.
+ * A last part that alone is over `max` keeps its end: the mark first, then the tail of the turn from a paragraph or line start.
  */
 export function fitReport(parts, max = SUMMARY_MAX) {
   const text = parts.join("\n\n");
@@ -25,8 +35,8 @@ export function fitReport(parts, max = SUMMARY_MAX) {
   const last = parts.at(-1), before = parts.slice(0, -1).join("\n\n");
   const spare = mark(text.length).length + 4; // the mark and its two blank lines, counted at the most digits it can have
   if (last.length + spare >= max) {
-    const head = cutAt(text, max - spare);
-    return `${head}\n\n${mark(text.length - head.length)}`;
+    const tail = cutFrom(text, max - spare);
+    return `${mark(text.length - tail.length)}\n\n${tail}`;
   }
   const head = cutAt(before, max - last.length - spare);
   return [head, mark(before.length - head.length), last].filter(Boolean).join("\n\n");
