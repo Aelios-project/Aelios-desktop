@@ -107,14 +107,3 @@ test("the runner judges nothing: even a read-only looking command is held in the
     assert.equal(reports(full, "held").length, 0);
   } finally { await full.done(); }
 });
-
-test("the read tier holds a command too", async () => {
-  const r = await held({ access: "read" });
-  try {
-    r.start();
-    const work = r.cloud.push({ text: RAW("uname -m") });
-    const sent = await r.cloud.until(() => reports(r, "held")[0], "held in the read tier");
-    r.cloud.answers = [{ id: sent.id, allow: false }];
-    assert.equal((await final(r, work)).status, "needs_you");
-  } finally { await r.done(); }
-});

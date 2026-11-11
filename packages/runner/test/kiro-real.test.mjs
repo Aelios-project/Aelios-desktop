@@ -6,7 +6,7 @@ import { AcpConnection, PROTOCOL_VERSION } from "../src/acp.mjs";
 import { launchOf } from "../src/plugins.mjs";
 
 test("real kiro-cli acp answers initialize", { skip: !process.env.AELIOS_REAL_KIRO }, async () => {
-  const launch = launchOf({ plugin: "kiro" }, "read", process.cwd(), "real-check");
+  const launch = launchOf({ plugin: "kiro" }, "edit", process.cwd(), "real-check");
   const connection = new AcpConnection({ ...launch, cwd: process.cwd() }).start();
   try {
     const init = await connection.request("initialize", { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "aelios-runner-test", version: "0" } }, 30_000);

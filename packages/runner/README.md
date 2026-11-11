@@ -37,7 +37,7 @@ aelios-runner pair --code pc_… \
 | `--code` | The pairing code from the settings page. Without it, the web key is needed. |
 | `--resident` | Resident id. Default `default`. |
 | `--workspace` | The fixed folder where the helper works. Absolute path. Each thread records it on first use and never changes it. |
-| `--access` | The highest permission tier this machine allows: `read`, `edit` (Kiro: reads anywhere, writes files inside the workspace, and runs any shell command unasked, except one that contains the word push, publish, deploy, merge, release, rm, rmdir, unlink, shred, trash, delete, clean, sudo or doas, which waits for the owner; this is a word filter, not a sandbox: other commands that destroy or send data run unasked, and `edit` trusts the helper with everything this user can read and with the network; a read of the runner's own home (`~/.aelios-runner`) with Kiro's read tools is refused outright; the shell can still read it; a write outside the workspace, with the write tool or a `>` redirect, waits for the owner), or `full` (everything). Default `read`. |
+| `--access` | The highest permission tier this machine allows: `edit` (Kiro: reads anywhere, writes files inside the workspace, and runs any shell command unasked, except one that contains the word push, publish, deploy, merge, release, rm, rmdir, unlink, shred, trash, delete, clean, sudo or doas, which waits for the owner; this is a word filter, not a sandbox: other commands that destroy or send data run unasked, and `edit` trusts the helper with everything this user can read and with the network; a read of the runner's own home (`~/.aelios-runner`) with Kiro's read tools is refused outright; the shell can still read it; a write outside the workspace, with the write tool or a `>` redirect, waits for the owner), or `full` (everything). Default `edit`. The old `read` tier is gone: a config or job that still says it runs as `edit`. |
 | `--plugin` | Which helper: `kiro`, `dsh`, or `command`. Default `kiro`. |
 
 The config is in `~/.aelios-runner/config.json`. Credentials and thread records are in `state.json` beside it (readable only by you). Set `AELIOS_RUNNER_HOME` to move the folder.
@@ -91,6 +91,7 @@ Migration: a helper that needed another variable (a token for `gh`, a registry k
 ```sh
 aelios-runner start      # runs in the foreground; Ctrl-C stops it. On a VPS use systemd or tmux
 aelios-runner status     # pairing, queue, receipts not yet sent, the session store's path and size
+aelios-runner access edit|full   # change the tier in the config only; start the runner again to use it
 aelios-runner unpair     # revoke the pairing and delete the session store (--keep-store keeps it)
 aelios-runner forget <thread>   # delete one thread's saved helper sessions; forget --all deletes them all
 ```
@@ -110,7 +111,7 @@ With `"engine": "acpx"` the runner keeps the helpers' sessions in `~/.aelios-run
 
 The runner does not judge requests itself. The tier sets the helper's own configuration, and whatever the helper still asks about is held for you (in the resident's waiting list, or on this machine):
 
-- `read`: Kiro approves reads, search and glob inside the workspace on its own. Everything else is held. `edit`: Kiro also runs the shell commands it counts as read-only (`ls`, `cat`, `git status` and the like) without asking. Writes, the network and paths outside the workspace are not approved by Kiro. `full`: everything is allowed, and Kiro starts with `--trust-all-tools`.
+- `edit`: Kiro reads anywhere, writes files inside the workspace and runs any shell command unasked, except the ones with an ask word (see `--access`). Everything else is held. `full`: everything is allowed, and Kiro starts with `--trust-all-tools`.
 - For Kiro the runner writes the agent config (`aelios-runner-<tier>-<hash>.json` in `~/.kiro/agents`, outside the workspace) before every turn, so a thread cannot loosen it.
 - Kiro's read-only check is its own, not ours. It is not a sandbox: it can read files outside the workspace through shell commands such as `cat`, except for the patterns the config denies. For real isolation, use a dedicated system account, or a VPS with no sensitive files. Helpers other than Kiro have no generated config yet, so every request they ask about is held.
 - The helper speaks with markers at the start of a line: `NOTE:` (anywhere; goes in the receipt's `notice`, no stop), `BLOCKED:` (last line; the job ends as `failed` with a `Blocked:` summary), `ASK:` (last line; only the user can decide). With no marker it just carries on or finishes. The runner adds a short English convention with these rules to every task. Only `ASK:` and refused permission requests become "waiting for you". A reply that ends with a question mark does not count.

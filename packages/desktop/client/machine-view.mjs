@@ -18,7 +18,7 @@ import { runnerDown, runnerTone, taskTone } from "./tones.mjs";
 
 const ago = (at) => { const s = Math.max(0, Math.round((Date.now() - Number(at)) / 1000)); return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`; };
 
-function Live({ runner, info, t, act, pick, switching }) {
+function Live({ runner, info, t, act, pick, switching, asking, setAsking, setAccess }) {
   const tone = runnerTone(runner.state);
   const helper = info?.plugin || "";
   return h("div", { className: "ad-mv-card live" },
@@ -34,12 +34,18 @@ function Live({ runner, info, t, act, pick, switching }) {
       helper && h("span", { className: "ad-seg", role: "group", "aria-label": t.helper, title: t.helper }, ["dsh", "kiro"].map((id) =>
         h("button", { key: id, type: "button", "aria-pressed": helper === id, disabled: switching, onClick: () => helper !== id && pick(id) },
           h(Icon, { name: HELPER_ICON[id] }), t.helpers[id]))),
-      info?.access && h("span", { className: `ad-pill ${info.access === "full" ? "bad" : info.access === "edit" ? "warn" : "idle"}`, title: t.access }, h(Icon, { name: "shield" }), t.tier[info.access] || info.access),
+      info?.access && h("button", { type: "button", className: `ad-pill ${info.access === "full" ? "bad" : "warn"}`, title: t.switchAccess, disabled: switching,
+        onClick: () => (info.access === "full" ? setAccess("edit") : setAsking(!asking)) }, h(Icon, { name: "shield" }), t.tier[info.access] || info.access),
       h("span", { className: "sp" }),
       runnerDown(runner.state) || runner.state === "unpaired"
         ? h("button", { type: "button", className: "ad-btn small", onClick: act("start") }, h(Icon, { name: "play" }), t.start)
         : h("button", { type: "button", className: "ad-btn quiet small", onClick: act("stop") }, h(Icon, { name: "stop" }), t.stopRunner),
-      h("button", { type: "button", className: "ad-btn quiet small", onClick: act("repair") }, h(Icon, { name: "refresh" }), t.pair)));
+      h("button", { type: "button", className: "ad-btn quiet small", onClick: act("repair") }, h(Icon, { name: "refresh" }), t.pair)),
+    asking && h("div", { className: "ad-card-row", role: "group", "aria-label": t.switchAccess },
+      h("span", { className: "ad-hint" }, t.fullOk),
+      h("span", { className: "sp" }),
+      h("button", { type: "button", className: "ad-btn small", disabled: switching, onClick: () => setAccess("full") }, t.useFull),
+      h("button", { type: "button", className: "ad-btn quiet small", onClick: () => setAsking(false) }, t.keepEdit)));
 }
 
 function Sessions({ sessions, titles, t }) {
@@ -74,6 +80,12 @@ export function MachineView() {
     setSwitching(true);
     try { store.set({ status: await call("helper", { helper }) }); setError(""); await loadLocal(); } catch (e) { setError(e.message); } finally { setSwitching(false); }
   };
+  const [asking, setAsking] = useState(false);
+  // Going to full is confirmed first (the host refuses it without confirmFull); going back to edit is one press.
+  const setAccess = async (access) => {
+    setSwitching(true); setAsking(false);
+    try { store.set({ status: await call("access", { access, confirmFull: access === "full" }) }); setError(""); await loadLocal(); } catch (e) { setError(e.message); } finally { setSwitching(false); }
+  };
   const act = (action) => async () => { try { store.set({ status: await call(action) }); setError(""); } catch (e) { setError(e.message); } };
   const runner = { ...(status?.runner || { state: "unpaired" }), ...(local.machine?.runner || {}) };
   const info = local.machine?.info || null;
@@ -87,7 +99,7 @@ export function MachineView() {
     h("div", { className: "ad-mv" },
       error && h("div", { className: "ad-error", role: "alert" }, error),
       local.wired === false && h("p", { className: "ad-info-text ad-mv-wide" }, t.notWired),
-      h(Live, { runner, info, t, act, pick, switching }),
+      h(Live, { runner, info, t, act, pick, switching, asking, setAsking, setAccess }),
       h("div", { className: "ad-mv-card" },
         h("span", { className: "ad-label" }, t.workspace),
         h("div", { className: "ad-mv-folder" }, h(Icon, { name: "folder" }), h("code", { title: info?.workspace || "" }, info?.workspace || "—")),

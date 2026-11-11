@@ -35,14 +35,21 @@ export class StateFile {
   }
 }
 
-export async function readConfig(file) {
+/** `log` hears one line when an old config still says the removed `read` tier; that config then runs as `edit`. */
+export async function readConfig(file, log) {
   let config;
   try { config = JSON.parse(await readFile(file, "utf8")); }
   catch (error) { throw new Error(error.code === "ENOENT" ? `no config at ${file}; run "aelios-runner pair" first` : `config is not valid JSON: ${file}`); }
   if (config.engine !== undefined && !ENGINES.includes(config.engine)) throw new Error(`config engine must be one of ${ENGINES.join(", ")}: ${file}`);
   checkTimeouts(config.timeouts);
   checkRetention(config.retention);
+  if (config.access === "read") { config.access = "edit"; log?.('config access "read" no longer exists; running as "edit"'); }
   return config;
+}
+/** The config on disk as it is, or {} when there is none: pair keeps the keys it does not own (engine, timeouts, ...). */
+export async function previousConfig(file) {
+  try { const config = JSON.parse(await readFile(file, "utf8")); return config && typeof config === "object" && !Array.isArray(config) ? config : {}; }
+  catch { return {}; }
 }
 export async function writeConfig(file, config) {
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });

@@ -7,7 +7,7 @@ inclusion: always
 - Language: plain JavaScript as ES modules (`.mjs`), Node 22.13 or newer. One runtime dependency: `acpx`, pinned to an exact version. Prefer the Node standard library for everything else.
 - Helpers: any command that speaks ACP (Agent Client Protocol) over stdio. Supported: Kiro (`kiro-cli acp`), DeepSeek Harness (`dsh --profile acp`). Claude Code through an adapter is experimental. A helper is chosen only by local config.
 - Cloud protocol: `aelios-runner/1`, described in `packages/runner/PROTOCOL.md`. The runner only dials out and opens no port. Claims are idempotent, receipts are replayable, and a revoke (401 `UNAUTHORIZED`) means stop.
-- Permissions: `read`, `edit`, `full`. The runner answers a helper's permission request by tier and refuses paths outside the workspace.
+- Permissions: `edit` (default) and `full`. An old `read` in a config or job means `edit`. The runner answers a helper's permission request by tier and refuses paths outside the workspace.
 
 ## Tests
 
