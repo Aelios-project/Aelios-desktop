@@ -4,6 +4,8 @@
 // acpx also copies a non-empty ACPX_AUTH_<NAME> to <NAME> and lets neither be overridden, so a config `env` key with one of
 // those names would be silently ignored. That is refused with a message instead.
 
+import { kiroHomeOf } from "./kiro-home.mjs";
+
 const BASE = ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "TERM", "TMPDIR", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "SSH_AUTH_SOCK"];
 const PROXY = ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"].flatMap(name => [name, name.toLowerCase()]);
 const PREFIXES = { all: ["LC_", "XDG_"], kiro: ["KIRO_", "AWS_"], dsh: ["DEEPSEEK_", "DSH_"], claude: ["ANTHROPIC_", "CLAUDE_"], codex: ["OPENAI_", "CODEX_"], command: [] };
@@ -19,7 +21,7 @@ export function envFor(plugin, config, processEnv) {
   if (conflicts.length) throw new Error(`The config env sets ${conflicts.join(", ")}, but an ACPX_AUTH_ variable in the runner's environment would override it. Unset the ACPX_AUTH_ variable or remove the key from env.`);
   const prefixes = [...PREFIXES.all, ...(PREFIXES[plugin] ?? [])];
   const expanded = Object.keys(processEnv).filter(name => prefixes.some(prefix => name.startsWith(prefix)));
-  return { allow: [...new Set([...BASE, ...PROXY, ...expanded])], env: { ...(config.env ?? {}) } };
+  return { allow: [...new Set([...BASE, ...PROXY, ...expanded])], env: { ...(config.env ?? {}), ...(plugin === "kiro" ? { KIRO_HOME: kiroHomeOf(config) } : {}) } };
 }
 
 const AUTH = "ACPX_AUTH_";

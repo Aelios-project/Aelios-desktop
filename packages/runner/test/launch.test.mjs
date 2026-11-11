@@ -14,10 +14,10 @@ const kiro = { plugin: "kiro", bin: "kiro-cli", kiroAgentsDir: dir };
 const dsh = { plugin: "dsh", bin: "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" };
 
 test("kiro starts as `kiro-cli acp --agent <name>` with no tier in the name; dsh as `dsh --profile acp`; both from our registry", () => {
-  for (const tier of ["read", "edit", "full"]) {
+  for (const tier of ["edit", "full"]) {
     const { argv } = resolve(kiro, "t_a", launchOf(kiro, tier, cwd, "t_a"));
     assert.deepEqual(argv.slice(0, 3), ["kiro-cli", "acp", "--agent"]);
-    assert.doesNotMatch(argv[3], /read|edit|full/);
+    assert.doesNotMatch(argv[3], /edit|full/);
     assert.ok(!argv.includes("kiro-cli-chat") && !argv.includes("--trust-all-tools"));
   }
   assert.deepEqual(resolve(dsh, "t_a", launchOf(dsh, "edit", cwd, "t_a")).argv, [dsh.bin, "--profile", "acp"]);
@@ -30,8 +30,8 @@ test("a path with spaces stays one argv item; no item is npx; two threads get tw
   const argv = resolve(dsh, "t_a", launchOf(dsh, "edit", cwd, "t_a")).argv;
   assert.equal(argv[0], dsh.bin);
   assert.equal(argv.length, 3);
-  for (const config of [kiro, dsh]) assert.ok(!resolve(config, "t_a", launchOf(config, "read", cwd, "t_a")).argv.some(item => /npx/.test(item)));
-  const a = resolve(kiro, "t_a", launchOf(kiro, "read", cwd, "t_a")), b = resolve(kiro, "t_b", launchOf(kiro, "read", cwd, "t_b"));
+  for (const config of [kiro, dsh]) assert.ok(!resolve(config, "t_a", launchOf(config, "edit", cwd, "t_a")).argv.some(item => /npx/.test(item)));
+  const a = resolve(kiro, "t_a", launchOf(kiro, "edit", cwd, "t_a")), b = resolve(kiro, "t_b", launchOf(kiro, "edit", cwd, "t_b"));
   assert.notEqual(a.name, b.name);
   assert.match(a.name, /^kiro:[0-9a-f]{12}$/);
   assert.notEqual(a.argv[3], b.argv[3], "and two Kiro agent files");
@@ -39,12 +39,12 @@ test("a path with spaces stays one argv item; no item is npx; two threads get tw
 
 test("the launch identity is equal across tiers and different when the binary, the arguments or the folder change", () => {
   const id = (config, tier, where = cwd) => identityOf(config, launchOf(config, tier, where, "t_a"), where);
-  assert.equal(id(kiro, "read").id, id(kiro, "edit").id);
-  assert.equal(id(kiro, "read").id, id(kiro, "full").id);
-  assert.notEqual(id(kiro, "read").id, id({ ...kiro, bin: "/other/kiro-cli" }, "read").id, "binary moved");
-  assert.notEqual(id(kiro, "read").id, id({ ...kiro, args: ["--verbose"] }, "read").id, "arguments changed");
-  assert.notEqual(id(kiro, "read").id, id(kiro, "read", "/work/other").id, "folder changed");
-  assert.ok(sameLaunch({ launch: id(kiro, "read") }, id(kiro, "edit")));
-  assert.ok(!sameLaunch({ launch: id(kiro, "read") }, id({ ...kiro, bin: "/other" }, "read")));
-  assert.ok(!sameLaunch({}, id(kiro, "read")), "no record yet is not the same");
+  assert.equal(id(kiro, "edit").id, id(kiro, "edit").id);
+  assert.equal(id(kiro, "edit").id, id(kiro, "full").id);
+  assert.notEqual(id(kiro, "edit").id, id({ ...kiro, bin: "/other/kiro-cli" }, "edit").id, "binary moved");
+  assert.notEqual(id(kiro, "edit").id, id({ ...kiro, args: ["--verbose"] }, "edit").id, "arguments changed");
+  assert.notEqual(id(kiro, "edit").id, id(kiro, "edit", "/work/other").id, "folder changed");
+  assert.ok(sameLaunch({ launch: id(kiro, "edit") }, id(kiro, "edit")));
+  assert.ok(!sameLaunch({ launch: id(kiro, "edit") }, id({ ...kiro, bin: "/other" }, "edit")));
+  assert.ok(!sameLaunch({}, id(kiro, "edit")), "no record yet is not the same");
 });

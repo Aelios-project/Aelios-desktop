@@ -23,8 +23,8 @@ for (const plugin of ["kiro", "dsh"]) {
 
   t("tier change keeps the session", async r => {
     r.start();
-    assert.equal((await final(r, r.cloud.push({ text: "first", access: "read" }))).status, "done");
-    assert.equal((await final(r, r.cloud.push({ text: "second", access: "edit" }))).status, "done");
+    assert.equal((await final(r, r.cloud.push({ text: "first", access: "edit" }))).status, "done");
+    assert.equal((await final(r, r.cloud.push({ text: "second" }))).status, "done");
     const starts = r.log().filter(e => e.event === "start");
     assert.equal(starts.length, 2, "the helper process was restarted");
     assert.deepEqual(starts[0].args, starts[1].args, "the launch arguments do not change with the tier");
@@ -32,12 +32,12 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(count(r, REOPEN[plugin]), 1);
     assert.deepEqual(r.prompts().map(p => [p.sessionId, p.text]), [["sess-1", "first"], ["sess-1", "second"]]);
     if (plugin === "kiro") {
-      assert.deepEqual(starts.map(s => s.agentFile.bash), [false, true], "the second process read the edit agent file");
+      assert.deepEqual(starts.map(s => s.agentFile.bash), [true, false], "the second process read the full agent file");
       assert.equal(starts[0].args[2], agentName("t_main", r.workspace));
     }
-    await final(r, r.cloud.push({ text: "third", access: "edit" }));
+    await final(r, r.cloud.push({ text: "third" }));
     assert.equal(count(r, "start"), 2, "the same tier does not restart the helper");
-  });
+  }, { access: "full" });
 
   t("launch change is a visible handoff, never silent", async r => {
     r.start();
@@ -130,7 +130,7 @@ test("a Kiro picture is refused when the helper turns pictures off (FAKE_IMAGE=0
   } finally { await r.done(); }
 });
 
-for (const tier of ["read", "edit", "full"]) {
+for (const tier of ["edit", "full"]) {
   test(`Kiro mode check, tier ${tier}: a wrong or unreadable mode fails before the prompt; the right mode runs`, async () => {
     const r = await open("kiro", { access: tier });
     try {

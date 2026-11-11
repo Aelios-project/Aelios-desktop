@@ -6,6 +6,8 @@ import { SUMMARY_MAX } from "./report.mjs";
 /** The reasons that came later, each with the name that must be listed before it is sent. */
 const LATER_REASONS = { refused: "reason.refused", token_limit: "reason.token_limit", no_result: "reason.no_result" };
 
+const ASK_KINDS = ["permission", "question"];
+
 export class Wire {
   constructor() { this.accepts = new Set(); this.summaryMax = SUMMARY_MAX; }
 
@@ -30,6 +32,12 @@ export class Wire {
    */
   verdict(outcome) {
     const { kind, ask, ...rest } = outcome;
-    return kind && this.has(LATER_REASONS[kind]) ? { ...rest, status: "failed", reason: kind } : outcome;
+    return kind && this.has(LATER_REASONS[kind]) ? { ...rest, status: "failed", reason: kind } : this.#asked(outcome);
+  }
+
+  /** `ask.kind` is `permission` or `question`, only when the resident takes it; nothing else is ever sent (it answers 400). */
+  #asked(outcome) {
+    const { kind, ...ask } = outcome.ask ?? {};
+    return !outcome.ask || !("kind" in outcome.ask) || (this.has("ask.kind") && ASK_KINDS.includes(kind)) ? outcome : { ...outcome, ask };
   }
 }

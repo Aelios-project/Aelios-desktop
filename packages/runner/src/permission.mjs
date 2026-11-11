@@ -4,10 +4,11 @@
 // Only one-time choices are ever picked, so nothing stays allowed after the turn.
 import { describeInput } from "./detail.mjs";
 
-export const TIERS = ["read", "edit", "full"];
-export const tierOf = value => (TIERS.includes(value) ? value : null);
+export const TIERS = ["edit", "full"];
+/** The old `read` tier is gone: a config or job that still says it gets `edit`, the lowest tier left. */
+export const tierOf = value => (value === "read" ? "edit" : TIERS.includes(value) ? value : null);
 /** The job may ask for less than this machine allows, never more. */
-export const lowest = (...tiers) => TIERS[Math.min(...tiers.map(tier => TIERS.indexOf(tier)).filter(i => i >= 0))];
+export const lowest = (...tiers) => TIERS[Math.min(...tiers.map(tier => TIERS.indexOf(tierOf(tier))).filter(i => i >= 0))];
 
 /** What the request does, when the helper says: its command or arguments, shortened and with secrets hidden. */
 const detailOf = rawInput => { const detail = describeInput(rawInput); return detail ? { detail } : {}; };

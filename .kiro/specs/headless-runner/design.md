@@ -52,7 +52,7 @@ cloud resident <-- HTTPS, runner dials out -- Runner loop -- ACP over stdio -- h
 
 ## Permissions
 
-`permission.mjs` looks at the request's kind and `locations`. `read` allows read, search and think. `edit` adds in-workspace edits and `fetch`. `full` allows all. Outside `full`, any path outside the workspace (after resolving symlinks) is refused. The runner picks only an "allow once" option. If the helper offers none, the request is cancelled and recorded as denied.
+`permission.mjs` looks at the request's kind and `locations`. `edit` allows read, search and think, in-workspace edits and `fetch` (the earlier `read` tier was removed; an old `read` means `edit`). `full` allows all. Outside `full`, any path outside the workspace (after resolving symlinks) is refused. The runner picks only an "allow once" option. If the helper offers none, the request is cancelled and recorded as denied.
 
 Limit: the check sees only what the helper asks about. See `PROTOCOL.md`.
 

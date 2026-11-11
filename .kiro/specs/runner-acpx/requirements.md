@@ -10,7 +10,7 @@ The runner talks to coding helpers (Kiro, DeepSeek Harness, Claude Code, Codex) 
 
 Everything on the cloud side stays as it is: pairing, receipts, progress, `perm-report.mjs` (with its retry from #23), the Waiting list, the journal, the outbox, the lock.
 
-Terms. A **helper** is the coding program the runner drives. A **thread** is one conversation of the resident, with one folder and one helper session. A **turn** is one prompt and its answer. A **tier** is the access level: `read`, `edit` or `full`. The **owner** is the person who runs this machine and the resident.
+Terms. A **helper** is the coding program the runner drives. A **thread** is one conversation of the resident, with one folder and one helper session. A **turn** is one prompt and its answer. A **tier** is the access level: `edit` or `full` (the earlier `read` tier was removed). The **owner** is the person who runs this machine and the resident.
 
 ## What stays the same (the contract)
 

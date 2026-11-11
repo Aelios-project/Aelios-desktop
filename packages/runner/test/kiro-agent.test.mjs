@@ -13,16 +13,12 @@ const dir = mkdtempSync(path.join(os.tmpdir(), "ka-"));
 test.after(() => rmSync(dir, { recursive: true, force: true }));
 const cwd = "/work/space", thread = "t_main";
 
-test("read: Kiro approves reads inside the workspace only; neither tier trusts the write tool", () => {
-  const read = agentConfig("read", thread, cwd);
-  assert.deepEqual(read.allowedTools, [], "a tool in allowedTools is trusted for every path");
-  for (const tool of ["fs_read", "glob", "grep"]) assert.deepEqual(read.toolsSettings[tool], { allowedPaths: [cwd] });
-  assert.equal(read.toolsSettings.execute_bash, undefined, "the read tier: every command is held");
-  for (const tier of ["read", "edit"]) {
+test("neither tier trusts the write tool; edit writes unasked only inside the workspace; full trusts every tool", () => {
+  for (const tier of ["edit", "full"]) {
     const config = agentConfig(tier, thread, cwd);
     assert.ok(!config.allowedTools.includes("fs_write"), "the write tool is never trusted for any path");
     assert.deepEqual(config.toolsSettings.fs_write, tier === "edit" ? { allowedPaths: [cwd] } : undefined, "only edit writes unasked, and only inside the workspace");
-    assert.ok(!config.allowedTools.some(tool => /write|bash|shell/.test(tool)));
+    assert.ok(tier === "full" || !config.allowedTools.some(tool => /write|bash|shell/.test(tool)));
     assert.equal(config.includeMcpJson, false);
     assert.equal(config.name, agentName(thread, cwd));
   }
@@ -48,13 +44,13 @@ test("the shell filter lets everything through except commands holding an ask wo
   for (const word of ASK_WORDS) assert.ok(!allowed(`x ${word}`) && !allowed(word.toUpperCase()), word);
 });
 
-test("the agent name has no tier; the tier only changes the file: full approves every tool, read and edit do not", () => {
-  const names = ["read", "edit", "full"].map(tier => agentConfig(tier, thread, cwd).name);
+test("the agent name has no tier; the tier only changes the file: full approves every tool, edit does not", () => {
+  const names = ["edit", "full"].map(tier => agentConfig(tier, thread, cwd).name);
   assert.equal(new Set(names).size, 1);
-  assert.doesNotMatch(names[0], /read|edit|full/);
+  assert.doesNotMatch(names[0], /edit|full/);
   const full = agentConfig("full", thread, cwd);
   assert.deepEqual([full.allowedTools, full.toolsSettings, full.tools], [["*"], {}, ["*"]]);
-  assert.notDeepEqual(agentConfig("read", thread, cwd), agentConfig("edit", thread, cwd));
+  assert.notDeepEqual(agentConfig("full", thread, cwd), agentConfig("edit", thread, cwd));
 });
 
 test("writeAgent: written outside the workspace, mode 0600, rewritten when changed on disk, also for full", () => {
@@ -72,7 +68,7 @@ test("writeAgent: written outside the workspace, mode 0600, rewritten when chang
 
 test("tier mapping in the kiro plug: every tier names the same generated agent and none uses a trust flag", () => {
   const config = { plugin: "kiro", bin: "kiro-cli", kiroAgentsDir: dir };
-  for (const tier of ["read", "edit", "full"]) {
+  for (const tier of ["edit", "full"]) {
     const { args, expectedAgent } = launchOf(config, tier, cwd, thread);
     assert.deepEqual(args, ["acp", "--agent", agentName(thread, cwd)]);
     assert.equal(expectedAgent, agentName(thread, cwd));
@@ -81,11 +77,11 @@ test("tier mapping in the kiro plug: every tier names the same generated agent a
   assert.throws(() => launchOf(config, "edit"), /requires a workspace/);
   const blocked = path.join(dir, "blocked");
   writeFileSync(blocked, "not a directory");
-  for (const tier of ["read", "edit", "full"]) {
+  for (const tier of ["edit", "full"]) {
     assert.throws(() => launchOf({ ...config, kiroAgentsDir: blocked }, tier, cwd, thread), /Cannot write the restricted Kiro agent config/);
   }
   for (const arg of ["--agent=other", "--agent", "--trust-all-tools", "--trust-tools=fs_write", "-a", "-av"]) {
-    assert.throws(() => launchOf({ ...config, args: [arg] }, "read", cwd, thread), /cannot override/);
+    assert.throws(() => launchOf({ ...config, args: [arg] }, "edit", cwd, thread), /cannot override/);
   }
   assert.deepEqual(launchOf({ plugin: "dsh", bin: "dsh" }, "edit", cwd, thread).args, ["--profile", "acp"]);
 });

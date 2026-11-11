@@ -1,5 +1,6 @@
 // The one route the client half calls: POST /api/aelios-desktop { action, ... }. It never returns the key.
 import { ConnectError, connect, defaultWorkspace, disconnect, ensurePaired } from "./connect.mjs";
+import { switchAccess } from "./access.mjs";
 import { switchHelper } from "./helper.mjs";
 import { makeLocal } from "./local.mjs";
 import { ProxyError, forward, forwardBytes, forwardRaw } from "./proxy.mjs";
@@ -30,6 +31,7 @@ export function makeRoute(deps) {
       return status();
     },
     async helper(input) { await switchHelper(input, deps); return status(); },
+    async access(input) { await switchAccess(input, deps); return status(); },
     async start() { await ensurePaired(deps); return status(); },
     machine: () => local.machine(),
     sessions: () => local.sessions(),

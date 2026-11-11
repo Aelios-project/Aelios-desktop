@@ -5,7 +5,7 @@ import { runOnce, runnerStatus } from "./runner.mjs";
 
 export const defaultWorkspace = () => path.join(os.homedir(), "AeliosWork");
 const HELPERS = ["dsh", "kiro"];
-const TIERS = ["read", "edit", "full"];
+const TIERS = ["edit", "full"];
 
 export class ConnectError extends Error {}
 
@@ -17,9 +17,9 @@ export function validate(input) {
   const key = String(input.key ?? "").trim();
   if (!key) throw new ConnectError("The web key is empty");
   const plugin = input.helper ?? "dsh";
-  const access = input.access ?? "edit";
+  const access = input.access === "read" ? "edit" : input.access ?? "edit"; // a connection saved before the read tier was removed
   if (!HELPERS.includes(plugin)) throw new ConnectError("The helper must be dsh or kiro");
-  if (!TIERS.includes(access)) throw new ConnectError("The permission must be read, edit or full");
+  if (!TIERS.includes(access)) throw new ConnectError("The permission must be edit or full");
   if (access === "full" && input.confirmFull !== true) throw new ConnectError("Full permission needs your confirmation");
   const workspace = String(input.workspace || defaultWorkspace());
   if (!path.isAbsolute(workspace)) throw new ConnectError("The folder must be an absolute path");
@@ -39,10 +39,10 @@ export async function connect(input, { entry, store, supervisor, env = {}, node 
   supervisor.start();
 }
 
-const pairArgs = (s) => ["pair", "--url", s.url, "--resident", s.resident || "default", "--workspace", s.workspace, "--access", s.access, "--plugin", s.plugin];
+const pairArgs = (s) => ["pair", "--url", s.url, "--resident", s.resident || "default", "--workspace", s.workspace, "--access", s.access === "read" ? "edit" : s.access, "--plugin", s.plugin];
 
 // The runner's last "aelios-runner:" line; Node's own warnings on stderr (a proxy notice, say) are not the error.
-const oneLine = (err) => {
+export const oneLine = (err) => {
   const lines = err.split("\n").map((line) => line.trim()).filter((line) => line.startsWith("aelios-runner:"));
   return (lines.pop() ?? "").replace(/^aelios-runner:\s*/, "") || "Pairing failed";
 };

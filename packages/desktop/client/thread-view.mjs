@@ -11,7 +11,7 @@ import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
 import { Item } from "./thread-items.mjs";
 import { HELPER_ICON, countsOf, helperOf, timeline } from "./thread-model.mjs";
-import { choose, loadThread, loadWaiting, markSeen, sayToThread, stateOf, stopThread } from "./threads-api.mjs";
+import { canStop, choose, loadThread, loadWaiting, markSeen, sayToThread, stateOf, stopThread } from "./threads-api.mjs";
 import { taskTone } from "./tones.mjs";
 
 const POLL_MS = 4000;
@@ -81,7 +81,7 @@ export function ThreadView({ resident, id, onBack }) {
   const tone = taskTone(state);
   const items = timeline(thread, session);
   const counts = countsOf(session);
-  const working = thread && thread.runs === "machine" && thread.status === "working";
+  const working = canStop(thread);
 
   return h("div", { className: "ad-panel ad-thread" },
     h("div", { className: "ad-tv-head" },
