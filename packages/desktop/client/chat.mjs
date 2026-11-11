@@ -10,6 +10,7 @@ import { Md } from "./md.mjs";
 import { Message } from "./message.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
+import { stopTurn } from "./stop.mjs";
 import { cardsByLine } from "./threads-api.mjs";
 
 const POLL_MS = 5000;
@@ -22,6 +23,7 @@ export function Chat() {
   const [lines, setLines] = useState([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [turn, setTurn] = useState(null);
   const end = useRef(null);
   const reader = useRef(null);
 
@@ -29,14 +31,18 @@ export function Chat() {
     try {
       const next = await reader.current();
       if (next) setLines(next);
+      setTurn(reader.current.turn);
       setError("");
-    } catch (e) { setError(e.message); }
+      return reader.current.turn;
+    } catch (e) { setError(e.message); return null; }
   };
+  const stop = () => stopTurn({ turn, post: (body) => web("/web/stop", { method: "POST", body, resident }), refresh }).catch((e) => setError(e.message));
   const restart = () => { reader.current = createMessages((path) => web(path, { resident })); };
 
   useEffect(() => {
     restart();
     setLines([]);
+    setTurn(null);
     void refresh();
     const timer = setInterval(() => { if (!document.hidden) void refresh(); }, POLL_MS);
     return () => clearInterval(timer);
@@ -69,5 +75,5 @@ export function Chat() {
     error && h("div", { className: "ad-error", role: "alert", style: { padding: "0 18px 4px", textAlign: "center" } }, error),
     notice && h("div", { className: "ad-notice", role: "status" }, h("div", { className: "ad-md" }, h(Md, { text: notice })),
       h("button", { type: "button", className: "ad-icon-btn sm", title: t.close, "aria-label": t.close, onClick: () => setNotice("") }, h(Icon, { name: "close" }))),
-    h(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand }));
+    h(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand, turn, onStop: stop }));
 }

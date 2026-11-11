@@ -82,14 +82,17 @@ async function blobUrl(path, { resident } = {}, request = fetch) {
 function createMessages(get, now = Date.now) {
   let rev = "";
   let fullAt = 0;
-  return async function read() {
+  async function read() {
     const since = rev && now() - fullAt < FULL_MS ? `?since=${encodeURIComponent(rev)}` : "";
     const data = await get(`/web/messages${since}`);
     if (data?.rev) rev = data.rev;
+    read.turn = data?.turn ?? null;
     if (data?.same) return null;
     fullAt = now();
     return data?.data || [];
-  };
+  }
+  read.turn = null;
+  return read;
 }
 
 // client/palette.mjs
@@ -303,6 +306,7 @@ var WORDS = {
     write: "Write a message · / for commands",
     writeGroup: "Write to the group",
     send: "Send",
+    stopReply: "Stop",
     attach: "Add pictures or files",
     remove: "Remove",
     stickers: "Stickers",
@@ -515,6 +519,7 @@ var WORDS = {
     write: "说点什么 · / 调命令",
     writeGroup: "对群里说点什么",
     send: "发送",
+    stopReply: "停下",
     attach: "发图或文件",
     remove: "拿掉",
     stickers: "表情包",
@@ -1030,7 +1035,7 @@ var base64Of2 = async (blob) => {
   return btoa(binary);
 };
 var COMMANDS = ["status", "letter", "handoff"];
-function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null }) {
+function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null, turn = null, onStop = null }) {
   const t = words();
   const [text, setText] = (0, import_react6.useState)("");
   const [packs, setPacks] = (0, import_react6.useState)(null);
@@ -1151,7 +1156,7 @@ function Composer({ resident, base, placeholder, say, onError, rich = true, onCo
       ),
       rich && tool("sticker", t.stickers, openStickers, { "aria-expanded": picker }),
       rich && tool("mic", recording ? t.recording : t.voice, record, { className: `ad-plain${recording ? " rec" : ""}`, "aria-pressed": recording }),
-      (0, import_react6.createElement)("button", { className: "ad-round", type: "button", disabled: busy || !text.trim() && !a.any, onClick: send, "aria-label": t.send, title: t.send }, (0, import_react6.createElement)(Icon, { name: "send" }))
+      turn && onStop ? (0, import_react6.createElement)("button", { className: "ad-round", type: "button", disabled: Boolean(turn.stopping), onClick: onStop, "aria-label": t.stopReply, title: t.stopReply }, (0, import_react6.createElement)(Icon, { name: "stop" })) : (0, import_react6.createElement)("button", { className: "ad-round", type: "button", disabled: busy || !text.trim() && !a.any, onClick: send, "aria-label": t.send, title: t.send }, (0, import_react6.createElement)(Icon, { name: "send" }))
     )
   );
 }
@@ -1852,6 +1857,21 @@ function Message({ line, resident, base, last = false, onChanged = null, cards =
   );
 }
 
+// client/stop.mjs
+var wait = (ms) => new Promise((done) => setTimeout(done, ms));
+async function stopTurn({ turn, post: post2, refresh, sleep = wait, tries = 10 }) {
+  if (!turn?.requestId) return;
+  try {
+    await post2({ requestId: turn.requestId });
+  } catch (e) {
+    if (e.status !== 409) throw e;
+  }
+  for (let i = 0; i < tries; i += 1) {
+    if (!await refresh()) return;
+    await sleep(1e3);
+  }
+}
+
 // client/chat.mjs
 var POLL_MS = 5e3;
 function Chat() {
@@ -1862,23 +1882,29 @@ function Chat() {
   const [lines, setLines] = (0, import_react12.useState)([]);
   const [error, setError] = (0, import_react12.useState)("");
   const [notice, setNotice] = (0, import_react12.useState)("");
+  const [turn, setTurn] = (0, import_react12.useState)(null);
   const end = (0, import_react12.useRef)(null);
   const reader = (0, import_react12.useRef)(null);
   const refresh = async () => {
     try {
       const next = await reader.current();
       if (next) setLines(next);
+      setTurn(reader.current.turn);
       setError("");
+      return reader.current.turn;
     } catch (e) {
       setError(e.message);
+      return null;
     }
   };
+  const stop = () => stopTurn({ turn, post: (body) => web("/web/stop", { method: "POST", body, resident }), refresh }).catch((e) => setError(e.message));
   const restart = () => {
     reader.current = createMessages((path) => web(path, { resident }));
   };
   (0, import_react12.useEffect)(() => {
     restart();
     setLines([]);
+    setTurn(null);
     void refresh();
     const timer = setInterval(() => {
       if (!document.hidden) void refresh();
@@ -1922,7 +1948,7 @@ function Chat() {
       (0, import_react12.createElement)("div", { className: "ad-md" }, (0, import_react12.createElement)(Md, { text: notice })),
       (0, import_react12.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.close, "aria-label": t.close, onClick: () => setNotice("") }, (0, import_react12.createElement)(Icon, { name: "close" }))
     ),
-    (0, import_react12.createElement)(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand })
+    (0, import_react12.createElement)(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand, turn, onStop: stop })
   );
 }
 

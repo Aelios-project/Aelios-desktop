@@ -16,7 +16,7 @@ const base64Of = async (blob) => {
 
 export const COMMANDS = ["status", "letter", "handoff"];
 
-export function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null }) {
+export function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null, turn = null, onStop = null }) {
   const t = words();
   const [text, setText] = useState("");
   const [packs, setPacks] = useState(null);
@@ -92,5 +92,7 @@ export function Composer({ resident, base, placeholder, say, onError, rich = tru
         h("textarea", { rows: 1, value: text, placeholder, "aria-label": placeholder, onChange: (e) => setText(e.target.value), onKeyDown: onKey })),
       rich && tool("sticker", t.stickers, openStickers, { "aria-expanded": picker }),
       rich && tool("mic", recording ? t.recording : t.voice, record, { className: `ad-plain${recording ? " rec" : ""}`, "aria-pressed": recording }),
-      h("button", { className: "ad-round", type: "button", disabled: busy || (!text.trim() && !a.any), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" }))));
+      turn && onStop
+        ? h("button", { className: "ad-round", type: "button", disabled: Boolean(turn.stopping), onClick: onStop, "aria-label": t.stopReply, title: t.stopReply }, h(Icon, { name: "stop" }))
+        : h("button", { className: "ad-round", type: "button", disabled: busy || (!text.trim() && !a.any), onClick: send, "aria-label": t.send, title: t.send }, h(Icon, { name: "send" }))));
 }
