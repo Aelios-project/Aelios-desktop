@@ -51,17 +51,21 @@ export async function blobUrl(path, { resident } = {}, request = fetch) {
 
 /**
  * Reads /web/messages. read() gives the lines when they changed, and null when they did not (the resident
- * answers { same } for the version we hold). Every FULL_MS it reads all of them again.
+ * answers { same } for the version we hold). Every FULL_MS it reads all of them again. `read.turn` is the reply
+ * now running ({ requestId, stopping }) or null; the resident sends it with every answer, `same` too.
  */
 export function createMessages(get, now = Date.now) {
   let rev = "";
   let fullAt = 0;
-  return async function read() {
+  async function read() {
     const since = rev && now() - fullAt < FULL_MS ? `?since=${encodeURIComponent(rev)}` : "";
     const data = await get(`/web/messages${since}`);
     if (data?.rev) rev = data.rev;
+    read.turn = data?.turn ?? null;
     if (data?.same) return null;
     fullAt = now();
     return data?.data || [];
-  };
+  }
+  read.turn = null;
+  return read;
 }

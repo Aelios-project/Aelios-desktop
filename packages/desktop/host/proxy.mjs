@@ -2,7 +2,7 @@
 // Only the paths in ALLOWED go through. /web/runner/* is not among them: the runner is handled by the
 // supervisor and never from the page.
 const ALLOWED = [
-  "check", "messages", "say", "residents", "threads", "thread", "thread/say", "thread/stop",
+  "check", "messages", "say", "stop", "residents", "threads", "thread", "thread/say", "thread/stop",
   "waiting", "waiting/seen", "waiting/permission", "task/choose", "task/settle", "pin", "usage", "model", "models", "persona", "alarms", "search", "search/around", "stickers", "config", "avatar", "avatar/remove", "letter", "letter/retry", "tasks", "mcp", "mcp/remove", "mcp/retry",
   "groups", "group", "group/say",
   // Settings and actions the desktop pages call (2026-11-09: opened at the owner's request).
