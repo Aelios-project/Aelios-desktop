@@ -723,6 +723,7 @@ function stateOf(task) {
   return task.chosen ? "chosen" : "settled";
 }
 var isWorking = (thread) => thread?.status === "sent" || thread?.status === "working";
+var canStop = (thread) => thread?.runs === "machine" && thread?.status === "working";
 function splitThreads(list = []) {
   const open = (t) => isWorking(t) || t.waiting;
   return { open: list.filter(open), done: list.filter((t) => !open(t)) };
@@ -3669,7 +3670,7 @@ function ThreadView({ resident, id, onBack }) {
   const tone = taskTone(state);
   const items = timeline(thread, session);
   const counts = countsOf(session);
-  const working = thread && thread.runs === "machine" && thread.status === "working";
+  const working = canStop(thread);
   return (0, import_react28.createElement)(
     "div",
     { className: "ad-panel ad-thread" },
@@ -3720,31 +3721,36 @@ function ThreadView({ resident, id, onBack }) {
 
 // client/panel-threads.mjs
 var RUN_ICON = { local: "spark", linux: "cloud", machine: "laptop", retired: "exit" };
-function Row2({ item, t, local, unread = 0, onOpen }) {
+function Row2({ item, t, local, unread = 0, onOpen, onStop }) {
   const state = stateOf(item);
   const tone = taskTone(state);
   const helper = helperOf(item, local);
   const pending = (local?.sessions || []).find((s) => s.thread === item.id)?.pending || 0;
   return (0, import_react29.createElement)(
-    "button",
-    { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
+    "div",
+    { className: "ad-card-wrap" },
     (0, import_react29.createElement)(
-      "span",
-      { className: "ad-card-top" },
-      (0, import_react29.createElement)("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, (0, import_react29.createElement)(Icon, { name: HELPER_ICON[helper] })),
-      (0, import_react29.createElement)("span", { className: "ad-card-title" }, unread > 0 && (0, import_react29.createElement)("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
-      (0, import_react29.createElement)("span", { className: "ad-card-time" }, when(item.updatedAt))
+      "button",
+      { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
+      (0, import_react29.createElement)(
+        "span",
+        { className: "ad-card-top" },
+        (0, import_react29.createElement)("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, (0, import_react29.createElement)(Icon, { name: HELPER_ICON[helper] })),
+        (0, import_react29.createElement)("span", { className: "ad-card-title" }, unread > 0 && (0, import_react29.createElement)("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
+        (0, import_react29.createElement)("span", { className: "ad-card-time" }, when(item.updatedAt))
+      ),
+      (0, import_react29.createElement)(
+        "span",
+        { className: "ad-card-row" },
+        (0, import_react29.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react29.createElement)("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
+        pending > 0 && (0, import_react29.createElement)("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, (0, import_react29.createElement)(Icon, { name: "shield" }), pending),
+        (0, import_react29.createElement)("span", { className: "sp" }),
+        (0, import_react29.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react29.createElement)(Icon, { name: "stack" }), item.tasks)
+      ),
+      isWorking(item) && stepNow(item) && (0, import_react29.createElement)("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
+      isWorking(item) && (0, import_react29.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react29.createElement)("span"))
     ),
-    (0, import_react29.createElement)(
-      "span",
-      { className: "ad-card-row" },
-      (0, import_react29.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react29.createElement)("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
-      pending > 0 && (0, import_react29.createElement)("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, (0, import_react29.createElement)(Icon, { name: "shield" }), pending),
-      (0, import_react29.createElement)("span", { className: "sp" }),
-      (0, import_react29.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react29.createElement)(Icon, { name: "stack" }), item.tasks)
-    ),
-    isWorking(item) && stepNow(item) && (0, import_react29.createElement)("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
-    isWorking(item) && (0, import_react29.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react29.createElement)("span"))
+    canStop(item) && (0, import_react29.createElement)("button", { type: "button", className: "ad-icon-btn sm danger ad-card-stop", title: t.stop, "aria-label": t.stop, onClick: () => onStop(item.id) }, (0, import_react29.createElement)(Icon, { name: "stop" }))
   );
 }
 function Quota({ q, t }) {
@@ -3779,6 +3785,16 @@ function ThreadsPanel() {
       setError(e.message);
     }
   }, 1e4, [resident]);
+  const onStop = async (threadId) => {
+    try {
+      await stopThread(resident, threadId);
+      setError("");
+      const d = await loadThreads(resident);
+      setData({ loaded: true, on: Boolean(d.on), threads: d.threads || [] });
+    } catch (e) {
+      setError(e.message);
+    }
+  };
   if (id) return (0, import_react29.createElement)(ThreadView, { resident, id, onBack: () => setId("") });
   const { open, done } = splitThreads(data.threads);
   return (0, import_react29.createElement)(
@@ -3788,7 +3804,7 @@ function ThreadsPanel() {
     (0, import_react29.createElement)(Quota, { q: quota, t }),
     data.loaded && !data.on && data.threads.length === 0 && (0, import_react29.createElement)(Empty, { icon: "threads", text: t.threadsOff }),
     data.loaded && data.on && data.threads.length === 0 && (0, import_react29.createElement)(Empty, { icon: "threads", text: t.noThreads, why: t.threadsInfo }),
-    open.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })),
+    open.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId, onStop })),
     done.length > 0 && (0, import_react29.createElement)(
       "button",
       { type: "button", className: "ad-fold ad-label", "aria-expanded": showDone, onClick: () => setShowDone((v) => !v) },
@@ -3796,7 +3812,7 @@ function ThreadsPanel() {
       t.done,
       (0, import_react29.createElement)("span", { className: "ad-badge" }, done.length)
     ),
-    showDone && done.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId }))
+    showDone && done.map((item) => (0, import_react29.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId, onStop }))
   );
 }
 
@@ -4316,6 +4332,8 @@ var RIGHT = `
 .ad-fold svg { width: 13px; height: 13px; transition: transform .15s; }
 .ad-fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
 
+.ad-card-wrap { position: relative; }
+.ad-card-stop { position: absolute; right: 8px; bottom: 6px; width: 28px; height: 28px; }
 .ad-card { position: relative; display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: inherit; text-align: left; }
 button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-strong); }
 .ad-card.ask { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--accent-soft); }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { choose, decidePermission, loadThread, loadWaiting, markSeen, sayToThread, splitThreads, stateOf, stopThread } from "../client/threads-api.mjs";
+import { canStop, choose, decidePermission, loadThread, loadWaiting, markSeen, sayToThread, splitThreads, stateOf, stopThread } from "../client/threads-api.mjs";
 import { PANEL_IDS, tabCounts } from "../client/panel-ids.mjs";
 import { words } from "../client/strings.mjs";
 
@@ -86,4 +86,9 @@ test("threads: a working thread on the machine shows its last step", async () =>
   assert.equal(stepNow({ steps: [{ kind: "read", title: "read a.js" }, { kind: "run", title: "ran npm test" }] }), "ran npm test");
   assert.equal(stepNow({}), "");
   assert.equal(stepNow({ steps: [] }), "");
+});
+
+test("threads: a stop button only for a thread working on a machine", () => {
+  assert.equal(canStop({ runs: "machine", status: "working" }), true);
+  for (const t of [{ runs: "machine", status: "sent" }, { runs: "machine", status: "done" }, { runs: "local", status: "working" }, null]) assert.equal(canStop(t), false);
 });
