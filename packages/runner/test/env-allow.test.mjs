@@ -24,6 +24,12 @@ test("a plug's prefixes pass for that plug only", () => {
   assert.ok(!command.some(name => /^(KIRO_|AWS_|DEEPSEEK_|DSH_)/.test(name)));
 });
 
+test("Kiro gets its own KIRO_HOME, so the owner's global steering is not loaded; other helpers get none", () => {
+  const config = { home: "/runner/home", env: { KIRO_HOME: "/elsewhere" } };
+  assert.equal(envFor("kiro", config, RUNNER_ENV).env.KIRO_HOME, "/runner/home/kiro-home", "a config env key cannot point it back");
+  assert.equal(envFor("dsh", config, RUNNER_ENV).env.KIRO_HOME, "/elsewhere");
+});
+
 test("config env keys are passed as written", () => {
   assert.deepEqual(envFor("dsh", { env: { GH_TOKEN: "x" } }, RUNNER_ENV).env, { GH_TOKEN: "x" });
   assert.deepEqual(envFor("dsh", {}, RUNNER_ENV).env, {});
