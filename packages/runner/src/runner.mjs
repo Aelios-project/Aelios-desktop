@@ -192,7 +192,7 @@ export class Runner {
         return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "workspace_denied", summary: "The runner could not use its workspace folder. Check that the folder exists and this user may write to it." })]);
       }
     }
-    const tier = lowest(tierOf(this.config.access) ?? "read", work.access ?? this.config.access ?? "read");
+    const tier = lowest(tierOf(this.config.access) ?? "edit", work.access ?? this.config.access ?? "edit");
     const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace], this.wire.summaryMax);
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;

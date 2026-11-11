@@ -2,7 +2,7 @@
 // whatever Kiro does not approve itself reaches the runner as a permission request, and is held for the owner).
 // Kiro reads agent configs only from a folder by name, so this one lives in Kiro's own agents folder, outside the
 // workspace, and is rewritten before each turn, so a thread cannot loosen it.
-// `read`: reads inside the workspace. `edit`: reads anywhere, writes with Kiro's write tool inside the workspace, and
+// `edit`: reads anywhere, writes with Kiro's write tool inside the workspace, and
 // every shell command except the ask words in shell-allow.mjs, which are held. A write outside the workspace is held.
 // `edit` refuses outright any read, search or glob of the runner's own home (the shell stays open: not a sandbox).
 // `full`: every tool.
@@ -29,8 +29,8 @@ export function agentConfig(tier, thread, cwd) {
     mcpServers: {},
     includeMcpJson: false,
     tools: ["*"],
-    allowedTools: tier === "full" ? ["*"] : tier === "edit" ? READS : [], // a tool listed here is trusted for any path; the per-path settings below are what limit it
-    toolsSettings: tier === "full" ? {} : tier === "edit" ? { execute_bash: { allowedCommands: [allowAllBut()] }, fs_write: inWorkspace, fs_read: noRunnerHome, glob: noRunnerHome, grep: noRunnerHome } : { fs_read: inWorkspace, glob: inWorkspace, grep: inWorkspace }
+    allowedTools: tier === "full" ? ["*"] : READS, // a tool listed here is trusted for any path; the per-path settings below are what limit it
+    toolsSettings: tier === "full" ? {} : { execute_bash: { allowedCommands: [allowAllBut()] }, fs_write: inWorkspace, fs_read: noRunnerHome, glob: noRunnerHome, grep: noRunnerHome }
   };
 }
 

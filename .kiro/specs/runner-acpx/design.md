@@ -97,7 +97,7 @@ Two parts: make the launch stable, and catch every change that remains.
 
 **Part 1. Tier moves out of the arguments.**
 
-- Kiro: the agent name becomes `aelios-runner-<threadhash>` (thread id and folder hashed). The tier lives in the file's content, which `kiro-agent.mjs` already rewrites before every turn. A new process reads it at start. So `read` to `edit` on the same thread keeps the same arguments and loads the same session.
+- Kiro: the agent name becomes `aelios-runner-<threadhash>` (thread id and folder hashed). The tier lives in the file's content, which `kiro-agent.mjs` already rewrites before every turn. A new process reads it at start. So `edit` to `full` on the same thread keeps the same arguments and loads the same session.
 
 A running helper has already read the old file. So when the tier of a thread differs from the tier of its open session, the turn calls `runtime.close` for that session and then `ensureSession` again with `resumeSessionId`: the process restarts, reads the new file, and loads the same session. The session id is unchanged. A named test, `tier change keeps the session`, checks that the fake helper saw one `session/new` and one `session/load` in total (task 9.8).
 

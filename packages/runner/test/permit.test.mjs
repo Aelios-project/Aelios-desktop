@@ -16,8 +16,8 @@ test("full allows once, with the one-time option id, and holds nothing", async (
   assert.deepEqual([held, denied], [0, []]);
 });
 
-test("read and edit hold the request, show the redacted command, and refuse when there is no owner to ask", async () => {
-  for (const tier of ["read", "edit"]) {
+test("edit holds the request, show the redacted command, and refuse when there is no owner to ask", async () => {
+  for (const tier of ["edit"]) {
     let info;
     const { permit, denied } = make(tier, { hold: async held => { info = held; return false; } });
     assert.deepEqual(await permit(request), { outcome: "selected", optionId: "reject" });
@@ -36,8 +36,8 @@ test("when the owner allows, only this request is allowed, once", async () => {
 
 test("no answer is ever an `always` option; a helper with no one-time option is refused", async () => {
   const onlyAlways = { raw: { ...request.raw, options: [{ optionId: "always", kind: "allow_always" }, { optionId: "never", kind: "reject_always" }] } };
-  for (const tier of ["read", "full"]) assert.deepEqual(await make(tier).permit(onlyAlways), { outcome: "reject_once" });
-  for (const tier of ["read", "edit", "full"]) assert.ok(!["always", "never"].includes((await make(tier).permit(request)).optionId));
+  for (const tier of ["edit", "full"]) assert.deepEqual(await make(tier).permit(onlyAlways), { outcome: "reject_once" });
+  for (const tier of ["edit", "full"]) assert.ok(!["always", "never"].includes((await make(tier).permit(request)).optionId));
 });
 
 test("an exception in the hold reaches acpx, which then refuses (fail closed)", async () => {

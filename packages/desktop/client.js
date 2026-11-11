@@ -394,7 +394,10 @@ var WORDS = {
     seen: "Resident sees it",
     unseen: "Resident does not see it",
     lastSeen: "last seen",
-    tier: { read: "Read", edit: "Edit", full: "Full" },
+    tier: { edit: "Edit", full: "Full" },
+    switchAccess: "Switch permission",
+    useFull: "Switch to Full",
+    keepEdit: "Keep Edit",
     stopRunner: "Stop",
     notWired: "This machine's details are not connected yet.",
     machineInfo: "The runner does the resident's work on this machine, through the helper, inside the workspace folder. Permission is the most it may do without asking you.",
@@ -603,7 +606,10 @@ var WORDS = {
     seen: "住户看得到",
     unseen: "住户看不到",
     lastSeen: "上次见到",
-    tier: { read: "只读", edit: "可改", full: "完整" },
+    tier: { edit: "可改", full: "完整" },
+    switchAccess: "切换权限",
+    useFull: "改用完整权限",
+    keepEdit: "保持可改",
     stopRunner: "停下",
     notWired: "这台机器的详情还没接上。",
     machineInfo: "执行端在这台机器上替住户干活：通过帮手，在工作文件夹里。权限是它不问你就能做到的上限。",
@@ -2078,7 +2084,7 @@ function ConnectForm({ defaultWorkspace = "" }) {
     field("key", t.key, { type: "password", required: true, autoComplete: "off" }),
     field("workspace", t.folder, { placeholder: defaultWorkspace }),
     (0, import_react14.createElement)("label", null, t.helper, (0, import_react14.createElement)("select", { value: form.helper, onChange: set("helper"), disabled: busy }, (0, import_react14.createElement)("option", { value: "dsh" }, "DSH"), (0, import_react14.createElement)("option", { value: "kiro" }, "Kiro"))),
-    (0, import_react14.createElement)("label", null, t.access, (0, import_react14.createElement)("select", { value: form.access, onChange: set("access"), disabled: busy }, ["read", "edit", "full"].map((v) => (0, import_react14.createElement)("option", { key: v, value: v }, t.tier[v])))),
+    (0, import_react14.createElement)("label", null, t.access, (0, import_react14.createElement)("select", { value: form.access, onChange: set("access"), disabled: busy }, ["edit", "full"].map((v) => (0, import_react14.createElement)("option", { key: v, value: v }, t.tier[v])))),
     form.access === "full" && (0, import_react14.createElement)("label", { className: "check" }, (0, import_react14.createElement)("span", null, (0, import_react14.createElement)("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
     error && (0, import_react14.createElement)("div", { className: "ad-error", role: "alert" }, error),
     (0, import_react14.createElement)("button", { className: "ad-btn", type: "submit", disabled: busy }, busy ? t.connecting : t.connect)
@@ -2441,7 +2447,7 @@ var ago = (at) => {
   const s = Math.max(0, Math.round((Date.now() - Number(at)) / 1e3));
   return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`;
 };
-function Live({ runner, info, t, act, pick, switching }) {
+function Live({ runner, info, t, act, pick, switching, asking, setAsking, setAccess }) {
   const tone = runnerTone(runner.state);
   const helper = info?.plugin || "";
   return (0, import_react19.createElement)(
@@ -2467,10 +2473,24 @@ function Live({ runner, info, t, act, pick, switching }) {
         (0, import_react19.createElement)(Icon, { name: HELPER_ICON[id] }),
         t.helpers[id]
       ))),
-      info?.access && (0, import_react19.createElement)("span", { className: `ad-pill ${info.access === "full" ? "bad" : info.access === "edit" ? "warn" : "idle"}`, title: t.access }, (0, import_react19.createElement)(Icon, { name: "shield" }), t.tier[info.access] || info.access),
+      info?.access && (0, import_react19.createElement)("button", {
+        type: "button",
+        className: `ad-pill ${info.access === "full" ? "bad" : "warn"}`,
+        title: t.switchAccess,
+        disabled: switching,
+        onClick: () => info.access === "full" ? setAccess("edit") : setAsking(!asking)
+      }, (0, import_react19.createElement)(Icon, { name: "shield" }), t.tier[info.access] || info.access),
       (0, import_react19.createElement)("span", { className: "sp" }),
       runnerDown(runner.state) || runner.state === "unpaired" ? (0, import_react19.createElement)("button", { type: "button", className: "ad-btn small", onClick: act("start") }, (0, import_react19.createElement)(Icon, { name: "play" }), t.start) : (0, import_react19.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: act("stop") }, (0, import_react19.createElement)(Icon, { name: "stop" }), t.stopRunner),
       (0, import_react19.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: act("repair") }, (0, import_react19.createElement)(Icon, { name: "refresh" }), t.pair)
+    ),
+    asking && (0, import_react19.createElement)(
+      "div",
+      { className: "ad-card-row", role: "group", "aria-label": t.switchAccess },
+      (0, import_react19.createElement)("span", { className: "ad-hint" }, t.fullOk),
+      (0, import_react19.createElement)("span", { className: "sp" }),
+      (0, import_react19.createElement)("button", { type: "button", className: "ad-btn small", disabled: switching, onClick: () => setAccess("full") }, t.useFull),
+      (0, import_react19.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: () => setAsking(false) }, t.keepEdit)
     )
   );
 }
@@ -2520,6 +2540,20 @@ function MachineView() {
       setSwitching(false);
     }
   };
+  const [asking, setAsking] = (0, import_react19.useState)(false);
+  const setAccess = async (access) => {
+    setSwitching(true);
+    setAsking(false);
+    try {
+      store.set({ status: await call("access", { access, confirmFull: access === "full" }) });
+      setError("");
+      await loadLocal();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSwitching(false);
+    }
+  };
   const act = (action) => async () => {
     try {
       store.set({ status: await call(action) });
@@ -2543,7 +2577,7 @@ function MachineView() {
       { className: "ad-mv" },
       error && (0, import_react19.createElement)("div", { className: "ad-error", role: "alert" }, error),
       local.wired === false && (0, import_react19.createElement)("p", { className: "ad-info-text ad-mv-wide" }, t.notWired),
-      (0, import_react19.createElement)(Live, { runner, info, t, act, pick, switching }),
+      (0, import_react19.createElement)(Live, { runner, info, t, act, pick, switching, asking, setAsking, setAccess }),
       (0, import_react19.createElement)(
         "div",
         { className: "ad-mv-card" },
@@ -4268,6 +4302,8 @@ var MACHINE = `
 .ad-dot.big { width: 12px; height: 12px; }
 .ad-dot.big.ok { box-shadow: 0 0 0 4px var(--ok-soft); }
 .ad-mv-card .ad-pill { height: 24px; gap: 6px; font-size: 12px; }
+button.ad-pill { border: 0; font-family: inherit; cursor: pointer; }
+button.ad-pill:disabled { opacity: .6; cursor: default; }
 .ad-seg { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--line-soft); }
 .ad-seg button { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px 0 7px; border: 0; border-radius: 999px; background: transparent; color: var(--text-3); font-size: 12px; font-weight: 500; }
 .ad-seg button[aria-pressed="true"] { background: var(--panel-strong); color: var(--text-1); box-shadow: var(--shadow); }

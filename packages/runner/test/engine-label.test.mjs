@@ -22,7 +22,7 @@ test("status prints the engine for both engines", async () => {
   const home = mkdtempSync(path.join(os.tmpdir(), "runner-engine-"));
   const env = { ...process.env, AELIOS_RUNNER_HOME: home };
   const status = () => new Promise((resolve, reject) => execFile(process.execPath, [BIN, "status"], { env }, (e, out, err) => (e ? reject(new Error(err)) : resolve(JSON.parse(out)))));
-  const config = { url: "http://127.0.0.1:1", resident: "r", workspace: home, access: "read", plugin: "kiro" };
+  const config = { url: "http://127.0.0.1:1", resident: "r", workspace: home, access: "edit", plugin: "kiro" };
   try {
     writeFileSync(path.join(home, "config.json"), JSON.stringify(config));
     assert.equal((await status()).engine, "legacy");

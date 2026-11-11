@@ -13,7 +13,7 @@ import { engineLabel } from "../src/engine-label.mjs";
 import { PLUGINS, available, binOf } from "../src/plugins.mjs";
 import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
-import { StateFile, homeDir, readConfig, writeConfig } from "../src/state.mjs";
+import { StateFile, homeDir, previousConfig, readConfig, writeConfig } from "../src/state.mjs";
 import { forgetCommand, keepSwept, storeOnUnpair, storeStatus } from "./forget.mjs";
 import { installAdapter } from "../src/adapters.mjs";
 
@@ -34,13 +34,15 @@ async function webKey() {
 async function pair() {
   const { values } = parseArgs({ args: rest, options: {
     url: { type: "string" }, resident: { type: "string", default: "default" }, workspace: { type: "string" },
-    access: { type: "string", default: "read" }, plugin: { type: "string", default: "kiro" }, label: { type: "string" }, command: { type: "string" }, code: { type: "string" }
+    access: { type: "string", default: "edit" }, plugin: { type: "string", default: "kiro" }, label: { type: "string" }, command: { type: "string" }, code: { type: "string" }
   } });
   if (!values.url?.startsWith("https://") && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(values.url ?? "")) throw new Error("--url must be the resident's https address");
   if (!values.workspace || !path.isAbsolute(values.workspace)) throw new Error("--workspace must be an absolute folder path");
-  if (!tierOf(values.access)) throw new Error("--access is read, edit or full");
+  if (!tierOf(values.access)) throw new Error("--access is edit or full");
   if (!PLUGINS[values.plugin]) throw new Error(`--plugin is one of ${Object.keys(PLUGINS).join(", ")}`);
-  const config = { url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: values.access, plugin: values.plugin };
+  // The keys pair owns are replaced; every other key already in the config (engine, timeouts, ...) stays.
+  const { command: _old, ...kept } = await previousConfig(configFile);
+  const config = { ...kept, url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: tierOf(values.access), plugin: values.plugin };
   if (values.command) config.command = JSON.parse(values.command);
   // Fails now, not on the first job, if the helper cannot be started.
   const command = binOf(config); // Only check the executable here; no helper is started.
@@ -58,7 +60,7 @@ async function pair() {
 }
 
 async function start() {
-  const config = await readConfig(configFile);
+  const config = await readConfig(configFile, (line) => console.error(`aelios-runner: ${line}`));
   const release = acquire(lockFile); // one runner per folder; "unpair" stops it through this lock
   try {
     if (!(await state.read()).device) throw new Error('not paired; run "aelios-runner pair" first');
@@ -75,6 +77,14 @@ async function status() {
   const config = await readConfig(configFile), s = await state.read();
   console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), engine: engineLabel(config), plugin: config.plugin, access: config.access, workspace: config.workspace,
     threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length, store: storeStatus(home) }, null, 2));
+}
+
+/** aelios-runner access edit|full: changes the tier in the config and nothing else. Start the runner again to use it. */
+async function access() {
+  const [tier] = rest;
+  if (tier !== "edit" && tier !== "full") throw new Error("usage: aelios-runner access edit|full");
+  await locked(async () => { const config = await readConfig(configFile); config.access = tier; await writeConfig(configFile, config); });
+  console.log(`Access is ${tier}. Start the runner again to use it.`);
 }
 
 async function unpair() {
@@ -105,7 +115,7 @@ async function permit() {
   console.log("Recorded.");
 }
 
-const commands = { pair, start, status, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)),
+const commands = { pair, start, status, access, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)),
   "install-adapter": async () => console.log(`Installed ${await installAdapter(home, rest[0] ?? "")}`) };
-if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit|forget|install-adapter"); process.exit(2); }
+if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|access|unpair|overview|permit|forget|install-adapter"); process.exit(2); }
 commands[command]().catch(error => { console.error("aelios-runner:", error.message); process.exit(1); });
