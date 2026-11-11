@@ -41,7 +41,10 @@ async function pair() {
   if (!tierOf(values.access)) throw new Error("--access is edit or full");
   if (!PLUGINS[values.plugin]) throw new Error(`--plugin is one of ${Object.keys(PLUGINS).join(", ")}`);
   // The keys pair owns are replaced; every other key already in the config (engine, timeouts, ...) stays.
-  const { command: _old, ...kept } = await previousConfig(configFile);
+  // A helper's own start-up keys (command, bin, args) belong to that helper, so they go when the helper changes.
+  const { command: _old, ...before } = await previousConfig(configFile);
+  const { bin: _bin, args: _args, ...other } = before;
+  const kept = before.plugin === undefined || before.plugin === values.plugin ? before : other;
   const config = { ...kept, url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: tierOf(values.access), plugin: values.plugin };
   if (values.command) config.command = JSON.parse(values.command);
   // Fails now, not on the first job, if the helper cannot be started.
