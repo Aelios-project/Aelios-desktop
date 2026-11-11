@@ -91,6 +91,7 @@ export class FakeCloud {
         if (!STATUSES.includes(body.status) || typeof body.summary !== "string") return reply(400, { error: "final", code: "INVALID_RECEIPT" });
         if (body.summary.length > this.summaryMax) { this.refused.push(body); return reply(400, { error: "summary too long", code: "INVALID_RECEIPT" }); } // like the real one: the runner must cut
         if (body.reason !== undefined && (body.status !== "failed" || !REASONS.includes(body.reason) || (LATER.includes(body.reason) && !this.accepts?.includes("reason." + body.reason)))) return reply(400, { error: "reason", code: "INVALID_RECEIPT" });
+        if (body.ask && "kind" in body.ask && (!this.accepts?.includes("ask.kind") || !["permission", "question"].includes(body.ask.kind))) return reply(400, { error: "ask.kind", code: "INVALID_RECEIPT" }); // like the real one
         if (body.status === "needs_you" && !body.ask?.key) return reply(400, { error: "ask", code: "INVALID_RECEIPT" });
       }
       const fingerprint = JSON.stringify(body);
