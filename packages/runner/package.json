@@ -11,6 +11,6 @@
   "dependencies": { "acpx": "0.22.0" },
   "scripts": {
     "start": "node bin/aelios-runner.mjs start",
-    "test": "node --test --test-concurrency=1 test/*.test.mjs && RUNNER_TEST_ENGINE=acpx node --test --test-concurrency=1 test/runner.test.mjs test/fixes.test.mjs test/perm-flow.test.mjs test/inbox.test.mjs test/steps.test.mjs test/report.test.mjs test/wire.test.mjs test/ask-kind.test.mjs"
+    "test": "node --test --test-concurrency=1 test/*.test.mjs && RUNNER_TEST_ENGINE=acpx node --test --test-concurrency=1 test/runner.test.mjs test/fixes.test.mjs test/perm-flow.test.mjs test/inbox.test.mjs test/steps.test.mjs test/report.test.mjs test/wire.test.mjs test/ask-kind.test.mjs test/model.test.mjs"
   }
 }

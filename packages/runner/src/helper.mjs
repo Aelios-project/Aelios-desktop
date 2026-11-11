@@ -5,6 +5,7 @@ import { AcpClosed, AcpConnection, AcpError, PROTOCOL_VERSION } from "./acp.mjs"
 import { CONVENTION } from "./convention.mjs";
 import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { promptBlocks } from "./inbox.mjs";
+import { modelFailure, selectOnConnection } from "./model.mjs";
 import { reasonOf, reasonOfStart } from "./reason.mjs";
 import { answer } from "./permission.mjs";
 import { StepLog } from "./steps.mjs";
@@ -73,6 +74,7 @@ export class Turn {
         catch (error) { if (!(error instanceof AcpError)) throw error; /* the helper says it has no such session */ }
         if (loaded) {
           this.#checkAgent(loaded);
+          this.configOptions = loaded.configOptions;
           this.opened = this.sessionId;
           return method === "session/load" ? "loaded" : "resumed";
         }
@@ -81,6 +83,7 @@ export class Turn {
     const created = await this.conn.request("session/new", base, 60_000);
     if (typeof created.sessionId !== "string" || !created.sessionId) throw new AcpError("helper gave no session id", -32603);
     this.#checkAgent(created);
+    this.configOptions = created.configOptions;
     this.opened = created.sessionId;
     return how;
   }
@@ -95,6 +98,11 @@ export class Turn {
       how = await this.#open(init.agentCapabilities ?? {});
       await this.onSession?.(this.opened, how);
       if (this.cancelled) return this.#cancelled(how);
+      if (this.model) { // before the prompt, on a new or a reloaded session alike
+        const bad = await selectOnConnection(this.conn, this.opened, this.configOptions, this.model, this.plug);
+        if (this.cancelled) return this.#cancelled(how);
+        if (bad) return modelFailure(this, how, bad);
+      }
       this.timer = setTimeout(() => { this.timedOut = true; this.cancel(); }, this.timeoutMs);
       this.timer.unref?.();
       this.collecting = true;

@@ -6,6 +6,7 @@ import { CONVENTION } from "./convention.mjs";
 import { takeEvent, usageLine } from "./events.mjs";
 import { NOTICES, joinNotice, seedOf, withRecap } from "./handoff.mjs";
 import { promptBlocks } from "./inbox.mjs";
+import { modelFailure, selectOnRuntime } from "./model.mjs";
 import { identityOf, registryOf, resolve, sameLaunch } from "./launch.mjs";
 import { cancelled, outcomeOf, stuck } from "./outcome.mjs";
 import { makePermit } from "./permit.mjs";
@@ -93,6 +94,11 @@ export class AcpxTurn {
     return { text: withRecap(history, blocks[0].text), attachments: images };
   }
 
+  /** The job's model, set before the prompt is written; a failure summary, or null when there is no model to set or it is set. */
+  async #select() {
+    return this.model ? selectOnRuntime(this.engine.runtime, this.handle, this.model, this.plug ?? this.config.plugin) : null;
+  }
+
   async #turn(prompt) {
     const { modes } = this.engine, expected = this.launch.expectedAgent, session = this.opened;
     const permit = makePermit({ tier: this.tier, redact: this.redact, denied: this.denied, hold: this.hold && this.#paused(this.hold), stopped: () => this.cancelled });
@@ -150,6 +156,9 @@ export class AcpxTurn {
       const extras = () => ({ launch: identity, forgotten: undefined, ...(record?.seed ? {} : { seed: seedOf(this.prompt, this.redact) }) });
       await this.onSession?.(this.opened, how, extras());
       if (this.cancelled) return this.#stopped(how);
+      const bad = await this.#select();
+      if (this.cancelled) return this.#stopped(how);
+      if (bad) return modelFailure(this, how, bad);
       let attempt = await this.#turn(await this.#prompt(history));
       if (attempt.result.status === "failed" && attempt.result.error?.detailCode === "SESSION_RESUME_REQUIRED" && !attempt.written && resume && !this.cancelled) {
         // acpx could not reload the saved session. Nothing was written, so a new session is safe; it gets the recap.
@@ -158,6 +167,9 @@ export class AcpxTurn {
         if (!this.handle) return this.#stopped(how);
         this.opened = this.handle.backendSessionId; how = "fresh-after-lost"; handoff = NOTICES.lost;
         await this.onSession?.(this.opened, how, extras());
+        const again = await this.#select(); // the new session starts on the helper's own model
+        if (this.cancelled) return this.#stopped(how);
+        if (again) return modelFailure(this, how, again);
         attempt = await this.#turn(await this.#prompt(await this.#recap()));
       }
       const outcome = this.#outcome(attempt, how, plugin);
