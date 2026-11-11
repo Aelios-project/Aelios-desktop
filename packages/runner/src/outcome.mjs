@@ -52,7 +52,7 @@ export function outcomeOf(t, stopReason, how) {
   if (t.denied.length) {
     const list = t.denied.map(item => "- " + item).join("\n");
     const summary = report(t, [...(parts.length ? parts : ["(the helper left no text)"]), `Some actions were refused by this machine's permission tier (${t.tier}):\n${list}`]);
-    return { ...base, status: "needs_you", summary, ask: { key: "perm:" + short(list), question: t.redact(`The helper wanted to do the following, but this machine's tier is ${t.tier}, so it was refused:\n${list}`) } };
+    return { ...base, status: "needs_you", summary, ask: { key: "perm:" + short(list), kind: "permission", question: t.redact(`The helper wanted to do the following, but this machine's tier is ${t.tier}, so it was refused:\n${list}`) } };
   }
   if (!parts.length && notes.length) return { ...base, status: "done", summary: t.redact(notes.join("\n")) };
   if (!parts.length) return { ...base, kind: "no_result", status: "needs_you", summary: "The turn ended, but the helper left no text result.", ask: { key: "silent:" + short(String(t.opened) + Date.now()), question: "The turn ended, but the helper left no text result. Ask again?" } };
@@ -67,7 +67,7 @@ export function outcomeOf(t, stopReason, how) {
   }
   if (said?.kind === "ask") {
     const question = t.redact(said.text || "(the helper wants you to decide, but wrote no question)");
-    return { ...base, status: "needs_you", summary: report(t, earlier.length ? earlier : [question]), ask: { key: "q:" + short(final), question } };
+    return { ...base, status: "needs_you", summary: report(t, earlier.length ? earlier : [question]), ask: { key: "q:" + short(final), kind: "question", question } };
   }
   return { ...base, status: "done", summary: report(t, parts) };
 }
