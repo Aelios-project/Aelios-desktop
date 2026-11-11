@@ -76,7 +76,7 @@ Role packs choose a model per role. Decided: the resident sends only a model id 
 
 - A role pack names an agent, an exact model id and a `modelFamily`. The model option is the ACP config option with `category: "model"`; its values are the only valid ids. There is no `model/list` method and no model argument on `session/new`. The old `session/set_model` is gone; the runner does not use it.
 - Kiro is not part of model selection: it always runs on its auto model (see below). Claude (`claude-agent-acp`), Codex (`codex-acp`) and DSH all take `configId: "model"` through `session/set_config_option`.
-- The runner policy for every helper except Kiro is exact match, no fuzzy match, no silent default. Reviewer and author must be in different families, taken from a runner-owned catalog. Kiro auto is its own family, `kiro-auto`.
+- The runner policy for every helper except Kiro is exact match, no fuzzy match, no silent default. A reviewer in a different family from the author is advised, not required: a same-family review runs and leaves one `fyi` notice. Families come from a runner-owned catalog. Kiro auto is its own family, `kiro-auto`.
 - Not verified in the note (no agent was run): DSH role injection, pinned adapter behavior. The task 1 spike covers the ones that touch this spec.
 
 This is its own PR (G) and needs two things first: a PROTOCOL change (optional `model` and `family` on the job) and a task in Aelios-resident that sends them. The runner reads the fields only after the resident advertises them; an old resident sends none, and the turn runs as today.
