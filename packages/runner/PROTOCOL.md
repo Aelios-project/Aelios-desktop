@@ -45,12 +45,12 @@ How many runners a resident may have is decided by the cloud. The runner knows o
 // request
 { "plugin": "kiro", "busy": "thread-id or null", "label": "the computer's name", "engine": "acpx@0.22.0" }
 // response
-{ "ok": true, "protocol": "aelios-runner/1", "accepts": ["heartbeat.engine", "receipt.ahead", "reason.refused", "reason.token_limit", "reason.no_result"], "limits": { "summary": 4000 } }
+{ "ok": true, "protocol": "aelios-runner/1", "accepts": ["heartbeat.engine", "receipt.ahead", "reason.refused", "reason.token_limit", "reason.no_result", "job.model"], "limits": { "summary": 4000 } }
 ```
 
 `engine` is optional: how the runner talks to the helper, `acpx@<version>` or `legacy` (the same label `status` shows), at most 40 characters of letters, digits and `@._+-`. The runner sends it only once the resident's `accepts` lists `heartbeat.engine`, so the first heartbeat after start never has it and the next one (a few seconds later) does.
 
-`accepts` and `limits` are in the answer: what this resident takes beyond the first version of the protocol, and its limits. The runner keeps the values of the last answer. An answer without `accepts` (an older resident) means the first version: the runner sends no `engine`, no `ahead` and no later `reason`, and cuts a summary at 4000 characters. A name not listed is never sent, because an older resident answers 400 and the runner would drop the receipt. The names so far: `heartbeat.engine`, `receipt.ahead`, `reason.refused`, `reason.token_limit`, `reason.no_result`. `limits.summary` is the most characters a `summary` may have; the runner fits its report to it.
+`accepts` and `limits` are in the answer: what this resident takes beyond the first version of the protocol, and its limits. The runner keeps the values of the last answer. An answer without `accepts` (an older resident) means the first version: the runner sends no `engine`, no `ahead` and no later `reason`, and cuts a summary at 4000 characters. A name not listed is never sent, because an older resident answers 400 and the runner would drop the receipt. The names so far: `heartbeat.engine`, `receipt.ahead`, `reason.refused`, `reason.token_limit`, `reason.no_result`, `job.model`. `limits.summary` is the most characters a `summary` may have; the runner fits its report to it.
 
 `label` is optional: the computer's name (macOS: the Computer Name; elsewhere the host name), at most 60 characters. The cloud shows it as the machine's name and updates it when it changes, so a machine paired before names existed gets its name without pairing again. Pairing sends the same name as `label`. A heartbeat with any field other than these four is refused (400). The cloud uses it to decide "online", and to renew the lease (5 minutes) on work the runner holds without a receipt yet. When a lease runs out, the cloud marks that work "state to be confirmed" and **does not send it again**.
 
@@ -110,12 +110,20 @@ A request below the `full` tier is held for the owner (10 minutes; no answer cou
   "title": "…",             // optional, for logs only, not given to the helper
   "text": "…",              // body of job / say / mail, at most 16000 characters
   "access": "read",         // optional: read | edit | full. Can only be lower than the machine config
+  "model": "…",             // optional, not cancel: the helper's exact model id (1 to 200 characters, no spaces). Read only when accepts lists job.model
+  "family": "openai",       // optional, same rule: lowercase letters, digits and hyphens, at most 40
   "interrupt": true,        // say only: default true
   "attachments": [          // optional, at most 4: pictures and files the user sent with this message
     { "key": "…32 hex…", "name": "notes.pdf", "type": "application/pdf" }
   ]
 }
 ```
+
+`model` and `family` (Aelios-resident, "job.model") are read only after the heartbeat's `accepts` lists `job.model`; an older resident sends neither, and the runner ignores them if they come anyway. A value that is not well formed is dropped. They are a request, never a choice of helper, folder or tier.
+
+- **Model.** Before the prompt is written, on a new and on a reloaded session alike, the runner sets `model` with ACP `session/set_config_option` on the helper's model option (the one with category `model`) and checks that the reply shows the new value. The id must be exactly one the option offers: no case folding, no prefix, no default model instead. If the helper lists no model option, the id is not offered, or the reply shows another value, the turn ends `failed` with `reason: "error"` and a summary that starts `model_selection_unsupported:` (it is not a `reason` code: the resident does not list it), naming the id and the offered ids. The prompt is not sent.
+- **Kiro** always runs on auto. The model is dropped, the turn runs, and the final receipt's `notice` (`fyi: true`) says `Kiro runs on auto; the model in the role pack was not used (<id>).` A job with no model leaves no such line. Kiro counts as the family `kiro-auto`, whatever `family` says.
+- **Family** is advice. The runner keeps the family of the previous job on this machine; when a job from another thread carries the same known family (the runner's own catalog, `src/family.mjs`), it runs and the `notice` gets one `fyi` line saying so. An unknown family is not an error and gets no line. Limit: the wire has no author's family, so "the previous job" stands in for it.
 
 | kind | From | What the runner does |
 |---|---|---|

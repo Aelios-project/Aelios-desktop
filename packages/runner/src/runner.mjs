@@ -17,6 +17,8 @@ import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
 import { SUMMARY_MAX } from "./report.mjs";
 import { Wire } from "./wire.mjs";
+import { joinNotice } from "./handoff.mjs";
+import { plan, readPick } from "./job-model.mjs";
 import { engineLabel } from "./engine-label.mjs";
 
 const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
@@ -127,7 +129,7 @@ export class Runner {
     }
     // Only what the protocol names is kept; anything else the cloud sent (a folder, a command, a helper) is dropped here.
     const work = { workId: raw.workId, token: raw.token, thread: raw.thread, kind: raw.kind, title: String(raw.title ?? "").slice(0, 200),
-      ...(raw.kind === "cancel" ? {} : { text: raw.text, ...(raw.attachments?.length ? { attachments: readAttachments(raw.attachments) } : {}) }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
+      ...(raw.kind === "cancel" ? {} : { text: raw.text, ...readPick(raw, this.wire), ...(raw.attachments?.length ? { attachments: readAttachments(raw.attachments) } : {}) }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
     const receipts = [];
     let stop = false;
     await this.state.update(state => {
@@ -209,9 +211,10 @@ export class Runner {
       this.journal?.end(work, "failed", "session store");
       return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: error.message })]);
     }
+    const { model, notice } = await plan(this.state, work, this.config.plugin);
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
     const turn = makeTurn({
-      thread: work.thread, record, engine, journal: this.journal, summaryMax: this.wire.summaryMax,
+      thread: work.thread, record, engine, journal: this.journal, summaryMax: this.wire.summaryMax, model, plug: this.config.plugin,
       files, onStep: steps => progress.push(steps), launch, cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
@@ -230,7 +233,7 @@ export class Runner {
       // Not a question: the owner opens the thread and decides. Reported as a failure so it is a stuck item, never an ask.
       outcome = { ...outcome, status: "failed", reason: "interrupted", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically." };
     }
-    outcome = this.wire.verdict(outcome);
+    outcome = this.wire.verdict(notice ? { ...outcome, notice: joinNotice(notice, outcome.notice) } : outcome);
     const receipt = { status: outcome.status, summary: outcome.summary || "(no content)", ...(outcome.status === "failed" && outcome.reason ? { reason: outcome.reason } : {}) };
     await this.state.update(s => {
       if (outcome.status === "needs_you" && outcome.ask) remember(s, work.thread, outcome.ask.key);

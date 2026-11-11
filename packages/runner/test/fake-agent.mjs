@@ -9,7 +9,10 @@
 //   CWD        says the folder it was started in
 //   PARTSME    three text parts with a tool call between each (a NOTE: in the first)
 //   PARTS:n    n parts of 1000 characters each ("part 1 ..."), a tool call between each, then the usual last part
-// Env: FAKE_MODE (the mode Kiro reports), FAKE_NOMODE=1 (report no mode at all), FAKE_IMAGE=0|1 (take pictures or not; default: Kiro face yes, DSH face no),
+//   MODELME    says which model the session is on
+// Env: FAKE_MODELS (comma-separated model ids: the session lists a model option with them, the first is current; none: no option),
+//      FAKE_MODEL_REPLY (what a session/set_config_option reply claims as the new value, to act out a helper that disagrees),
+//      FAKE_MODE (the mode Kiro reports), FAKE_NOMODE=1 (report no mode at all), FAKE_IMAGE=0|1 (take pictures or not; default: Kiro face yes, DSH face no),
 //      FAKE_AGENTS (the folder of Kiro agent files; the start is logged with the file it was started with),
 //      FAKE_PROBE (comma-separated names whose values the start log records)
 // It wears two faces, picked by how it is started: `acp` (Kiro: session/load) or `--profile acp` (DSH: session/resume + close).
@@ -27,6 +30,8 @@ const store = patch => { const data = load(); patch(data); fs.writeFileSync(file
 const send = message => process.stdout.write(JSON.stringify(message) + "\n");
 const chunk = (sessionId, text) => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text } } } });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const modelOptions = current => { const ids = (process.env.FAKE_MODELS ?? "").split(",").filter(Boolean); return ids.length ? { configOptions: [{ id: "model", name: "Model", category: "model", type: "select", currentValue: current ?? ids[0], options: ids.map(value => ({ value, name: value })) }] } : {}; };
 
 const waiting = new Map(); // requests we sent to the client
 let nextId = 1000;
@@ -82,6 +87,7 @@ async function prompt(id, params) {
   const long = /LONG:(\d+)/.exec(text);
   if (long) said += " " + "x".repeat(Number(long[1]));
   if (text.includes("CWD")) said += ` cwd=${session?.cwd}`;
+  if (text.includes("MODELME")) said += ` model=${session?.model ?? "default"}`;
   const toolCall = n => send({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "tool_call", toolCallId: "p" + n, title: "step " + n, kind: "read", status: "completed" } } });
   if (text.includes("PARTSME")) { chunk(sessionId, "NOTE: saw it\nFirst part."); toolCall(1); chunk(sessionId, "Second part."); toolCall(2); }
   const parts = /PARTS:(\d+)/.exec(text);
@@ -99,19 +105,24 @@ readline.createInterface({ input: process.stdin }).on("line", async line => {
   const { id, method, params } = message;
   const reply = result => send({ jsonrpc: "2.0", id, result });
   if (method === "session/cancel") { store(data => data.log.push({ event: method, sessionId: params.sessionId })); cancelled.add(params.sessionId); cancelWaiters.get(params.sessionId)?.(); return; }
-  store(data => data.log.push({ event: method, sessionId: params?.sessionId, cwd: params?.cwd, caps: params?.clientCapabilities }));
+  store(data => data.log.push({ event: method, sessionId: params?.sessionId, cwd: params?.cwd, caps: params?.clientCapabilities, ...(method === "session/set_config_option" ? { configId: params.configId, value: params.value } : {}) }));
   if (method === "initialize" && process.env.FAKE_HANG_INIT) return; // never answers: a stuck start
   if (method === "initialize") return reply({ protocolVersion: 1, agentCapabilities: { ...(dsh ? { sessionCapabilities: { resume: {}, close: {} } } : { loadSession: true }), ...(image ? { promptCapabilities: { image: true } } : {}) }, authMethods: [] });
   if (method === "session/new" && process.env.FAKE_HANG_NEW) return; // never answers: a stuck open
   if (method === "session/new") {
     const data = store(d => { d.n += 1; d.sessions[`sess-${d.n}`] = { cwd: params.cwd }; });
-    return reply({ sessionId: `sess-${data.n}`, ...mode() });
+    return reply({ sessionId: `sess-${data.n}`, ...mode(), ...modelOptions() });
   }
   if ((method === "session/load" || method === "session/resume") && process.env.FAKE_HANG_LOAD) return; // never answers: a stuck restore
   if (method === "session/load" || method === "session/resume") {
     if (!load().sessions[params.sessionId]) return send({ jsonrpc: "2.0", id, error: { code: -32002, message: "session not found" } });
     if (method === "session/load") chunk(params.sessionId, "OLD HISTORY replayed on load");
-    return reply(mode());
+    return reply({ ...mode(), ...modelOptions(load().sessions[params.sessionId].model) });
+  }
+  if (method === "session/set_config_option") {
+    if (params.configId !== "model" || !modelOptions().configOptions?.[0].options.some(o => o.value === params.value)) return send({ jsonrpc: "2.0", id, error: { code: -32602, message: "invalid value" } });
+    store(d => { d.sessions[params.sessionId].model = params.value; });
+    return reply(modelOptions(process.env.FAKE_MODEL_REPLY ?? params.value));
   }
   if (method === "session/close") return reply({});
   if (method === "session/prompt") return prompt(id, params);
