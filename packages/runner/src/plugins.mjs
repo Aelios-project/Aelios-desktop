@@ -4,6 +4,7 @@ import { accessSync, constants } from "node:fs";
 import path from "node:path";
 import { ADAPTERS, adapterLaunch } from "./adapters.mjs";
 import { writeAgent } from "./kiro-agent.mjs";
+import { agentsDirOf, kiroHomeOf } from "./kiro-home.mjs";
 import { TIERS } from "./permission.mjs";
 import { homeDir } from "./state.mjs";
 
@@ -24,7 +25,7 @@ export const PLUGINS = {
     bin: () => onPath("kiro-cli") ?? "kiro-cli",
     args: (tier, cwd, config, thread) => {
       if (!cwd || !thread || !TIERS.includes(tier)) throw new Error("Kiro requires a workspace, a thread and a valid access tier to start with restricted permissions.");
-      const agent = writeAgent(tier, thread, cwd, config.kiroAgentsDir);
+      const agent = writeAgent(tier, thread, cwd, agentsDirOf(config));
       return ["acp", "--agent", agent];
     }
   },
@@ -69,7 +70,8 @@ export function launchOf(config, tier, cwd, thread) {
   if (config.plugin === "kiro" && (config.args ?? []).some(arg => /^(--agent(?:=|$)|--trust-all-tools(?:=|$)|--trust-tools(?:=|$)|-[^-]*a)/.test(arg))) {
     throw new Error("Extra Kiro arguments cannot override the restricted agent or trust tools.");
   }
-  return { command: bin, args: [...args, ...(config.args ?? [])], env: config.env ?? {},
+  const env = { ...(config.env ?? {}), ...(config.plugin === "kiro" ? { KIRO_HOME: kiroHomeOf(config) } : {}) };
+  return { command: bin, args: [...args, ...(config.args ?? [])], env,
     ...(config.plugin === "kiro" ? { expectedAgent: args[2] } : {}), ...(plug.adapter ? { adapterVersion: ADAPTERS[plug.adapter].version } : {}) };
 }
 
