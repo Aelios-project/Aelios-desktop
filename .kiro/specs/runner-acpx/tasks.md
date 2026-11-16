@@ -39,69 +39,69 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
   - [ ] 1.9 Environment and start-up: check that acpx passes an environment given to it (proxy names such as `ALL_PROXY`) to the child, and waits at least 60 s for a first start (Kiro cold start is about 24 s). Check the installed version is exactly `0.22.0`
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 2. Engine switch and the seam
-  - [ ] 2.1 `src/turn.mjs` (new, < 40 lines): `makeTurn(options, config)` returns the legacy `Turn` or the acpx turn by `config.engine` (default `"legacy"`)
-  - [ ] 2.2 `runner.mjs`: call `makeTurn` where it calls `new Turn` (one line). Pass `record` so the turn can read the launch identity
-  - [ ] 2.3 Test `turn.test.mjs`: default is legacy; `"acpx"` gives the acpx class; an unknown value fails at config load
+- [x] 2. Engine switch and the seam (done in PR A; `turn.mjs` and the switch are removed in task 16)
+  - [x] 2.1 `src/turn.mjs` (new, < 40 lines): `makeTurn(options, config)` returns the legacy `Turn` or the acpx turn by `config.engine` (default `"legacy"`)
+  - [x] 2.2 `runner.mjs`: call `makeTurn` where it calls `new Turn` (one line). Pass `record` so the turn can read the launch identity
+  - [x] 2.3 Test `turn.test.mjs`: default is legacy; `"acpx"` gives the acpx class; an unknown value fails at config load
   - _Requirements: 1.2, 14.1, 14.2_
 
 - [ ] 3. Kiro agent name without the tier (mechanism)
-  - [ ] 3.1 `kiro-agent.mjs`: `agentName(threadId, cwd)` has no tier; the tier only changes file content
+  - [x] 3.1 `kiro-agent.mjs`: `agentName(threadId, cwd)` has no tier; the tier only changes file content
   - [ ] 3.2 Add the `full` config (all tools allowed) so `full` needs no `--trust-all-tools` (decided). Check by hand against real Kiro (`AELIOS_REAL_KIRO=1`) that it opens what the flag opens. If real Kiro refuses it, keep the flag and make a move to or from `full` a visible handoff with a recap (12); note it in design.md
-  - [ ] 3.3 Tests in `kiro-agent.test.mjs`: same name for `edit` and `full` on one thread; different names for different threads; file content differs by tier; file mode `0600`
+  - [x] 3.3 Tests in `kiro-agent.test.mjs`: same name for `edit` and `full` on one thread; different names for different threads; file content differs by tier; file mode `0600`
   - _Requirements: 4.3_
 
-- [ ] 4. Launch registry and launch identity (mechanism)
-  - [ ] 4.1 `src/launch.mjs`: `resolve(config, thread)` returns `{ name, argv }` (argv is an array, never a string; the name is per thread, such as `kiro:<threadhash>`); `registryOf(config, thread)` builds the one-entry registry for acpx from it; `identityOf(launch)`; `sameLaunch(record, current)`. The registry is ours, never the acpx table
-  - [ ] 4.3 Tests in `launch.test.mjs`: `kiro` argv is `["kiro-cli","acp","--agent",<name>]` with no tier in the name, never `kiro-cli-chat`; `dsh` argv is `["dsh","--profile","acp"]`; both come from our registry, not acpx's table; a DSH path with spaces stays one argv item; two threads get two names; no argv item contains `npx`; identity is equal across tiers and different when binary, args or folder change
-  - [ ] 4.4 Named test `tier change keeps the session` (see 9.8; runs against the fake helper and checks it saw `session/load`, not `session/new`). The second named test, `launch change is a visible handoff, never silent`, is 9.6
+- [x] 4. Launch registry and launch identity (mechanism)
+  - [x] 4.1 `src/launch.mjs`: `resolve(config, thread)` returns `{ name, argv }` (argv is an array, never a string; the name is per thread, such as `kiro:<threadhash>`); `registryOf(config, thread)` builds the one-entry registry for acpx from it; `identityOf(launch)`; `sameLaunch(record, current)`. The registry is ours, never the acpx table
+  - [x] 4.3 Tests in `launch.test.mjs`: `kiro` argv is `["kiro-cli","acp","--agent",<name>]` with no tier in the name, never `kiro-cli-chat`; `dsh` argv is `["dsh","--profile","acp"]`; both come from our registry, not acpx's table; a DSH path with spaces stays one argv item; two threads get two names; no argv item contains `npx`; identity is equal across tiers and different when binary, args or folder change
+  - [x] 4.4 Named test `tier change keeps the session` (see 9.8; runs against the fake helper and checks it saw `session/load`, not `session/new`). The second named test, `launch change is a visible handoff, never silent`, is 9.6
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 5.1 Store location and modes (mechanism): `src/store.mjs`: `openStore(home)` creates `<home>/acpx/` at `0700`, checks and narrows modes, refuses with a message when it cannot. Test in `store.test.mjs`: modes `0700`/`0600` on a fresh store; a wide mode is narrowed
+- [x] 5.1 Store location and modes (mechanism): `src/store.mjs`: `openStore(home)` creates `<home>/acpx/` at `0700`, checks and narrows modes, refuses with a message when it cannot. Test in `store.test.mjs`: modes `0700`/`0600` on a fresh store; a wide mode is narrowed
   - _Requirements: 5.1, 5.2_
 
-- [ ] 9. Permission callback and the acpx turn (mechanism)
-  - [ ] 9.1 `src/permit.mjs`: build the `onPermissionRequest` from `permission.answer`, call `journal.hold`, map to `selected`/`reject_once`, never `*_always`. (Pausing the inactivity timer comes with PR E)
-  - [ ] 9.2 `src/events.mjs`: map acpx events to text, steps, thought and usage (plain append; the keyed patch is PR C)
-  - [ ] 9.3 `src/turn-acpx.mjs` (< 300 lines): ensure session with `resumeSessionId`, start the turn, collect events, map the outcome as `helper.mjs` does, cancel with a stop after the cancel limit, return the same outcome object as `helper.mjs`
-  - [ ] 9.4 `src/runtime.mjs`: one `createAcpRuntime` for the runner with the options in the design; `Runner.stop()` calls shutdown
-  - [ ] 9.5 Tests: run the existing runner and fixes tests with `engine: "acpx"` as a second pass over the same cases (loop over both engines in `rig.mjs`); `permit.test.mjs` (full allows once; `edit` holds; exception denies; no `always` ids)
-  - [ ] 9.6 Named test `launch change is a visible handoff, never silent`: change the binary path between two turns; assert one `session/new`, a recap in the first prompt marked as history, a `notice` in the receipt, and a new `launch.id` in the thread record. (The recap here is the small seed from the thread record; the full recap is PR D)
-  - [ ] 9.7 Named test `a prompt that was written is never sent again`: kill the fake helper after the prompt; assert `interrupted` and exactly one prompt seen
-  - [ ] 9.8 Tier change (4.3a): when the tier of the thread differs from the tier of the open session, the turn calls `runtime.close` for that session and then `ensureSession` again with `resumeSessionId`, so the helper process restarts and reads the new agent file; the session is kept. Named test `tier change keeps the session`: `edit` then `full` on one thread; the fake helper saw `session/load` once and `session/new` once in total, and the second process ran with the `full` agent file
-  - [ ] 9.9 Fail-closed mode check (11.4): carry over `helper.mjs` `checkAgent` for Kiro at both tiers. After the session is open, the turn compares Kiro's current mode with the runner-written agent the turn needs; on a mismatch or an unreadable mode it fails before the prompt with `reason: "error"` and a message. DSH and `command` are not checked. Tests: wrong mode fails for each of the two Kiro tiers; unreadable mode fails; right mode passes; the fake helper saw no prompt in the failing cases; a DSH-face helper that reports no mode still runs
-  - [ ] 9.10 Lost session (4.5): on `SESSION_RESUME_REQUIRED` the turn calls `prepareFreshSession`, opens a new session, passes the recap seed as history, sends a `notice` ("The helper could not reload the session, so this thread started a new one. Earlier context was passed as a short recap."), and records the new session id. It never ends in a dead thread. Tests: fake helper that refuses `session/load` gives one new session, a notice, and a prompt that ran; the next turn resumes the new id
-  - [ ] 9.11 Images (6.3, owner decision): the turn always attaches an image as an image block. When acpx refuses it (`UNSUPPORTED_PROMPT_CONTENT`, the helper does not declare `promptCapabilities.image`), the turn fails before the prompt with "<helper> does not accept pictures". Every other attachment stays a path in the prompt text. Tests: a helper that declares `image` gets the image block; a helper that does not fails the turn with the helper named and sees no prompt; a non-image file is a path for both faces
+- [x] 9. Permission callback and the acpx turn (mechanism)
+  - [x] 9.1 `src/permit.mjs`: build the `onPermissionRequest` from `permission.answer`, call `journal.hold`, map to `selected`/`reject_once`, never `*_always`. (Pausing the inactivity timer comes with PR E)
+  - [x] 9.2 `src/events.mjs`: map acpx events to text, steps, thought and usage (plain append; the keyed patch is PR C)
+  - [x] 9.3 `src/turn-acpx.mjs` (< 300 lines): ensure session with `resumeSessionId`, start the turn, collect events, map the outcome as `helper.mjs` does, cancel with a stop after the cancel limit, return the same outcome object as `helper.mjs`
+  - [x] 9.4 `src/runtime.mjs`: one `createAcpRuntime` for the runner with the options in the design; `Runner.stop()` calls shutdown
+  - [x] 9.5 Tests: run the existing runner and fixes tests with `engine: "acpx"` as a second pass over the same cases (loop over both engines in `rig.mjs`); `permit.test.mjs` (full allows once; `edit` holds; exception denies; no `always` ids)
+  - [x] 9.6 Named test `launch change is a visible handoff, never silent`: change the binary path between two turns; assert one `session/new`, a recap in the first prompt marked as history, a `notice` in the receipt, and a new `launch.id` in the thread record. (The recap here is the small seed from the thread record; the full recap is PR D)
+  - [x] 9.7 Named test `a prompt that was written is never sent again`: kill the fake helper after the prompt; assert `interrupted` and exactly one prompt seen
+  - [x] 9.8 Tier change (4.3a): when the tier of the thread differs from the tier of the open session, the turn calls `runtime.close` for that session and then `ensureSession` again with `resumeSessionId`, so the helper process restarts and reads the new agent file; the session is kept. Named test `tier change keeps the session`: `edit` then `full` on one thread; the fake helper saw `session/load` once and `session/new` once in total, and the second process ran with the `full` agent file
+  - [x] 9.9 Fail-closed mode check (11.4): carry over `helper.mjs` `checkAgent` for Kiro at both tiers. After the session is open, the turn compares Kiro's current mode with the runner-written agent the turn needs; on a mismatch or an unreadable mode it fails before the prompt with `reason: "error"` and a message. DSH and `command` are not checked. Tests: wrong mode fails for each of the two Kiro tiers; unreadable mode fails; right mode passes; the fake helper saw no prompt in the failing cases; a DSH-face helper that reports no mode still runs
+  - [x] 9.10 Lost session (4.5): on `SESSION_RESUME_REQUIRED` the turn calls `prepareFreshSession`, opens a new session, passes the recap seed as history, sends a `notice` ("The helper could not reload the session, so this thread started a new one. Earlier context was passed as a short recap."), and records the new session id. It never ends in a dead thread. Tests: fake helper that refuses `session/load` gives one new session, a notice, and a prompt that ran; the next turn resumes the new id
+  - [x] 9.11 Images (6.3, owner decision): the turn always attaches an image as an image block. When acpx refuses it (`UNSUPPORTED_PROMPT_CONTENT`, the helper does not declare `promptCapabilities.image`), the turn fails before the prompt with "<helper> does not accept pictures". Every other attachment stays a path in the prompt text. Tests: a helper that declares `image` gets the image block; a helper that does not fails the turn with the helper named and sees no prompt; a non-image file is a path for both faces
   - _Requirements: 4.3, 4.4, 4.5, 6.1, 6.2, 6.3, 9.3, 11.1, 11.2, 11.3, 11.4_
 
 ## Later PR tasks
 
-- [ ] 6. Environment allowlist (PR B, mechanism)
-  - [ ] 6.1 `src/env-allow.mjs`: `envFor(plugin, config, processEnv)` returns the final environment. Prefix names (`LC_*`, `XDG_*`, `KIRO_*`, `AWS_*`, `DEEPSEEK_*`) are expanded by the runner from `process.env`, because acpx takes exact names only. `SSH_AUTH_SOCK` is in the base list
-  - [ ] 6.2 Tests in `env-allow.test.mjs`: all eight proxy names (upper and lower case) pass; `ALL_PROXY` reaches a Kiro helper; `LC_ALL`, `XDG_CONFIG_HOME` and `SSH_AUTH_SOCK` pass; a prefix name for another plug does not; a random secret variable does not; the runner's pairing token does not; config `env` keys pass
-  - [ ] 6.3 Fake helper prints its environment names to a file; one end-to-end test checks the same
-  - [ ] 6.4 README and the migration note: a helper that needed an unlisted variable stops seeing it until it is in `env`
+- [x] 6. Environment allowlist (PR B, mechanism)
+  - [x] 6.1 `src/env-allow.mjs`: `envFor(plugin, config, processEnv)` returns the final environment. Prefix names (`LC_*`, `XDG_*`, `KIRO_*`, `AWS_*`, `DEEPSEEK_*`) are expanded by the runner from `process.env`, because acpx takes exact names only. `SSH_AUTH_SOCK` is in the base list
+  - [x] 6.2 Tests in `env-allow.test.mjs`: all eight proxy names (upper and lower case) pass; `ALL_PROXY` reaches a Kiro helper; `LC_ALL`, `XDG_CONFIG_HOME` and `SSH_AUTH_SOCK` pass; a prefix name for another plug does not; a random secret variable does not; the runner's pairing token does not; config `env` keys pass
+  - [x] 6.3 Fake helper prints its environment names to a file; one end-to-end test checks the same
+  - [x] 6.4 README and the migration note: a helper that needed an unlisted variable stops seeing it until it is in `env`
   - _Requirements: 8.1, 8.2_
 
-- [ ] 10. Steps by tool call id, ellipsis, thinking and usage (PR C)
-  - [ ] 10.1 `src/steps-keyed.mjs`: a keyed patch layer used by `events.mjs`; `steps.mjs` is not grown
-  - [ ] 10.2 `src/ellipsis.mjs`: middle ellipsis to the title limit; the full command is stored beside the short title
-  - [ ] 10.3 Permission detail always uses the full command (check `journal.hold` input)
-  - [ ] 10.4 Tests: a second update with the same `toolCallId` changes status in place and does not add a step; a long command is shortened in the middle and keeps both ends; the permission prompt has the full text; thought text never reaches the summary; usage events produce one `fyi` notice
+- [x] 10. Steps by tool call id, ellipsis, thinking and usage (PR C)
+  - [x] 10.1 `src/steps-keyed.mjs`: a keyed patch layer used by `events.mjs`; `steps.mjs` is not grown
+  - [x] 10.2 `src/ellipsis.mjs`: middle ellipsis to the title limit; the full command is stored beside the short title
+  - [x] 10.3 Permission detail always uses the full command (check `journal.hold` input)
+  - [x] 10.4 Tests: a second update with the same `toolCallId` changes status in place and does not add a step; a long command is shortened in the middle and keeps both ends; the permission prompt has the full text; thought text never reaches the summary; usage events produce one `fyi` notice
   - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
-- [ ] 11. Helper switch and recap (PR D)
-  - [ ] 11.1 `src/recap.mjs`: build the recap (goal, done so far, git state, next step) from the thread record and the journal, cut at 4000 characters, redact, wrap as history. There is no DSH transcript store; a DSH session that cannot be resumed gets this recap and a notice
-  - [ ] 11.2 Switch logic in `turn-acpx.mjs` (small function in `switch.mjs`): settle old turn, close old session, then open the new one
-  - [ ] 11.3 Tests in `recap.test.mjs`: length bound, redaction of the folder and tokens, history wrapper present, git state included for a temp repo and omitted for a plain folder; a switch test with two fake helpers checks that the old one is closed before the new one starts
+- [x] 11. Helper switch and recap (PR D)
+  - [x] 11.1 `src/recap.mjs`: build the recap (goal, done so far, git state, next step) from the thread record and the journal, cut at 4000 characters, redact, wrap as history. There is no DSH transcript store; a DSH session that cannot be resumed gets this recap and a notice
+  - [x] 11.2 Switch logic in `turn-acpx.mjs` (small function in `switch.mjs`): settle old turn, close old session, then open the new one
+  - [x] 11.3 Tests in `recap.test.mjs`: length bound, redaction of the folder and tokens, history wrapper present, git state included for a temp repo and omitted for a plain folder; a switch test with two fake helpers checks that the old one is closed before the new one starts
   - _Requirements: 12.1, 12.2, 12.3_
 
-- [ ] 7. Time limits (PR E, mechanism)
-  - [ ] 7.1 `src/stages.mjs`: a small controller with the stages in the design table; `enter(stage)`, `pause()`, `resume()`, `fired` promise that names the stage
-  - [ ] 7.2 Config keys `timeouts.{spawn,initialize,session,firstUpdate,inactivity,cancel,turn}` with defaults; validate in `readConfig`. Inactivity is off by default
-  - [ ] 7.3 The inactivity timer, when the owner turns it on, pauses while any tool call is in progress (a started `toolCallId` without a final status) and while a permission or question is held. `permit.mjs` calls `pause`/`resume`
-  - [ ] 7.4 Stop a hung start the way task 1.6 found
-  - [ ] 7.5 Tests in `stages.test.mjs` with fake timers: each stage fires and names itself; inactivity is off by default; with it on, it does not fire during a tool call or a held permission and restarts after; a stage that ends clears its timer; a fake helper that never answers `session/new` ends the turn with the stage name; turn cap off means no timer
+- [x] 7. Time limits (PR E, mechanism)
+  - [x] 7.1 `src/stages.mjs`: a small controller with the stages in the design table; `enter(stage)`, `pause()`, `resume()`, `fired` promise that names the stage
+  - [x] 7.2 Config keys `timeouts.{spawn,initialize,session,firstUpdate,inactivity,cancel,turn}` with defaults; validate in `readConfig`. Inactivity is off by default
+  - [x] 7.3 The inactivity timer, when the owner turns it on, pauses while any tool call is in progress (a started `toolCallId` without a final status) and while a permission or question is held. `permit.mjs` calls `pause`/`resume`
+  - [x] 7.4 Stop a hung start the way task 1.6 found
+  - [x] 7.5 Tests in `stages.test.mjs` with fake timers: each stage fires and names itself; inactivity is off by default; with it on, it does not fire during a tool call or a held permission and restarts after; a stage that ends clears its timer; a fake helper that never answers `session/new` ends the turn with the stage name; turn cap off means no timer
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
 - [ ] 8. Verdicts and new reasons (PR F, mechanism)
@@ -125,11 +125,11 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
   - [x] 11b.3 Tests in `model.test.mjs`: option found and set; **failure 1**: the agent lists no model option, turn fails with `model_selection_unsupported` and the fake helper saw no prompt; **failure 2**: the id matches no value (near matches such as a different case or a prefix also fail), same result and message lists the offered ids; reply with a different value fails; no default-model fallback on any non-Kiro path; same family runs and writes one `fyi` notice; unknown family runs with no notice
   - _Requirements: 3.5, 3.6, 3.8_
 
-- [ ] 5b. Retention and forget (PR H, mechanism; tasks 5.2 to 5.5)
-  - [ ] 5.2 `src/retention.mjs`: delete threads idle for N days; cap total size, oldest first; `forget(thread)`; `forgetAll()`
-  - [ ] 5.3 `bin/aelios-runner.mjs`: `forget <thread>`, `forget --all`, `unpair` asks to delete the store; `status` shows path and size. Keep the CLI additions in `bin/forget.mjs` so the main file does not grow
-  - [ ] 5.4 README: a short section "What is saved on this machine" including the secrets warning
-  - [ ] 5.5 Tests in `retention.test.mjs`: age and size limits remove the right threads and keep others; `forget` removes one; `unpair` default removes the store
+- [x] 5b. Retention and forget (PR H, mechanism; tasks 5.2 to 5.5)
+  - [x] 5.2 `src/retention.mjs`: delete threads idle for N days; cap total size, oldest first; `forget(thread)`; `forgetAll()`
+  - [x] 5.3 `bin/aelios-runner.mjs`: `forget <thread>`, `forget --all`, `unpair` asks to delete the store; `status` shows path and size. Keep the CLI additions in `bin/forget.mjs` so the main file does not grow
+  - [x] 5.4 README: a short section "What is saved on this machine" including the secrets warning
+  - [x] 5.5 Tests in `retention.test.mjs`: age and size limits remove the right threads and keep others; `forget` removes one; `unpair` default removes the store
   - _Requirements: 5.3, 5.4, 5.5, 5.6_
 
 - [ ] 13. `ask.kind` on the wire (PR I, mechanism, with the resident)
@@ -139,35 +139,33 @@ In PR A the acpx turn reuses the outcome mapping of `helper.mjs`, `markers.mjs` 
   - [ ] 13.4 Tests: with and without the advertised field
   - _Requirements: 10.4_
 
-- [ ] 4.2 Adapters (PR J, experimental): `adapters.json` and `src/adapters.mjs` (plugs `claude`, `codex`): pinned package, version, integrity; started from a local install path. Test: `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`
+- [x] 4.2 Adapters (PR J, experimental): `adapters.json` and `src/adapters.mjs` (plugs `claude`, `codex`): pinned package, version, integrity; started from a local install path. Test: `adapters.json` has no range, no `latest`, no missing integrity; no command contains `npx`
 - [ ] 12. Real-helper checks (PR J, by hand, results written into this file)
   - [ ] 12.1 `AELIOS_REAL_KIRO=1`: one whole turn, a tier change `edit` to `full` (same session), a restart (reattach), a cancel, a permission hold
   - [ ] 12.2 Real DSH: one whole turn, a restart (the same session through `session/resume`), a cancel
   - [ ] 12.3 Tune the default time limits from the measured cold start times
   - [ ] 12.4 Check what is in `<home>/acpx/` after the run and note any secret that landed there
   - _Requirements: 7.4, 5.3, 15.1_
-- [ ] 14. Docs (PR J)
-  - [ ] 14.1 README: engine setting, state location, retention, environment allowlist, timeouts, how to go back
-  - [ ] 14.2 Update `headless-runner` design.md module table (add the new modules, mark `acp.mjs` and `helper.mjs` as legacy)
+- [x] 14. Docs (PR J)
+  - [x] 14.1 README: engine setting, state location, retention, environment allowlist, timeouts, how to go back
+  - [x] 14.2 Update `headless-runner` design.md module table (add the new modules, mark `acp.mjs` and `helper.mjs` as legacy)
   - _Requirements: 14.1, 14.2_
 
-- [ ] 15. Make acpx the default (PR K, mechanism, after 12)
-  - [ ] 15.1 Change the default of `config.engine` to `"acpx"`; add a one-line note in the README
-  - [ ] 15.2 Test: a config without `engine` uses acpx; `"legacy"` still works
+- [x] 15. Make acpx the default (PR K, mechanism; the owner approved merging K and L into one PR, without waiting for 12)
+  - [x] 15.1 Change the default of `config.engine` to `"acpx"`; add a one-line note in the README
+  - [x] 15.2 Test: a config without `engine` uses acpx; `"legacy"` is ignored with one notice (done together with 16, in one PR; `engine-label.test.mjs`)
   - _Requirements: 14.3_
 
-- [ ] 16. Remove the legacy layer (PR L, one release after 15)
-  - [ ] 16.1 Delete `acp.mjs`, `helper.mjs`, the legacy branch of `turn.mjs` and their tests; keep `CONVENTION` (move it to `convention.mjs` in task 9 so this step is only a delete)
+- [x] 16. Remove the legacy layer (PR L; done in the same PR as 15)
+  - [x] 16.1 Delete `acp.mjs`, `helper.mjs`, the legacy branch of `turn.mjs` and their tests; keep `CONVENTION` (move it to `convention.mjs` in task 9 so this step is only a delete)
   - _Requirements: 14.1_
 
 ## Migration and rollback
 
-- Turn on: set `"engine": "acpx"` in the config, restart the runner. Each existing thread adopts acpx on its next turn: same saved `sessionId`, reloaded through acpx (Kiro, `session/load`; DSH, `session/resume`). Only a session the helper cannot reload gets a new session with a recap (4.5).
-- Turn off: set `"engine": "legacy"`, restart. The legacy layer reads the same `sessionId` from `state.json`. `<home>/acpx/` is not needed to go back and can be deleted with `aelios-runner forget --all` (once PR H is in).
-- What a rollback changes: from PR B on, the helper environment is inherited whole again, and from PR E on, the stage time limits go back to the single turn limit.
+- Done (PRs K and L in one PR): acpx is the only engine. An old `"engine"` key in the config is ignored with one notice, and `pair` drops it. Each existing thread adopts acpx on its next turn: same saved `sessionId`, reloaded through acpx (Kiro, `session/load`; DSH, `session/resume`). Only a session the helper cannot reload gets a new session with a recap (4.5).
+- Rollback is a plain `git revert` of that PR, then `"engine": "legacy"` works again. The saved `sessionId` in `state.json` is shared, and `<home>/acpx/` can be deleted with `aelios-runner forget --all`.
 - When PR B is on, a helper that needed an unlisted variable (a token for `gh`, a registry key) stops seeing it until the owner adds it to `env`. Prefix names such as `LC_*`, `XDG_*`, `KIRO_*`, `AWS_*` and `DEEPSEEK_*` are expanded by the runner, and `SSH_AUTH_SOCK` is passed.
 - If acpx fails in the middle of a turn, the turn is `interrupted` (never replayed) and the owner decides.
-- Until task 16 the legacy code is not touched, so a revert of any code PR is a plain `git revert`.
 
 ## Out of scope (later)
 

@@ -53,7 +53,7 @@ const withEnv = async (extra, fn) => {
 
 test("end to end: a config env value reaches the helper as written; a conflicting ACPX_AUTH_ grant fails the turn before any start", () =>
   withEnv({ ACPX_AUTH_SENTINEL_TWO: "parent-test-value" }, async () => {
-    const r = await rig("kiro", { engine: "acpx" });
+    const r = await rig("kiro");
     try {
       Object.assign(r.config.env, { FAKE_PROBE: "PLAIN_ONE", PLAIN_ONE: "configured-test-value" });
       r.start();
@@ -72,7 +72,7 @@ test("end to end: a config env value reaches the helper as written; a conflictin
 
 for (const plugin of ["kiro", "dsh"]) {
   test(`[${plugin}] end to end: the helper sees the allowlist and config env, not the rest`, () => withEnv({ ...RUNNER_ENV, PATH: process.env.PATH }, async () => {
-    const r = await rig(plugin, { engine: "acpx" });
+    const r = await rig(plugin);
     try {
       r.config.env.MY_EXTRA = "1";
       r.start();

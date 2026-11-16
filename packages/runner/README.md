@@ -54,12 +54,9 @@ Only this machine's config picks the helper. A cloud message cannot change it.
 
 ### The engine
 
-`"engine"` in `config.json` picks how the runner talks to the helper: `"legacy"` (the default for now), or `"acpx"`, which runs the helper through [acpx](https://www.npmjs.com/package/acpx). The time limits, the environment allowlist and the session store below apply to `acpx` only.
+The runner runs every helper through [acpx](https://www.npmjs.com/package/acpx). There is no other engine. `status` shows `acpx@<version>`. An `"engine"` key in an old `config.json` (for example `"legacy"`) is ignored: the runner prints one notice and runs acpx. `pair` drops the key. Each thread keeps its saved session id and reloads it through acpx on its next turn.
 
-- Turn it on: set `"engine": "acpx"` and restart `start`. Each thread keeps its saved session id and reloads it through acpx on its next turn.
-- Go back: set `"engine": "legacy"` and restart. The legacy engine reads the same session ids from `state.json`. The helper gets the runner's whole environment again, and only the single turn limit applies. `forget --all` removes the acpx store, which going back does not need.
-
-### Time limits (acpx engine)
+### Time limits
 
 `timeouts` in `config.json` sets a limit per stage, in milliseconds (`0` turns one off). A limit that runs out stops the turn and says which stage it was. A stage before the prompt is written ends `failed`; after it, the turn waits for you and is not sent again.
 
@@ -73,9 +70,9 @@ Only this machine's config picks the helper. A cloud message cannot change it.
 | `cancel` | a cancelled helper stops, or it is killed | `killAfterMs`, else 10000 |
 | `turn` | the whole turn after the prompt | `turnTimeoutMs`, else 30 minutes |
 
-### The helper's environment (acpx engine)
+### The helper's environment
 
-With `"engine": "acpx"` a helper does not get the runner's whole environment. It gets:
+A helper does not get the runner's whole environment. It gets:
 
 - `PATH HOME USER LOGNAME SHELL LANG TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS SSH_AUTH_SOCK`;
 - the proxies `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY` and their lowercase forms;
@@ -84,7 +81,7 @@ With `"engine": "acpx"` a helper does not get the runner's whole environment. It
 
 acpx adds one exception of its own: every non-empty `ACPX_AUTH_<NAME>` in the runner's environment reaches the helper, also copied as `<NAME>`, and acpx lets nothing override either name. If the config's `env` sets one of those names, the runner refuses the turn with a message instead of letting the value be silently replaced. Unset the `ACPX_AUTH_` variable or drop the key.
 
-Migration: a helper that needed another variable (a token for `gh`, a registry key) stops seeing it on the acpx engine. Add it to `env` in `config.json`. The legacy engine still passes the whole environment.
+Migration: a helper that needed another variable (a token for `gh`, a registry key) stops seeing it. Add it to `env` in `config.json`.
 
 ## Run
 
@@ -100,7 +97,7 @@ When it stops, a turn that is running is handed back as `needs_you`. It is not r
 
 ## What is saved on this machine
 
-With `"engine": "acpx"` the runner keeps the helpers' sessions in `~/.aelios-runner/acpx/` (or `$AELIOS_RUNNER_HOME/acpx/`), folders `0700` and files `0600`. A session file holds the whole conversation, tool input and output included. **It can hold secrets a tool printed** (file contents, command output, tokens). The runner never uploads it and never writes it to its log.
+The runner keeps the helpers' sessions in `~/.aelios-runner/acpx/` (or `$AELIOS_RUNNER_HOME/acpx/`), folders `0700` and files `0600`. A session file holds the whole conversation, tool input and output included. **It can hold secrets a tool printed** (file contents, command output, tokens). The runner never uploads it and never writes it to its log.
 
 - A thread's sessions are deleted 30 days after its last turn, and the store is kept under 500 MB, oldest thread first. The sweep runs when `start` begins and once a day. Change it with `"retention": { "days": 30, "maxMb": 500 }` in `config.json`.
 - `forget <thread>` and `forget --all` delete by hand. Stop `start` first: `forget` refuses while it runs. `unpair` deletes the store unless you pass `--keep-store`.

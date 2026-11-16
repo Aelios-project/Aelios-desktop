@@ -62,7 +62,7 @@ test("git state: status and last commit in a repository, nothing in a plain fold
 
 for (const plugin of ["kiro", "dsh"]) {
   test(`[${plugin}] a helper switch closes the old helper before the new one starts, and the new session gets the recap`, async () => {
-    const r = await rig(plugin, { engine: "acpx" });
+    const r = await rig(plugin);
     r.journal = journalWith(r.dir, []);
     try {
       r.start();

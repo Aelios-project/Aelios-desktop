@@ -12,7 +12,7 @@ import { computerName } from "./machine-name.mjs";
 import { workspaceDenied } from "./reason.mjs";
 import { launchOf } from "./plugins.mjs";
 import { createEngine } from "./runtime.mjs";
-import { makeTurn } from "./turn.mjs";
+import { AcpxTurn } from "./turn-acpx.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
 import { SUMMARY_MAX } from "./report.mjs";
@@ -54,9 +54,8 @@ export class Runner {
     this.pollMs = config.pollMs ?? 5000; this.heartbeatMs = config.heartbeatMs ?? 30_000; this.backoffMaxMs = config.backoffMaxMs ?? 60_000;
   }
 
-  /** The acpx runtime, made on first use; null for the legacy engine. It is made again if the helper environment in the config changed. */
+  /** The acpx runtime, made on first use. It is made again if the helper environment in the config changed. */
   #engine() {
-    if (this.config.engine !== "acpx") return null;
     const env = JSON.stringify(this.config.env ?? {});
     if (this.engine && this.engineEnv !== env) { void this.engine.shutdown().catch(() => {}); this.engine = null; }
     this.engineEnv = env;
@@ -213,18 +212,19 @@ export class Runner {
     }
     const { model, notice } = await plan(this.state, work, this.config.plugin);
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
-    const turn = makeTurn({
+    const turn = new AcpxTurn({
       thread: work.thread, record, engine, journal: this.journal, summaryMax: this.wire.summaryMax, model, plug: this.config.plugin,
       files, onStep: steps => progress.push(steps), launch, cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
       onSession: async (sessionId, how, extra = {}) => {
-        // The thread's folder and session are fixed from the first time it has one. `extra` is the acpx engine's launch identity and recap seed.
+        // The thread's folder and session are fixed from the first time it has one. `extra` is the launch identity and recap seed.
         await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], ...extra, sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
         await this.#queueReceipts([this.#receipt(work, "started", { sessionId: safeId(sessionId) })]);
         this.log("started", work.workId, how);
-      }
-    }, this.config);
+      },
+      config: this.config
+    });
     this.live.turn = turn;
     if (this.live.pendingCancel || this.shuttingDown) turn.cancel();
     let outcome;
@@ -274,7 +274,7 @@ export class Runner {
     try {
       const cloud = await this.#cloud();
       if (Date.now() - this.lastBeat >= this.heartbeatMs) {
-        const body = this.wire.beat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() }, (this.engineName ??= engineLabel(this.config)));
+        const body = this.wire.beat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() }, (this.engineName ??= engineLabel()));
         this.wire.learn(await cloud.heartbeat(body));
         this.lastBeat = body.engine === undefined && this.wire.has("heartbeat.engine") ? 0 : Date.now(); // the first answer names it: beat again at once with the engine
       }

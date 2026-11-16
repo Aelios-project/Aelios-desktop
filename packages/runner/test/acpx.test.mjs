@@ -1,6 +1,5 @@
 // The acpx engine, end to end against the fake resident and the fake helper (both faces). These are the cases the spec
 // names for the swap: tier change, launch change, a written prompt, a lost session, the Kiro mode check, pictures.
-// The ordinary runner cases run through acpx too: RUNNER_TEST_ENGINE=acpx (see package.json).
 import assert from "node:assert/strict";
 import { chmodSync, copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -14,7 +13,7 @@ const KEY = n => String(n).repeat(32);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const REOPEN = { kiro: "session/load", dsh: "session/resume" };
 const count = (r, event) => r.log().filter(e => e.event === event).length;
-const open = (plugin, extra) => rig(plugin, { engine: "acpx", ...extra });
+const open = (plugin, extra) => rig(plugin, { ...extra });
 const restart = async r => { await r.stop(); r.stopped = false; r.start(); };
 const forgetSessions = r => writeFileSync(r.store, JSON.stringify({ ...JSON.parse(readFileSync(r.store, "utf8")), sessions: {} }));
 
@@ -61,7 +60,7 @@ for (const plugin of ["kiro", "dsh"]) {
   t("a prompt that was written is never sent again", async r => {
     r.start();
     const done = await final(r, r.cloud.push({ text: "CRASH now" }));
-    assert.equal(done.status, "needs_you"); // the outcome mapping of the legacy engine is reused as it is
+    assert.equal(done.status, "needs_you"); // the outcome mapping is shared
     assert.match(done.summary, /died in the middle of the turn/);
     await restart(r);
     await new Promise(resolve => setTimeout(resolve, 300));

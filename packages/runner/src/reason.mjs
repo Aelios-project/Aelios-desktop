@@ -17,10 +17,5 @@ export function reasonOf(code, text) {
   return "error";
 }
 
-/** A helper that could not be started at all (no such program, not allowed to run it) is `helper_missing`; otherwise by its words. */
-export function reasonOfStart(error, stderr = "") {
-  return /did not start: (ENOENT|EACCES|EPERM)/.test(String(error?.message)) ? "helper_missing" : reasonOf(undefined, `${error?.message} ${stderr}`);
-}
-
 /** The workspace folder could not be made or entered. */
 export const workspaceDenied = error => ["EACCES", "EPERM", "ENOENT", "ENOTDIR", "EROFS"].includes(error?.code);

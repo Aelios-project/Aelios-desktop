@@ -5,7 +5,7 @@ import { final, rig } from "./rig.mjs";
 
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 const until = async (check, what) => { for (let i = 0; i < 100; i++) { if (check()) return; await new Promise(r => setTimeout(r, 50)); } assert.fail(what); };
-const hung = () => rig("kiro", { engine: "acpx", killAfterMs: 150, env: { FAKE_HANG_NEW: "1" } });
+const hung = () => rig("kiro", { killAfterMs: 150, env: { FAKE_HANG_NEW: "1" } });
 const started = r => { const logged = r.log(); return logged.some(e => e.event === "session/new") ? logged.find(e => e.event === "start").pid : 0; };
 
 test("cancel ends a turn whose session/new never answers, and stops the helper", async () => {

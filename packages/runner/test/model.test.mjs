@@ -1,5 +1,5 @@
 // A job's model and family (PROTOCOL.md, "job.model"): read only when the resident lists job.model; set by exact id
-// before the prompt, with no fallback; dropped on Kiro with one fyi line. Run once per engine (RUNNER_TEST_ENGINE).
+// before the prompt, with no fallback; dropped on Kiro with one fyi line.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { idsOf, modelOption, refusal } from "../src/model.mjs";

@@ -1,6 +1,6 @@
 // Picking the model a job asks for (PROTOCOL.md, "job.model"). Exact match on the ACP model option, checked before the
 // prompt is written, and the reply must show the new value. No fuzzy match and no fallback to the default model: a
-// reviewer must never end up on the writer's model unnoticed. Used by both engines (helper.mjs, turn-acpx.mjs).
+// reviewer must never end up on the writer's model unnoticed.
 // The resident's failure reasons have no code for this, so the turn ends `failed` with reason `error` and the summary
 // starts with MODEL_FAILED.
 export const MODEL_FAILED = "model_selection_unsupported";
@@ -25,17 +25,7 @@ export const confirmed = (reply, wanted) => modelOption(reply?.configOptions)?.c
 const unconfirmed = (wanted, plug, reply) => `${MODEL_FAILED}: ${plug} did not confirm model "${wanted}" (it reports "${modelOption(reply?.configOptions)?.currentValue ?? "nothing"}"). The prompt was not sent.`;
 const refused = (wanted, plug, error) => `${MODEL_FAILED}: ${plug} would not set model "${wanted}": ${error?.message ?? error}. The prompt was not sent.`;
 
-/** Legacy engine: `options` are the configOptions from session/new or session/load. @returns {Promise<string|null>} a failure summary, or null when the model is set */
-export async function selectOnConnection(conn, sessionId, options, wanted, plug) {
-  const option = modelOption(options), no = refusal(option ? idsOf(option) : null, wanted, plug);
-  if (no) return no;
-  try {
-    const reply = await conn.request("session/set_config_option", { sessionId, configId: option.id, value: wanted }, 30_000);
-    return confirmed(reply, wanted) ? null : unconfirmed(wanted, plug, reply);
-  } catch (error) { return refused(wanted, plug, error); }
-}
-
-/** acpx engine: the same, through the runtime. */
+/** Sets the model through the acpx runtime. @returns {Promise<string|null>} a failure summary, or null when the model is set */
 export async function selectOnRuntime(runtime, handle, wanted, plug) {
   try {
     const no = refusal((await runtime.getStatus({ handle })).models?.availableModelIds ?? null, wanted, plug);

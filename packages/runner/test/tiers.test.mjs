@@ -37,7 +37,7 @@ test("a config that still says read runs as edit and says so once", async () => 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("pair defaults to edit and keeps engine and timeouts; access switches the tier and keeps every other key", async () => {
+test("pair defaults to edit and keeps timeouts and drops an old engine; access switches the tier and keeps every other key", async () => {
   const cloud = await new FakeCloud().listen();
   const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "tiers-cli-")));
   const home = path.join(base, "h");
@@ -48,13 +48,13 @@ test("pair defaults to edit and keeps engine and timeouts; access switches the t
   try {
     await assert.rejects(pair("--access", "root"), /--access is edit or full/);
     mkdirSync(home, { recursive: true });
-    writeFileSync(path.join(home, "config.json"), JSON.stringify({ engine: "acpx", timeouts: { turn: 99 }, url: "https://old.example", access: "full" }));
+    writeFileSync(path.join(home, "config.json"), JSON.stringify({ engine: "legacy", timeouts: { turn: 99 }, url: "https://old.example", access: "full" }));
     await pair();
-    assert.deepEqual([config().access, config().engine, config().timeouts], ["edit", "acpx", { turn: 99 }], "default is edit; the keys pair does not own stay");
+    assert.deepEqual([config().access, config().engine, config().timeouts], ["edit", undefined, { turn: 99 }], "default is edit; the keys pair does not own stay, the old engine goes");
     assert.notEqual(config().url, "https://old.example");
 
     assert.match(await run("access", "full"), /Access is full/);
-    assert.deepEqual([config().access, config().engine, config().plugin, config().timeouts], ["full", "acpx", "command", { turn: 99 }]);
+    assert.deepEqual([config().access, config().engine, config().plugin, config().timeouts], ["full", undefined, "command", { turn: 99 }]);
     assert.equal(JSON.parse(await run("status")).access, "full");
     await assert.rejects(run("access", "read"), /usage: aelios-runner access edit\|full/);
     await assert.rejects(run("access"), /usage/);
@@ -64,7 +64,7 @@ test("pair defaults to edit and keeps engine and timeouts; access switches the t
   } finally { await cloud.close(); rmSync(base, { recursive: true, force: true }); }
 });
 
-test("switching the helper by pairing again keeps engine and timeouts, and drops the old helper's bin and args", async () => {
+test("switching the helper by pairing again keeps timeouts, and drops the old helper's bin and args", async () => {
   const cloud = await new FakeCloud().listen();
   const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), "switch-cli-")));
   const home = path.join(base, "h");
@@ -75,9 +75,9 @@ test("switching the helper by pairing again keeps engine and timeouts, and drops
   try {
     mkdirSync(home, { recursive: true });
     const fake = process.execPath;
-    writeFileSync(path.join(home, "config.json"), JSON.stringify({ engine: "acpx", timeouts: { turn: 99 }, plugin: "kiro", bin: "/old/kiro-cli", args: ["--x"], url: "https://old.example", access: "edit" }));
+    writeFileSync(path.join(home, "config.json"), JSON.stringify({ timeouts: { turn: 99 }, plugin: "kiro", bin: "/old/kiro-cli", args: ["--x"], url: "https://old.example", access: "edit" }));
     await pair("--plugin", "command", "--command", JSON.stringify([fake, "-e", ""]));
-    assert.deepEqual([config().engine, config().timeouts, config().bin, config().args], ["acpx", { turn: 99 }, undefined, undefined], "a helper switch keeps engine, drops bin and args");
+    assert.deepEqual([config().timeouts, config().bin, config().args], [{ turn: 99 }, undefined, undefined], "a helper switch keeps timeouts, drops bin and args");
     await run("unpair");
     writeFileSync(path.join(home, "config.json"), JSON.stringify({ ...config(), bin: fake, args: ["-e", ""] }));
     await pair("--plugin", "command", "--command", JSON.stringify([fake, "-e", ""]));

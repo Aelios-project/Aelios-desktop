@@ -1,5 +1,5 @@
 // What the runner sends depends on what the resident's heartbeat answer lists (wire.mjs): an old resident (no list)
-// gets the first version of the protocol and refuses, with 400, anything else. Run once per engine (RUNNER_TEST_ENGINE).
+// gets the first version of the protocol and refuses, with 400, anything else.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { engineLabel } from "../src/engine-label.mjs";
@@ -13,12 +13,12 @@ const turn = (text = "", extra = {}) => ({ finished: [], current: text, denied: 
 
 test("Wire: no list means the first version; each name opens only its own field; the last answer wins", () => {
   const wire = new Wire(), refused = { kind: "refused", status: "needs_you", summary: "stopped", ask: { key: "k", question: "q" } };
-  assert.deepEqual(wire.beat({ plugin: "kiro" }, "legacy"), { plugin: "kiro" });
+  assert.deepEqual(wire.beat({ plugin: "kiro" }, "acpx@1"), { plugin: "kiro" });
   assert.deepEqual(wire.queued(2), {});
   assert.equal(wire.verdict(refused), refused);
   assert.equal(wire.summaryMax, SUMMARY_MAX);
   wire.learn({ ok: true, accepts: ["receipt.ahead", "reason.token_limit"], limits: { summary: 9000 } });
-  assert.deepEqual(wire.beat({ plugin: "kiro" }, "legacy"), { plugin: "kiro" });
+  assert.deepEqual(wire.beat({ plugin: "kiro" }, "acpx@1"), { plugin: "kiro" });
   assert.deepEqual([wire.queued(2), wire.queued(0), wire.queued(500)], [{ ahead: 2 }, {}, { ahead: 99 }]);
   assert.equal(wire.verdict(refused), refused, "refused is not listed");
   assert.deepEqual(wire.verdict({ ...refused, kind: "token_limit" }), { status: "failed", summary: "stopped", reason: "token_limit" });
@@ -67,8 +67,8 @@ for (const plugin of ["kiro", "dsh"]) {
     r.cloud.accepts = NEW; r.cloud.limits = { summary: 6000 }; r.cloud.summaryMax = 6000;
     r.start();
     await r.cloud.until(() => r.cloud.beatBodies?.some(body => body.engine), "a heartbeat with the engine");
-    assert.equal(r.cloud.beatBodies.at(-1).engine, engineLabel(r.config));
-    assert.match(r.cloud.beatBodies.at(-1).engine, process.env.RUNNER_TEST_ENGINE === "acpx" ? /^acpx@\d/ : /^legacy$/);
+    assert.equal(r.cloud.beatBodies.at(-1).engine, engineLabel());
+    assert.match(r.cloud.beatBodies.at(-1).engine, /^acpx@\d/);
     assert.equal(r.cloud.beatBodies[0].engine, undefined, "the first beat is sent before anything is known");
     const slow = r.cloud.push({ text: "SLEEP:300 first" });
     await r.cloud.until(() => r.cloud.got(slow.workId, "started")[0], "started");

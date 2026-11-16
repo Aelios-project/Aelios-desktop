@@ -22,7 +22,7 @@ const hash = threadHash; // shared with retention.mjs, which finds a thread's sa
 const MODE_MESSAGE = "Kiro did not confirm the restricted agent. Check that its agents directory is readable by Kiro and try again.";
 
 export class AcpxTurn {
-  /** The options of helper.mjs `Turn`, plus `engine` (runtime.mjs), `config`, `thread`, `record` (the thread record, or undefined) and `journal` (for the recap). */
+  /** The turn options (see runner.mjs), including `engine` (runtime.mjs), `config`, `thread`, `record` (the thread record, or undefined) and `journal` (for the recap). */
   constructor(o) {
     Object.assign(this, Object.fromEntries(Object.entries(o).filter(([, value]) => value !== undefined)));
     this.cancelled = false; this.timedOut = false; this.modeBad = false; this.handle = null; this.live = null;
