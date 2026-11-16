@@ -1,4 +1,4 @@
-// The permission callback for one acpx turn. It answers exactly as permission.mjs does for the legacy engine: tier `full`
+// The permission callback for one acpx turn. It answers as permission.mjs does: tier `full`
 // allows once, anything else is held for the owner (Allow / Deny). Only one-time options are ever chosen, never `*_always`.
 // If this function throws, acpx falls through to its `deny-all` mode, so the runner fails closed.
 import { answer } from "./permission.mjs";

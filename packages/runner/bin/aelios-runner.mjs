@@ -40,9 +40,9 @@ async function pair() {
   if (!values.workspace || !path.isAbsolute(values.workspace)) throw new Error("--workspace must be an absolute folder path");
   if (!tierOf(values.access)) throw new Error("--access is edit or full");
   if (!PLUGINS[values.plugin]) throw new Error(`--plugin is one of ${Object.keys(PLUGINS).join(", ")}`);
-  // The keys pair owns are replaced; every other key already in the config (engine, timeouts, ...) stays.
+  // The keys pair owns are replaced; every other key already in the config (timeouts, ...) stays; an old `engine` is dropped.
   // A helper's own start-up keys (command, bin, args) belong to that helper, so they go when the helper changes.
-  const { command: _old, ...before } = await previousConfig(configFile);
+  const { command: _old, engine: _engine, ...before } = await previousConfig(configFile);
   const { bin: _bin, args: _args, ...other } = before;
   const kept = before.plugin === undefined || before.plugin === values.plugin ? before : other;
   const config = { ...kept, url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: tierOf(values.access), plugin: values.plugin };
@@ -70,7 +70,7 @@ async function start() {
     const control = new AbortController();
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => control.abort());
     const runner = new Runner({ config, state, journal, log: (...args) => console.error(new Date().toISOString(), ...args) });
-    console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}, engine ${engineLabel(config)}`);
+    console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}, engine ${engineLabel()}`);
     const unsweep = await keepSwept(home, config.retention, state, (...args) => console.error(new Date().toISOString(), ...args));
     try { await runner.start(control.signal); } finally { unsweep(); }
   } finally { release(); }
@@ -78,7 +78,7 @@ async function start() {
 
 async function status() {
   const config = await readConfig(configFile), s = await state.read();
-  console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), engine: engineLabel(config), plugin: config.plugin, access: config.access, workspace: config.workspace,
+  console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), engine: engineLabel(), plugin: config.plugin, access: config.access, workspace: config.workspace,
     threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length, store: storeStatus(home) }, null, 2));
 }
 

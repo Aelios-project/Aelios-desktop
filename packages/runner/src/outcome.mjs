@@ -1,4 +1,4 @@
-// How a finished turn becomes a receipt outcome. Shared by both engines (helper.mjs and turn-acpx.mjs): `t` is the turn,
+// How a finished turn becomes a receipt outcome. Used by turn-acpx.mjs: `t` is the turn,
 // which holds `finished`, `current`, `denied`, `opened`, `tier`, `timedOut` and `redact`.
 import { createHash } from "node:crypto";
 import { lastMarker, noticeOf, takeNotes } from "./markers.mjs";

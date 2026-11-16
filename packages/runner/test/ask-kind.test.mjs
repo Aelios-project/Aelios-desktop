@@ -1,5 +1,5 @@
 // `ask.kind` goes out only when the resident's heartbeat lists "ask.kind", and only as permission or question.
-// Run once per engine (RUNNER_TEST_ENGINE).
+//
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Wire } from "../src/wire.mjs";

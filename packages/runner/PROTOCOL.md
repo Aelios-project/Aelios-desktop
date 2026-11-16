@@ -48,7 +48,7 @@ How many runners a resident may have is decided by the cloud. The runner knows o
 { "ok": true, "protocol": "aelios-runner/1", "accepts": ["heartbeat.engine", "receipt.ahead", "reason.refused", "reason.token_limit", "reason.no_result", "ask.kind", "job.model"], "limits": { "summary": 4000 } }
 ```
 
-`engine` is optional: how the runner talks to the helper, `acpx@<version>` or `legacy` (the same label `status` shows), at most 40 characters of letters, digits and `@._+-`. The runner sends it only once the resident's `accepts` lists `heartbeat.engine`, so the first heartbeat after start never has it and the next one (a few seconds later) does.
+`engine` is optional: how the runner talks to the helper, `acpx@<version>` (the same label `status` shows), at most 40 characters of letters, digits and `@._+-`. The runner sends it only once the resident's `accepts` lists `heartbeat.engine`, so the first heartbeat after start never has it and the next one (a few seconds later) does.
 
 `accepts` and `limits` are in the answer: what this resident takes beyond the first version of the protocol, and its limits. The runner keeps the values of the last answer. An answer without `accepts` (an older resident) means the first version: the runner sends no `engine`, no `ahead` and no later `reason`, and cuts a summary at 4000 characters. A name not listed is never sent, because an older resident answers 400 and the runner would drop the receipt. The names so far: `heartbeat.engine`, `receipt.ahead`, `reason.refused`, `reason.token_limit`, `reason.no_result`, `ask.kind`, `job.model`. `limits.summary` is the most characters a `summary` may have; the runner fits its report to it.
 

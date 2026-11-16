@@ -93,7 +93,7 @@ test("usage: one line only when a cost was reported", () => {
 });
 
 test("end to end on acpx: patched steps, a thinking step, no thought text in the summary, usage as one fyi notice", async () => {
-  const r = await rig("kiro", { engine: "acpx", progressMs: 20 });
+  const r = await rig("kiro", { progressMs: 20 });
   try {
     r.start();
     const done = await final(r, r.cloud.push({ text: "THINKME UPDATEME USAGEME go" }));

@@ -85,7 +85,7 @@ test("limits: defaults, then turnTimeoutMs / killAfterMs, then timeouts; bad tim
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-const hung = (env, timeouts) => rig("kiro", { engine: "acpx", killAfterMs: 5000, timeouts, env: { ...env } });
+const hung = (env, timeouts) => rig("kiro", { killAfterMs: 5000, timeouts, env: { ...env } });
 const fixEnv = r => { r.config.env = { ...r.config.env, FAKE_STORE: r.store, FAKE_AGENTS: r.config.kiroAgentsDir }; };
 
 for (const [stage, env] of [["initialize", { FAKE_HANG_INIT: "1" }], ["session", { FAKE_HANG_NEW: "1" }]]) {
@@ -108,7 +108,7 @@ for (const [stage, env] of [["initialize", { FAKE_HANG_INIT: "1" }], ["session",
 
 for (const plugin of ["kiro", "dsh"]) {
   test(`[${plugin}] end to end: after a restart, a saved session whose load never answers ends failed with the stage name`, async () => {
-    const r = await rig(plugin, { engine: "acpx" });
+    const r = await rig(plugin);
     try {
       r.start();
       assert.equal((await final(r, r.cloud.push({ text: "first" }))).status, "done");
@@ -128,7 +128,7 @@ for (const plugin of ["kiro", "dsh"]) {
 }
 
 test("end to end: inactivity, when on, stops a silent turn and asks the owner; the prompt is not sent again", async () => {
-  const r = await rig("kiro", { engine: "acpx", timeouts: { inactivity: 300 } });
+  const r = await rig("kiro", { timeouts: { inactivity: 300 } });
   try {
     r.start();
     const done = await final(r, r.cloud.push({ text: "SLOW work" }));

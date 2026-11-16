@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import { reasonOf, reasonOfStart } from "../src/reason.mjs";
+import { reasonOf } from "../src/reason.mjs";
 import { final, rig } from "./rig.mjs";
 
 test("what the helper's error says decides the code; the key comes before the login", () => {
@@ -13,9 +13,6 @@ test("what the helper's error says decides the code; the key comes before the lo
   assert.equal(reasonOf(undefined, "Invalid API key (401)"), "missing_key");
   assert.equal(reasonOf(undefined, "403 Forbidden"), "permission_denied");
   assert.equal(reasonOf(-32603, "something broke"), "error");
-  assert.equal(reasonOfStart(new Error("helper did not start: ENOENT")), "helper_missing");
-  assert.equal(reasonOfStart(new Error("helper exited (1)"), "please log in"), "needs_login");
-  assert.equal(reasonOfStart(new Error("helper exited (1)")), "error");
 });
 
 test("a helper that cannot be started fails with helper_missing", async () => {

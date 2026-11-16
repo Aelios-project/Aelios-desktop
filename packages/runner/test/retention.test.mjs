@@ -63,7 +63,7 @@ test("retention config: days and maxMb above 0 only", () => {
 });
 
 test("forget finds the files acpx really wrote for a thread", async () => {
-  const r = await rig("kiro", { engine: "acpx" });
+  const r = await rig("kiro");
   try {
     r.start();
     await final(r, r.cloud.push({ text: "one" }));
@@ -78,7 +78,7 @@ test("forget finds the files acpx really wrote for a thread", async () => {
 
 for (const [name, stopFirst] of [["forget with the runner stopped", true], ["expiry while the runner runs", false]]) {
   test(`after ${name}, the next turn is a new session with a recap and a notice; a neighbour thread keeps its session`, async () => {
-    const r = await rig("kiro", { engine: "acpx" });
+    const r = await rig("kiro");
     try {
       r.start();
       await final(r, r.cloud.push({ text: "remember the plan" }));
