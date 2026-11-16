@@ -15,6 +15,10 @@ test("allowed paths pass, with the resident prefix", () => {
   assert.equal(target(BASE, "luna", "/web/task/settle", "POST").href, `${BASE}/r/luna/web/task/settle`);
 });
 
+test("stopping the running reply is allowed, with the resident prefix", () => {
+  assert.equal(target(BASE, "luna", "/web/stop", "POST").href, `${BASE}/r/luna/web/stop`);
+});
+
 test("everything else is refused", () => {
   const bad = ["/web/runner/code", "/web/runner/register", "/web/secret", "/web/../x", "/web/%2e%2e/x", "/web/messages%2F..", "/other", "//evil.example/web/messages", "/web/messages#x", "/web/mess ages"];
   for (const p of bad) assert.throws(() => target(BASE, "default", p), ProxyError, p);
