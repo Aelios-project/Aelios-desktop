@@ -12,18 +12,20 @@ const make = opts => {
 };
 const ask = { toolCall: { kind: "execute", title: "git push" }, options: [{ kind: "allow_once", optionId: "a" }, { kind: "reject_once", optionId: "r" }] };
 
-test("only a refusal made by the tier is held; a path outside the folder is not", () => {
-  assert.deepEqual(answer("edit", ask, "/tmp").hold, { title: "git push", kind: "execute", paths: [] });
-  assert.equal(answer("edit", { ...ask, toolCall: { kind: "edit", locations: [{ path: "/etc/hosts" }] } }, "/tmp").hold, null);
-  assert.equal(answer("full", ask, "/tmp").hold, null);
+test("below full every request is held, whatever its kind or paths; full allows once", () => {
+  assert.deepEqual(answer("edit", ask).hold, { title: "git push", kind: "execute", paths: [] });
+  assert.deepEqual(answer("read", { ...ask, toolCall: { kind: "edit", title: "t", locations: [{ path: "/etc/hosts" }] } }).hold, { title: "t", kind: "edit", paths: ["/etc/hosts"] });
+  assert.deepEqual(answer("edit", ask).response, { outcome: { outcome: "selected", optionId: "r" } }, "until the owner answers, the helper is told no");
+  assert.equal(answer("full", ask).hold, null);
+  assert.deepEqual(answer("full", ask).response, { outcome: { outcome: "selected", optionId: "a" } });
 });
 
 test("a held request shows the real command, shortened, with secrets hidden, and the journal keeps it", async () => {
   const rawInput = { command: "curl", args: ["-H", "Authorization: Bearer abcdefgh12345678", "https://u:pw@x.example", "--token", "s3cret"], env: "API_KEY=zzz" };
-  const { hold } = answer("edit", { ...ask, toolCall: { ...ask.toolCall, title: "Read file", rawInput } }, "/tmp");
+  const { hold } = answer("edit", { ...ask, toolCall: { ...ask.toolCall, title: "Read file", rawInput } });
   assert.match(hold.detail, /^curl -H Authorization: \[hidden\]/);
   for (const secret of ["abcdefgh12345678", "pw@", "s3cret"]) assert.ok(!hold.detail.includes(secret), secret);
-  assert.ok(answer("edit", { ...ask, toolCall: { ...ask.toolCall, rawInput: "x".repeat(2000) } }, "/tmp").hold.detail.length <= 300);
+  assert.ok(answer("edit", { ...ask, toolCall: { ...ask.toolCall, rawInput: "x".repeat(2000) } }).hold.detail.length <= 300);
   const { journal, done } = make({ holdMs: 30 });
   try {
     await journal.hold("t1", hold);

@@ -9,6 +9,8 @@ export const MACHINE = `
 .ad-dot.big { width: 12px; height: 12px; }
 .ad-dot.big.ok { box-shadow: 0 0 0 4px var(--ok-soft); }
 .ad-mv-card .ad-pill { height: 24px; gap: 6px; font-size: 12px; }
+button.ad-pill { border: 0; font-family: inherit; cursor: pointer; }
+button.ad-pill:disabled { opacity: .6; cursor: default; }
 .ad-seg { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--line-soft); }
 .ad-seg button { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px 0 7px; border: 0; border-radius: 999px; background: transparent; color: var(--text-3); font-size: 12px; font-weight: 500; }
 .ad-seg button[aria-pressed="true"] { background: var(--panel-strong); color: var(--text-1); box-shadow: var(--shadow); }

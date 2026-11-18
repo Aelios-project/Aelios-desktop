@@ -9,19 +9,20 @@ import { usePoll } from "./poll.mjs";
 import { store, useStore } from "./store.mjs";
 import { words } from "./strings.mjs";
 import { ThreadView } from "./thread-view.mjs";
-import { isWorking, loadThreads, splitThreads, stateOf, when } from "./threads-api.mjs";
+import { canStop, isWorking, loadThreads, splitThreads, stateOf, stopThread, when } from "./threads-api.mjs";
 import { taskTone } from "./tones.mjs";
 import { HELPER_ICON, helperOf } from "./thread-model.mjs";
 
 export const RUN_ICON = { local: "spark", linux: "cloud", machine: "laptop", retired: "exit" };
 
 /** A thread card: its helper's icon, title (a dot before it when there is news not read yet) and time; one status word; how many tasks; a bar while it works. */
-function Row({ item, t, local, unread = 0, onOpen }) {
+function Row({ item, t, local, unread = 0, onOpen, onStop }) {
   const state = stateOf(item);
   const tone = taskTone(state);
   const helper = helperOf(item, local);
   const pending = (local?.sessions || []).find((s) => s.thread === item.id)?.pending || 0;
-  return h("button", { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
+  // The stop button sits beside the card, not in it (a button cannot hold a button).
+  return h("div", { className: "ad-card-wrap" }, h("button", { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
     h("span", { className: "ad-card-top" },
       h("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, h(Icon, { name: HELPER_ICON[helper] })),
       h("span", { className: "ad-card-title" }, unread > 0 && h("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
@@ -32,7 +33,8 @@ function Row({ item, t, local, unread = 0, onOpen }) {
       h("span", { className: "sp" }),
       h("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, h(Icon, { name: "stack" }), item.tasks)),
     isWorking(item) && stepNow(item) && h("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
-    isWorking(item) && h("span", { className: "ad-track", "aria-hidden": true }, h("span")));
+    isWorking(item) && h("span", { className: "ad-track", "aria-hidden": true }, h("span"))),
+    canStop(item) && h("button", { type: "button", className: "ad-icon-btn sm danger ad-card-stop", title: t.stop, "aria-label": t.stop, onClick: () => onStop(item.id) }, h(Icon, { name: "stop" })));
 }
 
 /** Where threads run, and the day's quota as a short bar and two numbers. */
@@ -60,6 +62,10 @@ export function ThreadsPanel() {
     try { const d = await loadThreads(resident); setData({ loaded: true, on: Boolean(d.on), threads: d.threads || [] }); setError(""); } catch (e) { setError(e.message); }
   }, 10000, [resident]);
 
+  const onStop = async (threadId) => {
+    try { await stopThread(resident, threadId); setError(""); const d = await loadThreads(resident); setData({ loaded: true, on: Boolean(d.on), threads: d.threads || [] }); } catch (e) { setError(e.message); }
+  };
+
   if (id) return h(ThreadView, { resident, id, onBack: () => setId("") });
   const { open, done } = splitThreads(data.threads);
   return h("div", { className: "ad-panel" },
@@ -67,8 +73,8 @@ export function ThreadsPanel() {
     h(Quota, { q: quota, t }),
     data.loaded && !data.on && data.threads.length === 0 && h(Empty, { icon: "threads", text: t.threadsOff }),
     data.loaded && data.on && data.threads.length === 0 && h(Empty, { icon: "threads", text: t.noThreads, why: t.threadsInfo }),
-    open.map((item) => h(Row, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })),
+    open.map((item) => h(Row, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId, onStop })),
     done.length > 0 && h("button", { type: "button", className: "ad-fold ad-label", "aria-expanded": showDone, onClick: () => setShowDone((v) => !v) },
       h(Icon, { name: "down" }), t.done, h("span", { className: "ad-badge" }, done.length)),
-    showDone && done.map((item) => h(Row, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })));
+    showDone && done.map((item) => h(Row, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId, onStop })));
 }

@@ -4,21 +4,27 @@
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync } from "node:fs";
 import { Cloud, CloudError } from "./cloud.mjs";
-import { Turn } from "./helper.mjs";
+import { homeDir } from "./state.mjs";
 import { readAttachments, saveAttachments } from "./inbox.mjs";
 import { PermReport } from "./perm-report.mjs";
 import { Progress } from "./steps.mjs";
 import { computerName } from "./machine-name.mjs";
 import { workspaceDenied } from "./reason.mjs";
 import { launchOf } from "./plugins.mjs";
+import { createEngine } from "./runtime.mjs";
+import { AcpxTurn } from "./turn-acpx.mjs";
 import { lowest, tierOf } from "./permission.mjs";
 import { fit, shrink } from "./receipt.mjs";
+import { SUMMARY_MAX } from "./report.mjs";
+import { Wire } from "./wire.mjs";
+import { joinNotice } from "./handoff.mjs";
+import { plan, readPick } from "./job-model.mjs";
+import { engineLabel } from "./engine-label.mjs";
 
 const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
 const THREAD = /^[A-Za-z0-9_.:-]{1,160}$/;
 const KINDS = ["job", "say", "mail", "cancel"];
 const TEXT_MAX = 16_000;
-const SUMMARY_MAX = 4000;
 const safeId = id => (THREAD.test(id) ? id : "acp_" + createHash("sha1").update(id).digest("hex").slice(0, 24));
 
 /** Remember a question that is open on a thread, so a later finished turn can close it. */
@@ -27,12 +33,12 @@ function remember(state, thread, key) {
   if (!entry.asks.includes(key)) entry.asks.push(key);
 }
 
-function redactor(secrets, places) {
-  return text => {
+function redactor(secrets, places, limit = SUMMARY_MAX) {
+  return (text, max = limit) => { // `max` Infinity: the caller fits the text itself (outcome.mjs)
     let out = String(text);
     for (const place of places) if (place) out = out.split(place).join("[workspace]");
     for (const secret of secrets) if (secret) out = out.split(secret).join("[token]");
-    return out.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").trim().slice(0, SUMMARY_MAX);
+    return out.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "").trim().slice(0, max);
   };
 }
 
@@ -41,10 +47,19 @@ export class Runner {
   constructor({ config, state, cloud, journal = null, log = () => {}, request = fetch }) {
     this.config = config; this.state = state; this.log = log; this.request = request; this.journal = journal;
     this.cloud = cloud ?? null;
+    this.wire = new Wire(); // what the resident takes beyond the first version, from its heartbeat answers
     this.perms = new PermReport({ cloud: () => this.#cloud(), journal, log });
     this.live = null; this.running = null; this.flushing = null; this.shuttingDown = false; this.revoked = false;
     this.error = ""; this.lastBeat = 0; this.failures = 0;
     this.pollMs = config.pollMs ?? 5000; this.heartbeatMs = config.heartbeatMs ?? 30_000; this.backoffMaxMs = config.backoffMaxMs ?? 60_000;
+  }
+
+  /** The acpx runtime, made on first use. It is made again if the helper environment in the config changed. */
+  #engine() {
+    const env = JSON.stringify(this.config.env ?? {});
+    if (this.engine && this.engineEnv !== env) { void this.engine.shutdown().catch(() => {}); this.engine = null; }
+    this.engineEnv = env;
+    return (this.engine ??= createEngine(this.config, this.config.home ?? homeDir()));
   }
 
   async #cloud() {
@@ -113,7 +128,7 @@ export class Runner {
     }
     // Only what the protocol names is kept; anything else the cloud sent (a folder, a command, a helper) is dropped here.
     const work = { workId: raw.workId, token: raw.token, thread: raw.thread, kind: raw.kind, title: String(raw.title ?? "").slice(0, 200),
-      ...(raw.kind === "cancel" ? {} : { text: raw.text, ...(raw.attachments?.length ? { attachments: readAttachments(raw.attachments) } : {}) }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
+      ...(raw.kind === "cancel" ? {} : { text: raw.text, ...readPick(raw, this.wire), ...(raw.attachments?.length ? { attachments: readAttachments(raw.attachments) } : {}) }), ...(raw.access ? { access: raw.access } : {}), ...(raw.kind === "say" ? { interrupt: raw.interrupt !== false } : {}) };
     const receipts = [];
     let stop = false;
     await this.state.update(state => {
@@ -130,7 +145,7 @@ export class Runner {
         state.queue.splice(at, 0, work);
         stop = Boolean(this.live && this.live.work.thread === work.thread);
       } else {
-        if (this.live || state.queue.length) receipts.push(this.#receipt(work, "queued"));
+        if (this.live || state.queue.length) receipts.push(this.#receipt(work, "queued", this.wire.queued((this.live ? 1 : 0) + state.queue.length)));
         state.queue.push(work);
       }
     });
@@ -157,8 +172,7 @@ export class Runner {
       try { await this.#execute(work); }
       catch (error) {
         this.log("execute failed", work.workId, error?.message);
-        await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "The runner hit an error handling this message. It will not be redone automatically.",
-          ask: { key: "runner:" + work.workId, question: "The runner hit an error handling this message and the result is not confirmed. Try again?" } })], state => remember(state, work.thread, "runner:" + work.workId));
+        await this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "interrupted", summary: "The runner hit an error handling this message and the result is not confirmed. It will not be redone automatically." })]);
       } finally {
         this.live = null;
         await this.state.update(state => { state.current = null; });
@@ -179,30 +193,47 @@ export class Runner {
         return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "workspace_denied", summary: "The runner could not use its workspace folder. Check that the folder exists and this user may write to it." })]);
       }
     }
-    const tier = lowest(tierOf(this.config.access) ?? "read", work.access ?? this.config.access ?? "read");
-    const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace]);
+    const tier = lowest(tierOf(this.config.access) ?? "edit", work.access ?? this.config.access ?? "edit");
+    const redact = redactor([state.device?.token, work.token], [cwd, this.config.workspace], this.wire.summaryMax);
     // Pictures and files come down now, into this thread's folder. If they cannot, the turn still runs and the helper is told which were lost.
     const files = work.attachments?.length ? await saveAttachments({ cloud: await this.#cloud(), work, cwd }).catch(() => ({ saved: [], failed: work.attachments.map(item => item.name) })) : null;
+    let launch;
+    try { launch = launchOf(this.config, tier, cwd, work.thread); }
+    catch (error) {
+      this.log("helper launch configuration failed", work.workId, error?.message);
+      this.journal?.end(work, "failed", "helper configuration");
+      return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: "The helper could not be configured safely. Check the runner logs and ensure the Kiro agents directory is writable, then try again." })]);
+    }
+    let engine;
+    try { engine = this.#engine(); }
+    catch (error) { // the session store cannot be made safe, or the helper environment conflicts: refuse to run, with the reason
+      this.journal?.end(work, "failed", "session store");
+      return this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "error", summary: error.message })]);
+    }
+    const { model, notice } = await plan(this.state, work, this.config.plugin);
     const progress = new Progress({ send: async steps => (await this.#cloud()).progress({ workId: work.workId, token: work.token, steps }), ms: this.config.progressMs });
-    const turn = new Turn({
-      files, onStep: steps => progress.push(steps), launch: launchOf(this.config, tier), cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
+    const turn = new AcpxTurn({
+      thread: work.thread, record, engine, journal: this.journal, summaryMax: this.wire.summaryMax, model, plug: this.config.plugin,
+      files, onStep: steps => progress.push(steps), launch, cwd, tier, redact, sessionId: record?.sessionId, prompt: work.text,
       timeoutMs: this.config.turnTimeoutMs, killAfterMs: this.config.killAfterMs,
       hold: this.journal && ((info, stopped) => this.journal.hold(work.thread, info, stopped, this.perms.on(work, info))),
-      auto: info => this.journal?.auto(work.thread, info),
-      onSession: async (sessionId, how) => {
-        // The thread's folder and session are fixed from the first time it has one.
-        await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
+      onSession: async (sessionId, how, extra = {}) => {
+        // The thread's folder and session are fixed from the first time it has one. `extra` is the launch identity and recap seed.
+        await this.state.update(s => { s.threads[work.thread] = { ...s.threads[work.thread], ...extra, sessionId, cwd, plugin: this.config.plugin, asks: s.threads[work.thread]?.asks ?? [] }; });
         await this.#queueReceipts([this.#receipt(work, "started", { sessionId: safeId(sessionId) })]);
         this.log("started", work.workId, how);
-      }
+      },
+      config: this.config
     });
     this.live.turn = turn;
     if (this.live.pendingCancel || this.shuttingDown) turn.cancel();
     let outcome;
     try { outcome = await turn.run(); } finally { progress.close(); }
     if (this.shuttingDown && outcome.status === "cancelled") {
-      outcome = { ...outcome, status: "needs_you", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically.", ask: { key: "stopped:" + work.workId, question: "The runner was stopped and this turn did not finish. Do it again?" } };
+      // Not a question: the owner opens the thread and decides. Reported as a failure so it is a stuck item, never an ask.
+      outcome = { ...outcome, status: "failed", reason: "interrupted", summary: "The runner was stopped and this turn did not finish. It will not be redone automatically." };
     }
+    outcome = this.wire.verdict(notice ? { ...outcome, notice: joinNotice(notice, outcome.notice) } : outcome);
     const receipt = { status: outcome.status, summary: outcome.summary || "(no content)", ...(outcome.status === "failed" && outcome.reason ? { reason: outcome.reason } : {}) };
     await this.state.update(s => {
       if (outcome.status === "needs_you" && outcome.ask) remember(s, work.thread, outcome.ask.key);
@@ -221,9 +252,8 @@ export class Runner {
     const state = await this.state.read();
     if (!state.current) return;
     const work = state.current;
-    await this.#queueReceipts([this.#receipt(work, "final", { status: "needs_you", summary: "The runner restarted and the result of this turn is not confirmed. It will not be redone automatically. Please check the thread.",
-      ask: { key: "restart:" + work.workId, question: "The runner restarted and the result of this turn is not confirmed. Do it again?" } })],
-    s => { s.current = null; remember(s, work.thread, "restart:" + work.workId); });
+    await this.#queueReceipts([this.#receipt(work, "final", { status: "failed", reason: "interrupted", summary: "The runner restarted and the result of this turn is not confirmed. It will not be redone automatically. Please check the thread." })],
+    s => { s.current = null; });
   }
 
   /** Pairing was withdrawn: stop the running turn, drop what is waiting. Nothing is claimed or started again. */
@@ -244,8 +274,9 @@ export class Runner {
     try {
       const cloud = await this.#cloud();
       if (Date.now() - this.lastBeat >= this.heartbeatMs) {
-        await cloud.heartbeat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() });
-        this.lastBeat = Date.now();
+        const body = this.wire.beat({ plugin: this.config.plugin, busy: this.live?.work.thread ?? null, label: this.config.label || computerName() }, (this.engineName ??= engineLabel()));
+        this.wire.learn(await cloud.heartbeat(body));
+        this.lastBeat = body.engine === undefined && this.wire.has("heartbeat.engine") ? 0 : Date.now(); // the first answer names it: beat again at once with the engine
       }
       await this.flush();
       const busy = Boolean(this.live) || state.queue.length > 0;
@@ -283,5 +314,6 @@ export class Runner {
     this.#stopLive();
     await this.running;
     await this.flush().catch(() => {}); // best effort; anything unsent stays on disk
+    await this.engine?.shutdown().catch(() => {}); // helper processes end; their saved sessions stay
   }
 }

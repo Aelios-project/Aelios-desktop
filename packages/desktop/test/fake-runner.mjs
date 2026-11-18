@@ -16,6 +16,9 @@ if (command === "start") {
   console.log(JSON.stringify({ paired: process.env.FAKE_PAIRED !== "0", revoked: process.env.FAKE_REVOKED === "1" }));
 } else if (command === "overview" && process.env.FAKE_WORKSPACE) {
   console.log(JSON.stringify({ workspace: process.env.FAKE_WORKSPACE, threads: {}, turns: {}, perms: [] }));
+} else if (command === "access" && process.env.FAKE_ACCESS_FAIL) {
+  console.error('aelios-runner: no config; run "aelios-runner pair" first');
+  process.exit(1);
 } else if (command === "pair" && process.env.FAKE_PAIR_FAIL) {
   if (process.env.FAKE_NOISE) console.error("(node:1) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental");
   console.error("aelios-runner: the resident did not accept the key");

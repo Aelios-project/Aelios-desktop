@@ -25,7 +25,7 @@ export function HelpersCard({ status, busy, act }) {
       : t.wizard.helpersNone),
     h("label", null, t.helper, h("select", { value: form.helper, onChange: set("helper") }, h("option", { value: "dsh" }, "DSH"), h("option", { value: "kiro" }, "Kiro"))),
     h("label", null, t.folder, h("input", { value: form.workspace, onChange: set("workspace"), placeholder: t.wizard.workspaceHint })),
-    h("label", null, t.access, h("select", { value: form.access, onChange: set("access") }, ["read", "edit", "full"].map((tier) => h("option", { key: tier, value: tier }, t.tier[tier])))),
+    h("label", null, t.access, h("select", { value: form.access, onChange: set("access") }, ["edit", "full"].map((tier) => h("option", { key: tier, value: tier }, t.tier[tier])))),
     form.access === "full" && h("label", { className: "check" },
       h("span", null, h("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
     h("button", { className: "ad-btn", type: "submit", disabled: busy || status.job?.running }, busy ? t.wizard.working : t.wizard.start));

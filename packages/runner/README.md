@@ -37,7 +37,7 @@ aelios-runner pair --code pc_… \
 | `--code` | The pairing code from the settings page. Without it, the web key is needed. |
 | `--resident` | Resident id. Default `default`. |
 | `--workspace` | The fixed folder where the helper works. Absolute path. Each thread records it on first use and never changes it. |
-| `--access` | The highest permission tier this machine allows: `read`, `edit` (change files in the workspace), or `full` (everything). Default `read`. |
+| `--access` | The highest permission tier this machine allows: `edit` (Kiro: reads anywhere, writes files inside the workspace, and runs any shell command unasked, except one that contains the word push, publish, deploy, merge, release, rm, rmdir, unlink, shred, trash, delete, clean, sudo or doas, which waits for the owner; this is a word filter, not a sandbox: other commands that destroy or send data run unasked, and `edit` trusts the helper with everything this user can read and with the network; a read of the runner's own home (`~/.aelios-runner`) with Kiro's read tools is refused outright; the shell can still read it; a write outside the workspace, with the write tool or a `>` redirect, waits for the owner), or `full` (everything). Default `edit`. The old `read` tier is gone: a config or job that still says it runs as `edit`. |
 | `--plugin` | Which helper: `kiro`, `dsh`, or `command`. Default `kiro`. |
 
 The config is in `~/.aelios-runner/config.json`. Credentials and thread records are in `state.json` beside it (readable only by you). Set `AELIOS_RUNNER_HOME` to move the folder.
@@ -46,28 +46,71 @@ The config is in `~/.aelios-runner/config.json`. Credentials and thread records 
 
 Only this machine's config picks the helper. A cloud message cannot change it.
 
-- `kiro`: runs `kiro-cli acp`. With `--access full` it adds `--trust-all-tools`. Run `kiro-cli login` on this machine first. The runner logs in to no account.
+- `kiro`: runs `kiro-cli acp --agent <name>` with a config the runner writes into `~/.kiro/agents` before each turn (for `full` that config allows every tool; there is no `--trust-all-tools`). Run `kiro-cli login` on this machine first. The runner logs in to no account.
 - `dsh`: runs `dsh --profile acp` (the DeepSeek Harness ACP server). It looks for `dsh` on `PATH`. On macOS, if it is not found, it tries `/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh`. DSH resumes sessions with `session/resume`. Set the provider and model in DSH's `acp` profile first.
-- `command` (experimental): any command that speaks ACP, for example the Claude Code adapter `claude-agent-acp`. In `config.json` write `"plugin": "command", "command": ["claude-agent-acp"]`. Signing in with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
+- `claude` and `codex` (experimental): Claude Code and Codex through their ACP adapters, pinned in `adapters.json` (package, exact version, integrity). Install the pinned adapter once with `aelios-runner install-adapter claude` (or `codex`). It goes to `~/.aelios-runner/adapters/` and runs with node from there, never through `npx`. Raising a pin is a new launch, so the thread gets a new session with a recap. Signing in to Claude Code with a Claude subscription is disputed under Anthropic's terms. For long unattended runs use an API key.
+- `command` (experimental): any other command that speaks ACP. In `config.json` write `"plugin": "command", "command": ["my-acp-helper", "arg"]`.
 - Optional config: `bin` (another executable path), `args` (extra arguments), `env` (extra environment variables), `turnTimeoutMs` (longest single turn, default 30 minutes), `pollMs` (how often to fetch work, default 5 seconds), `backoffMaxMs` (longest wait between tries while the cloud is unreachable, default 60 seconds).
+
+### The engine
+
+The runner runs every helper through [acpx](https://www.npmjs.com/package/acpx). There is no other engine. `status` shows `acpx@<version>`. An `"engine"` key in an old `config.json` (for example `"legacy"`) is ignored: the runner prints one notice and runs acpx. `pair` drops the key. Each thread keeps its saved session id and reloads it through acpx on its next turn.
+
+### Time limits
+
+`timeouts` in `config.json` sets a limit per stage, in milliseconds (`0` turns one off). A limit that runs out stops the turn and says which stage it was. A stage before the prompt is written ends `failed`; after it, the turn waits for you and is not sent again.
+
+| Key | Stage | Default |
+|---|---|---|
+| `spawn` | the helper process starts | 15000 |
+| `initialize` | the helper answers `initialize` | 60000 |
+| `session` | the session opens or reloads | 90000 |
+| `firstUpdate` | the first update after the prompt | 120000 |
+| `inactivity` | the next update; paused while a tool call runs or a permission waits for you | 0 (off) |
+| `cancel` | a cancelled helper stops, or it is killed | `killAfterMs`, else 10000 |
+| `turn` | the whole turn after the prompt | `turnTimeoutMs`, else 30 minutes |
+
+### The helper's environment
+
+A helper does not get the runner's whole environment. It gets:
+
+- `PATH HOME USER LOGNAME SHELL LANG TERM TMPDIR TZ SSL_CERT_FILE SSL_CERT_DIR NODE_EXTRA_CA_CERTS SSH_AUTH_SOCK`;
+- the proxies `HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY` and their lowercase forms;
+- every `LC_*` and `XDG_*` variable; for `kiro` also every `KIRO_*` and `AWS_*`; for `dsh` every `DEEPSEEK_*` and `DSH_*`;
+- the keys in the config's `env`, as written.
+
+acpx adds one exception of its own: every non-empty `ACPX_AUTH_<NAME>` in the runner's environment reaches the helper, also copied as `<NAME>`, and acpx lets nothing override either name. If the config's `env` sets one of those names, the runner refuses the turn with a message instead of letting the value be silently replaced. Unset the `ACPX_AUTH_` variable or drop the key.
+
+Migration: a helper that needed another variable (a token for `gh`, a registry key) stops seeing it. Add it to `env` in `config.json`.
 
 ## Run
 
 ```sh
 aelios-runner start      # runs in the foreground; Ctrl-C stops it. On a VPS use systemd or tmux
-aelios-runner status     # pairing, queue, receipts not yet sent
-aelios-runner unpair     # revoke the pairing (the web key is needed again to re-pair)
+aelios-runner status     # pairing, queue, receipts not yet sent, the session store's path and size
+aelios-runner access edit|full   # change the tier in the config only; start the runner again to use it
+aelios-runner unpair     # revoke the pairing and delete the session store (--keep-store keeps it)
+aelios-runner forget <thread>   # delete one thread's saved helper sessions; forget --all deletes them all
 ```
 
 When it stops, a turn that is running is handed back as `needs_you`. It is not redone on its own.
 
+## What is saved on this machine
+
+The runner keeps the helpers' sessions in `~/.aelios-runner/acpx/` (or `$AELIOS_RUNNER_HOME/acpx/`), folders `0700` and files `0600`. A session file holds the whole conversation, tool input and output included. **It can hold secrets a tool printed** (file contents, command output, tokens). The runner never uploads it and never writes it to its log.
+
+- A thread's sessions are deleted 30 days after its last turn, and the store is kept under 500 MB, oldest thread first. The sweep runs when `start` begins and once a day. Change it with `"retention": { "days": 30, "maxMb": 500 }` in `config.json`.
+- `forget <thread>` and `forget --all` delete by hand. Stop `start` first: `forget` refuses while it runs. `unpair` deletes the store unless you pass `--keep-store`.
+- The runner's own thread record in `state.json` stays, but without the session to reload. So a thread whose sessions were deleted starts a new session with a recap and a notice. It never reloads the old one from the helper.
+- The helper may keep its own copy (Kiro, for example, keeps its sessions under its own folder). `forget` does not touch that.
+
 ## What the permission tiers can and cannot block
 
-The runner can only answer permission requests the helper **asks for**, and it only looks at the kind and paths the helper reports:
+The runner does not judge requests itself. The tier sets the helper's own configuration, and whatever the helper still asks about is held for you (in the resident's waiting list, or on this machine):
 
-- `read`: read, search, think. `edit`: also edits inside the workspace, **and `fetch` (network)**. `full`: everything.
-- Except in `full`, a request with any path outside the workspace is refused. A symlink that points outside counts as outside.
-- It cannot block what a helper does without asking (for example its own tool reading `~/.ssh` with no prompt), or requests with no path. An injected task could use this to read local files and carry them to the cloud. For real isolation, use a dedicated system account, or a VPS with no sensitive files, and tighten the helper's own read and write limits.
+- `edit`: Kiro reads anywhere, writes files inside the workspace and runs any shell command unasked, except the ones with an ask word (see `--access`). Everything else is held. `full`: everything is allowed, and Kiro starts with `--trust-all-tools`.
+- For Kiro the runner writes the agent config (`aelios-runner-<tier>-<hash>.json` in `~/.kiro/agents`, outside the workspace) before every turn, so a thread cannot loosen it.
+- Kiro's read-only check is its own, not ours. It is not a sandbox: it can read files outside the workspace through shell commands such as `cat`, except for the patterns the config denies. For real isolation, use a dedicated system account, or a VPS with no sensitive files. Helpers other than Kiro have no generated config yet, so every request they ask about is held.
 - The helper speaks with markers at the start of a line: `NOTE:` (anywhere; goes in the receipt's `notice`, no stop), `BLOCKED:` (last line; the job ends as `failed` with a `Blocked:` summary), `ASK:` (last line; only the user can decide). With no marker it just carries on or finishes. The runner adds a short English convention with these rules to every task. Only `ASK:` and refused permission requests become "waiting for you". A reply that ends with a question mark does not count.
 
 ## Only one start at a time

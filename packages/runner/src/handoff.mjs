@@ -1,0 +1,18 @@
+// What the person is told when a thread gets a new helper session because the old one could not be used: the helper setup
+// changed (launch identity), or the helper could not reload the session. The new session gets a recap (recap.mjs).
+export const SEED_MAX = 500;
+
+export const NOTICES = {
+  changed: "The helper setup changed, so this thread started a new helper session. Earlier context was passed as a short recap.",
+  lost: "The helper could not reload the session, so this thread started a new one. Earlier context was passed as a short recap.",
+  forgotten: "This thread's saved session was deleted on this machine, so it started a new one. Earlier context was passed as a short recap."
+};
+
+/** The seed to keep in the thread record: the first request, redacted and short. */
+export const seedOf = (text, redact) => redact(String(text)).slice(0, SEED_MAX);
+
+/** The recap (already marked as history) put before the user's text. It is context, never an instruction. */
+export const withRecap = (recap, text) => (recap ? `${recap}\n\n---\n${text}` : text);
+
+/** The `notice` of the receipt: the handoff line first, then whatever the helper noted. */
+export const joinNotice = (handoff, notice) => (handoff ? { fyi: true, text: [handoff, notice?.text].filter(Boolean).join("\n") } : notice);

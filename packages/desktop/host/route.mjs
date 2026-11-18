@@ -1,5 +1,6 @@
 // The one route the client half calls: POST /api/aelios-desktop { action, ... }. It never returns the key.
 import { ConnectError, connect, defaultWorkspace, disconnect, ensurePaired } from "./connect.mjs";
+import { switchAccess } from "./access.mjs";
 import { switchHelper } from "./helper.mjs";
 import { makeLocal } from "./local.mjs";
 import { OnboardingError, createOnboarding } from "./onboarding/route.mjs";
@@ -14,7 +15,7 @@ const json = (value, status = 200) => Response.json(value, { status, headers: HE
 export function makeRoute(deps) {
   const { store, supervisor } = deps;
   const local = makeLocal(deps);
-  const onboarding = deps.credentials && deps.bundles ? createOnboarding(deps) : null; // the wizard's own state and steps
+  const onboarding = deps.credentials && deps.bundles ? createOnboarding({ ...deps, connect: (settings) => connect(settings, deps) }) : null; // the wizard's own state and steps
 
   async function status() {
     const c = await store.get();
@@ -33,6 +34,7 @@ export function makeRoute(deps) {
       return status();
     },
     async helper(input) { await switchHelper(input, deps); return status(); },
+    async access(input) { await switchAccess(input, deps); return status(); },
     async start() { await ensurePaired(deps); return status(); },
     machine: () => local.machine(),
     sessions: () => local.sessions(),

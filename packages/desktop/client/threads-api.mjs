@@ -15,6 +15,9 @@ export const pillOf = (state) => ({ working: "warn", sent: "warn", needs_you: "h
 
 export const isWorking = (thread) => thread?.status === "sent" || thread?.status === "working";
 
+/** The resident only stops a thread that is working on a machine (its /web/thread/stop says no to the rest). */
+export const canStop = (thread) => thread?.runs === "machine" && thread?.status === "working";
+
 /** Open threads are at work or ask for the person; the rest are done. */
 export function splitThreads(list = []) {
   const open = (t) => isWorking(t) || t.waiting;

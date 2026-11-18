@@ -86,9 +86,12 @@ export const CHAT = `
 .ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
 .ad-voice-play svg { width: 13px; height: 13px; }
 .ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-stickers { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.ad-sticker-wrap { display: flex; flex-direction: column; align-items: flex-start; }
 .ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
-.ad-sticker img, .ad-sticker video { display: block; width: 112px; height: auto; image-rendering: pixelated; }
+.ad-sticker img, .ad-sticker video { display: block; width: 128px; height: auto; image-rendering: pixelated; }
+.ad-sticker-wrap .ad-meta { margin: 2px 2px 0; }
+.ad-row.me .ad-stickers, .ad-row.me .ad-sticker-wrap { align-items: flex-end; }
 
 .ad-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
 .ad-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); font-size: 12.5px; }

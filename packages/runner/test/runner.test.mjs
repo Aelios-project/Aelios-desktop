@@ -9,8 +9,49 @@ import test from "node:test";
 import { CloudError, register } from "../src/cloud.mjs";
 import { FakeCloud } from "./fake-cloud.mjs";
 
-import { CONVENTION } from "../src/helper.mjs";
+import { CONVENTION } from "../src/convention.mjs";
+import { agentName } from "../src/kiro-agent.mjs";
 import { final, rig } from "./rig.mjs";
+
+// acpx keeps the helper process between turns, so a later turn does not reopen the session;
+// reopening after a restart is tested in acpx.test.mjs.
+
+test("Kiro restricted config failure reports an error without starting the helper", async () => {
+  const r = await rig("kiro");
+  try {
+    const blocked = path.join(r.dir, "not-a-directory");
+    writeFileSync(blocked, "file");
+    r.config.kiroAgentsDir = blocked;
+    r.start();
+    for (const access of ["read", "edit"]) {
+      const work = r.cloud.push({ text: "must not run", access });
+      const done = await final(r, work);
+      assert.equal(done.status, "failed");
+      assert.equal(done.reason, "error");
+      assert.match(done.summary, /writable/);
+      assert.deepEqual(r.cloud.got(work.workId, "started"), []);
+    }
+    assert.deepEqual(r.log(), []);
+  } finally { await r.done(); }
+});
+
+test("Kiro refuses unconfirmed agents on new and loaded sessions before sending a prompt", async () => {
+  const r = await rig("kiro");
+  try {
+    r.config.env.FAKE_MODE = "kiro_default";
+    r.start();
+    const first = r.cloud.push({ text: "must not run" });
+    assert.match((await final(r, first)).summary, /did not confirm the restricted agent/);
+    assert.equal(r.prompts().length, 0);
+    delete r.config.env.FAKE_MODE;
+    assert.equal((await final(r, r.cloud.push({ text: "safe first turn" }))).status, "done");
+    r.config.env.FAKE_MODE = "kiro_default";
+    const second = r.cloud.push({ text: "must not run on load" });
+    assert.match((await final(r, second)).summary, /did not confirm the restricted agent/);
+    assert.equal(r.prompts().length, 1);
+    assert.ok(r.log().some(e => e.event === "session/load"));
+  } finally { await r.done(); }
+});
 
 for (const plugin of ["kiro", "dsh"]) {
   const t = (name, fn) => test(`[${plugin}] ${name}`, async () => { const r = await rig(plugin); try { await fn(r); } finally { await r.done(); } });
@@ -29,8 +70,10 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(prompt.full, `hello CWD\n\n${CONVENTION}`, "the instruction, then the one-line ASK: convention, nothing about who the user is");
     assert.equal(prompt.cwd, r.workspace, "extra fields from the cloud do not choose the folder");
     const init = r.log().find(e => e.event === "initialize");
-    assert.deepEqual(init.caps, {}, "no file or terminal capability is offered");
-    assert.deepEqual(r.log().find(e => e.event === "start").args, plugin === "dsh" ? ["--profile", "acp"] : ["acp"]);
+    assert.deepEqual(init.caps, { fs: { readTextFile: false, writeTextFile: false }, terminal: false }, "no file or terminal capability is offered");
+    const args = r.log().find(e => e.event === "start").args;
+    if (plugin === "dsh") assert.deepEqual(args, ["--profile", "acp"]);
+    else assert.deepEqual(args, ["acp", "--agent", agentName("t_main", r.workspace)], "Kiro starts with the generated agent of this thread and folder, no tier in the name");
     const saved = (await r.state.read()).threads.t_main;
     assert.deepEqual([saved.sessionId, saved.cwd], ["sess-1", r.workspace]);
   });
@@ -45,17 +88,8 @@ for (const plugin of ["kiro", "dsh"]) {
     const log = r.log();
     assert.equal(log.filter(e => e.event === "session/new").length, 1);
     const reopen = log.find(e => e.event === (plugin === "dsh" ? "session/resume" : "session/load"));
-    assert.equal(reopen.sessionId, "sess-1");
+    assert.equal(reopen, undefined, "acpx keeps the helper running, so the session is not reopened");
     assert.deepEqual(r.prompts().map(p => [p.sessionId, p.text]), [["sess-1", "first"], ["sess-1", "second"]]);
-  });
-
-  t("a session the helper no longer has: a new one is opened and the work still runs", async r => {
-    r.start();
-    await final(r, r.cloud.push({ text: "first" }));
-    writeFileSync(r.store, JSON.stringify({ ...JSON.parse(readFileSync(r.store, "utf8")), sessions: {} }));
-    const done = await final(r, r.cloud.push({ text: "second" }));
-    assert.equal(done.status, "done");
-    assert.equal(r.log().filter(e => e.event === "session/new").length, 2);
   });
 
   t("cancel stops the running turn; it ends cancelled and the thread can go on", async r => {
@@ -108,7 +142,7 @@ for (const plugin of ["kiro", "dsh"]) {
     const blocked = await final(r, r.cloud.push({ text: "BLOCKME fetch it" }));
     assert.equal(blocked.status, "failed");
     assert.equal(blocked.ask, undefined);
-    assert.match(blocked.summary, /^Blocked: no network from this machine\n\nTried two ways\./);
+    assert.match(blocked.summary, /^Blocked: no network from this machine\n\nstarting\.\n\nTried two ways\./);
   });
 
   t("NOTE: lines leave the result and go in the notice, mid-turn or last; a plain question mark stays done", async r => {
@@ -134,7 +168,7 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(asked.status, "needs_you");
     assert.match(asked.ask.key, /^q:/);
     assert.equal(asked.ask.question, "Which one first?");
-    assert.equal(asked.summary, "I need you to decide.");
+    assert.equal(asked.summary, "starting.\n\nI need you to decide.");
     const next = await final(r, r.cloud.push({ kind: "say", text: "the first one" }));
     assert.equal(next.status, "done");
     assert.deepEqual(next.resolve, [asked.ask.key]);
@@ -142,16 +176,13 @@ for (const plugin of ["kiro", "dsh"]) {
 
   const perm = async (r, text, extra = {}) => { r.start(); return final(r, r.cloud.push({ text, ...extra })); };
 
-  t("permissions, tier edit: an edit inside the folder is allowed, one outside is turned down and asked about", async r => {
-    const inside = await perm(r, `PERM:edit:${path.join(os.tmpdir(), "not-yet")}`);
-    assert.equal(inside.status, "needs_you", "outside the folder");
-    assert.match(inside.ask.question, /outside the workspace/);
-    assert.match(inside.summary, /perm=reject/);
-    const ok = await final(r, r.cloud.push({ text: `PERM:edit:${path.join(r.workspace, "a.txt")}` }));
-    assert.equal(ok.status, "done");
-    assert.match(ok.summary, /perm=allow/, "only the one-time option is ever chosen");
-    const run = await final(r, r.cloud.push({ text: "PERM:execute" }));
-    assert.equal(run.status, "needs_you");
+  t("permissions, tier edit: the runner judges nothing; with no owner to ask, a request is turned down", async r => {
+    r.start();
+    for (const text of [`PERM:edit:${path.join(r.workspace, "a.txt")}`, `PERM:edit:${path.join(os.tmpdir(), "not-yet")}`, "PERM:execute", "PERM:read"]) {
+      const done = await final(r, r.cloud.push({ text }));
+      assert.equal(done.status, "needs_you", text);
+      assert.match(done.summary, /perm=reject/, "only the one-time reject is ever chosen");
+    }
   });
 
   t("permissions: the job can lower the tier but never raise it", async r => {
@@ -165,7 +196,7 @@ for (const plugin of ["kiro", "dsh"]) {
       const down = await final(full, full.cloud.push({ text: "PERM:execute", access: "read" }));
       assert.equal(down.status, "needs_you");
       const start = full.log().find(e => e.event === "start");
-      if (plugin === "kiro") assert.ok(start.args.includes("--trust-all-tools"));
+      if (plugin === "kiro") assert.deepEqual(start.args, ["acp", "--agent", agentName("t_main", full.workspace)], "full has its own agent file, not a flag");
     } finally { await full.done(); }
   });
 
@@ -210,25 +241,27 @@ for (const plugin of ["kiro", "dsh"]) {
     assert.equal(r.prompts().length, 1);
   });
 
-  t("a runner that restarted mid-turn reports it unconfirmed and does not rerun it", async r => {
+  t("a runner that restarted mid-turn reports it as a failure (interrupted), not an ask, and does not rerun it", async r => {
     const work = r.cloud.push({ text: "was running" });
     r.cloud.works[0].leased = true;
     await r.state.update(s => { s.current = { workId: work.workId, token: work.token, thread: "t_main", kind: "job", text: work.text }; });
     r.start();
     const done = await final(r, work);
-    assert.equal(done.status, "needs_you");
-    assert.match(done.ask.key, /^restart:/);
+    assert.equal(done.status, "failed");
+    assert.equal(done.reason, "interrupted");
+    assert.equal(done.ask, undefined);
     assert.equal(r.prompts().length, 0);
   });
 
-  t("stopping the runner mid-turn reports needs_you, not cancelled", async r => {
+  t("stopping the runner mid-turn reports a failure (interrupted), not an ask and not cancelled", async r => {
     r.start();
     const work = r.cloud.push({ text: "SLOW long" });
     await r.cloud.until(() => r.cloud.got(work.workId, "started")[0], "started");
     await r.stop();
     const done = r.cloud.finals(work.workId)[0];
-    assert.equal(done.status, "needs_you");
-    assert.match(done.ask.key, /^stopped:/);
+    assert.equal(done.status, "failed");
+    assert.equal(done.reason, "interrupted");
+    assert.equal(done.ask, undefined);
   });
 
   t("the device credential and the folder never appear in a summary", async r => {

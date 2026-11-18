@@ -16,7 +16,7 @@ const fakeBundles = { manifest: {}, bundles: { aelios: { dir: "/tmp/a", configFi
 
 const make = () => createOnboarding({
   credentials: new MemoryCredentials(), cli: fakeCli, deployer: fakeDeployer,
-  bundles: fakeBundles, connect: {}, redactor: undefined,
+  bundles: fakeBundles, connect: async () => {}, redactor: undefined,
 });
 
 test("route: before a path is chosen the count is unknown; then it is 2 or 4", async () => {

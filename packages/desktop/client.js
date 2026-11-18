@@ -53,26 +53,46 @@ async function upload(path, data, type, { resident } = {}, request = fetch) {
   return out.data;
 }
 var blobs = /* @__PURE__ */ new Map();
+var BLOBS_KEPT = 24;
+function bytesOf(data) {
+  const raw = atob(data);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
 async function blobUrl(path, { resident } = {}, request = fetch) {
   const key = `${resident || ""}${path}`;
-  if (blobs.has(key)) return blobs.get(key);
+  const held = blobs.get(key);
+  if (held) {
+    blobs.delete(key);
+    blobs.set(key, held);
+    return held;
+  }
   const { type, data } = await call("blob", { path, resident }, request);
   if (!data) throw new Error("the resident has no such bytes");
-  const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(data), (c) => c.charCodeAt(0))], { type }));
+  const url = URL.createObjectURL(new Blob([bytesOf(data)], { type }));
   blobs.set(key, url);
+  while (blobs.size > BLOBS_KEPT) {
+    const [old, gone] = blobs.entries().next().value;
+    blobs.delete(old);
+    URL.revokeObjectURL(gone);
+  }
   return url;
 }
 function createMessages(get, now = Date.now) {
   let rev = "";
   let fullAt = 0;
-  return async function read() {
+  async function read() {
     const since = rev && now() - fullAt < FULL_MS ? `?since=${encodeURIComponent(rev)}` : "";
     const data = await get(`/web/messages${since}`);
     if (data?.rev) rev = data.rev;
+    read.turn = data?.turn ?? null;
     if (data?.same) return null;
     fullAt = now();
     return data?.data || [];
-  };
+  }
+  read.turn = null;
+  return read;
 }
 
 // client/palette.mjs
@@ -286,6 +306,7 @@ var WORDS = {
     write: "Write a message · / for commands",
     writeGroup: "Write to the group",
     send: "Send",
+    stopReply: "Stop",
     attach: "Add pictures or files",
     remove: "Remove",
     stickers: "Stickers",
@@ -336,6 +357,8 @@ var WORDS = {
     sendTo: "Send to the thread",
     files: "Files",
     session: "Session",
+    saveFile: "Save the file",
+    saving: "Saving…",
     who: { mine: "You", given: "Resident", result: "Result", thread: "Thread" },
     thought: "Thought",
     plan: "Plan",
@@ -375,7 +398,10 @@ var WORDS = {
     seen: "Resident sees it",
     unseen: "Resident does not see it",
     lastSeen: "last seen",
-    tier: { read: "Read", edit: "Edit", full: "Full" },
+    tier: { edit: "Edit", full: "Full" },
+    switchAccess: "Switch permission",
+    useFull: "Switch to Full",
+    keepEdit: "Keep Edit",
     stopRunner: "Stop",
     notWired: "This machine's details are not connected yet.",
     machineInfo: "The runner does the resident's work on this machine, through the helper, inside the workspace folder. Permission is the most it may do without asking you.",
@@ -525,6 +551,7 @@ var WORDS = {
     write: "说点什么 · / 调命令",
     writeGroup: "对群里说点什么",
     send: "发送",
+    stopReply: "停下",
     attach: "发图或文件",
     remove: "拿掉",
     stickers: "表情包",
@@ -575,6 +602,8 @@ var WORDS = {
     sendTo: "发给线程",
     files: "文件",
     session: "会话",
+    saveFile: "下载文件",
+    saving: "正在下载…",
     who: { mine: "你", given: "住户", result: "交回", thread: "线程" },
     thought: "想法",
     plan: "计划",
@@ -614,7 +643,10 @@ var WORDS = {
     seen: "住户看得到",
     unseen: "住户看不到",
     lastSeen: "上次见到",
-    tier: { read: "只读", edit: "可改", full: "完整" },
+    tier: { edit: "可改", full: "完整" },
+    switchAccess: "切换权限",
+    useFull: "改用完整权限",
+    keepEdit: "保持可改",
     stopRunner: "停下",
     notWired: "这台机器的详情还没接上。",
     machineInfo: "执行端在这台机器上替住户干活：通过帮手，在工作文件夹里。权限是它不问你就能做到的上限。",
@@ -766,6 +798,7 @@ function stateOf(task) {
   return task.chosen ? "chosen" : "settled";
 }
 var isWorking = (thread) => thread?.status === "sent" || thread?.status === "working";
+var canStop = (thread) => thread?.runs === "machine" && thread?.status === "working";
 function splitThreads(list = []) {
   const open = (t) => isWorking(t) || t.waiting;
   return { open: list.filter(open), done: list.filter((t) => !open(t)) };
@@ -1066,7 +1099,7 @@ var base64Of2 = async (blob) => {
   return btoa(binary);
 };
 var COMMANDS = ["status", "letter", "handoff"];
-function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null }) {
+function Composer({ resident, base, placeholder, say, onError, rich = true, onCommand = null, turn = null, onStop = null }) {
   const t = words();
   const [text, setText] = (0, import_react6.useState)("");
   const [packs, setPacks] = (0, import_react6.useState)(null);
@@ -1187,7 +1220,7 @@ function Composer({ resident, base, placeholder, say, onError, rich = true, onCo
       ),
       rich && tool("sticker", t.stickers, openStickers, { "aria-expanded": picker }),
       rich && tool("mic", recording ? t.recording : t.voice, record, { className: `ad-plain${recording ? " rec" : ""}`, "aria-pressed": recording }),
-      (0, import_react6.createElement)("button", { className: "ad-round", type: "button", disabled: busy || !text.trim() && !a.any, onClick: send, "aria-label": t.send, title: t.send }, (0, import_react6.createElement)(Icon, { name: "send" }))
+      turn && onStop ? (0, import_react6.createElement)("button", { className: "ad-round", type: "button", disabled: Boolean(turn.stopping), onClick: onStop, "aria-label": t.stopReply, title: t.stopReply }, (0, import_react6.createElement)(Icon, { name: "stop" })) : (0, import_react6.createElement)("button", { className: "ad-round", type: "button", disabled: busy || !text.trim() && !a.any, onClick: send, "aria-label": t.send, title: t.send }, (0, import_react6.createElement)(Icon, { name: "send" }))
     )
   );
 }
@@ -1612,6 +1645,16 @@ function MessageActions({ line, resident, last, onChanged }) {
   );
 }
 
+// client/row.mjs
+function myWords(line) {
+  return String(line?.text ?? "").trim() ? [line.text] : [];
+}
+function drawsRow(line) {
+  if (!line) return false;
+  if (line.role !== "user") return true;
+  return myWords(line).length > 0 || (line.pictures ?? 0) > 0 || (line.attached ?? []).length > 0 || (line.files ?? []).length > 0 || (line.stickers ?? []).length > 0 || Boolean(line.voice?.key) || Boolean(line.voice?.missed);
+}
+
 // client/thread-chip.mjs
 var import_react10 = require("react");
 
@@ -1840,17 +1883,23 @@ function Voice({ voice, resident }) {
     (0, import_react11.createElement)("span", { className: "len" }, voice.missed ? t.missed : voiceLength(voice.seconds))
   );
 }
-function Stickers({ stickers }) {
-  return (0, import_react11.createElement)("div", { className: "ad-stickers" }, stickers.map((sticker) => (0, import_react11.createElement)(
+function Stickers({ stickers, at, base }) {
+  return (0, import_react11.createElement)("div", { className: "ad-stickers" }, stickers.map((sticker, i) => (0, import_react11.createElement)(
     "div",
-    { key: sticker.url, className: "ad-sticker" },
-    sticker.video ? (0, import_react11.createElement)("video", { src: sticker.url, autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers }) : (0, import_react11.createElement)("img", { src: sticker.url, alt: "", loading: "lazy" })
+    { key: sticker.url, className: "ad-sticker-wrap" },
+    (0, import_react11.createElement)(
+      "div",
+      { className: "ad-sticker" },
+      sticker.video ? (0, import_react11.createElement)("video", { src: avatarUrl(base, sticker.url), autoPlay: true, loop: true, muted: true, playsInline: true, "aria-label": words().stickers }) : (0, import_react11.createElement)("img", { src: avatarUrl(base, sticker.url), alt: "", loading: "lazy" })
+    ),
+    i === stickers.length - 1 && at ? (0, import_react11.createElement)("span", { className: "ad-meta" }, clock(at)) : null
   )));
 }
-function Message({ line, resident, last = false, onChanged = null, cards = [] }) {
+function Message({ line, resident, base, last = false, onChanged = null, cards = [] }) {
   const busy = busyOf(line);
   const me = line.role === "user";
-  const bubbles = me ? String(line.text || "").trim() ? [line.text] : [] : bubbleTexts(line.text);
+  const bubbles = me ? myWords(line) : bubbleTexts(line.text);
+  if (!drawsRow(line)) return null;
   return (0, import_react11.createElement)(
     "div",
     { className: `ad-row ${me ? "me" : "ai"}` },
@@ -1866,10 +1915,25 @@ function Message({ line, resident, last = false, onChanged = null, cards = [] })
     me && (line.attached ?? []).length > 0 && (0, import_react11.createElement)(Attached, { attached: line.attached }),
     (line.files ?? []).length > 0 && (0, import_react11.createElement)(Files, { files: line.files, resident }),
     line.voice && (line.voice.key || line.voice.missed) && (0, import_react11.createElement)(Voice, { voice: line.voice, resident }),
-    (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers }),
+    (line.stickers ?? []).length > 0 && (0, import_react11.createElement)(Stickers, { stickers: line.stickers, at: line.at, base }),
     cards.length > 0 && (0, import_react11.createElement)(ThreadChips, { tasks: cards }),
     !me && !line.pending && line.id && String(line.text || "").trim() && (0, import_react11.createElement)(MessageActions, { line, resident, last, onChanged })
   );
+}
+
+// client/stop.mjs
+var wait = (ms) => new Promise((done) => setTimeout(done, ms));
+async function stopTurn({ turn, post: post2, refresh, sleep = wait, tries = 10 }) {
+  if (!turn?.requestId) return;
+  try {
+    await post2({ requestId: turn.requestId });
+  } catch (e) {
+    if (e.status !== 409) throw e;
+  }
+  for (let i = 0; i < tries; i += 1) {
+    if (!await refresh()) return;
+    await sleep(1e3);
+  }
 }
 
 // client/chat.mjs
@@ -1882,23 +1946,29 @@ function Chat() {
   const [lines, setLines] = (0, import_react12.useState)([]);
   const [error, setError] = (0, import_react12.useState)("");
   const [notice, setNotice] = (0, import_react12.useState)("");
+  const [turn, setTurn] = (0, import_react12.useState)(null);
   const end = (0, import_react12.useRef)(null);
   const reader = (0, import_react12.useRef)(null);
   const refresh = async () => {
     try {
       const next = await reader.current();
       if (next) setLines(next);
+      setTurn(reader.current.turn);
       setError("");
+      return reader.current.turn;
     } catch (e) {
       setError(e.message);
+      return null;
     }
   };
+  const stop = () => stopTurn({ turn, post: (body) => web("/web/stop", { method: "POST", body, resident }), refresh }).catch((e) => setError(e.message));
   const restart = () => {
     reader.current = createMessages((path) => web(path, { resident }));
   };
   (0, import_react12.useEffect)(() => {
     restart();
     setLines([]);
+    setTurn(null);
     void refresh();
     const timer = setInterval(() => {
       if (!document.hidden) void refresh();
@@ -1929,7 +1999,7 @@ function Chat() {
       { className: "ad-stream", "aria-live": "polite" },
       (0, import_react12.createElement)("div", { className: "grow" }),
       !around && lines.length === 0 && (0, import_react12.createElement)("div", { className: "ad-note" }, t.empty),
-      (around ? around.lines : lines).map((line, i, all) => (0, import_react12.createElement)(Message, { key: line.id ?? i, line, resident, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => {
+      (around ? around.lines : lines).map((line, i, all) => (0, import_react12.createElement)(Message, { key: line.id ?? i, line, resident, base: status?.url, cards: cards[line.id], last: !around && i === all.length - 1 && line.role !== "user", onChanged: async () => {
         restart();
         await refresh();
       } })),
@@ -1942,7 +2012,7 @@ function Chat() {
       (0, import_react12.createElement)("div", { className: "ad-md" }, (0, import_react12.createElement)(Md, { text: notice })),
       (0, import_react12.createElement)("button", { type: "button", className: "ad-icon-btn sm", title: t.close, "aria-label": t.close, onClick: () => setNotice("") }, (0, import_react12.createElement)(Icon, { name: "close" }))
     ),
-    (0, import_react12.createElement)(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand })
+    (0, import_react12.createElement)(Composer, { resident, base: status?.url, placeholder: t.write, say, onError: setError, onCommand, turn, onStop: stop })
   );
 }
 
@@ -2065,7 +2135,7 @@ function GroupChat() {
         (row.stickers || []).length > 0 && (0, import_react13.createElement)("div", { className: "ad-stickers" }, row.stickers.map((s) => (0, import_react13.createElement)(
           "div",
           { key: s.url, className: "ad-sticker" },
-          s.video ? (0, import_react13.createElement)("video", { src: s.url, autoPlay: true, loop: true, muted: true, playsInline: true }) : (0, import_react13.createElement)("img", { src: s.url, alt: "" })
+          s.video ? (0, import_react13.createElement)("video", { src: avatarUrl(status?.url, s.url), autoPlay: true, loop: true, muted: true, playsInline: true }) : (0, import_react13.createElement)("img", { src: avatarUrl(status?.url, s.url), alt: "" })
         )))
       )),
       (0, import_react13.createElement)("div", { ref: end })
@@ -2191,7 +2261,7 @@ function HelpersCard({ status, busy, act }) {
     (0, import_react16.createElement)("p", { className: "ad-note" }, (status.helpers ?? []).some((helper) => helper.path) ? `${t.wizard.helpersFound}: ${(status.helpers ?? []).filter((helper) => helper.path).map((helper) => helper.name).join(", ")}` : t.wizard.helpersNone),
     (0, import_react16.createElement)("label", null, t.helper, (0, import_react16.createElement)("select", { value: form.helper, onChange: set("helper") }, (0, import_react16.createElement)("option", { value: "dsh" }, "DSH"), (0, import_react16.createElement)("option", { value: "kiro" }, "Kiro"))),
     (0, import_react16.createElement)("label", null, t.folder, (0, import_react16.createElement)("input", { value: form.workspace, onChange: set("workspace"), placeholder: t.wizard.workspaceHint })),
-    (0, import_react16.createElement)("label", null, t.access, (0, import_react16.createElement)("select", { value: form.access, onChange: set("access") }, ["read", "edit", "full"].map((tier) => (0, import_react16.createElement)("option", { key: tier, value: tier }, t.tier[tier])))),
+    (0, import_react16.createElement)("label", null, t.access, (0, import_react16.createElement)("select", { value: form.access, onChange: set("access") }, ["edit", "full"].map((tier) => (0, import_react16.createElement)("option", { key: tier, value: tier }, t.tier[tier])))),
     form.access === "full" && (0, import_react16.createElement)(
       "label",
       { className: "check" },
@@ -2673,7 +2743,7 @@ var ago = (at) => {
   const s = Math.max(0, Math.round((Date.now() - Number(at)) / 1e3));
   return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`;
 };
-function Live({ runner, info, t, act, pick, switching }) {
+function Live({ runner, info, t, act, pick, switching, asking, setAsking, setAccess }) {
   const tone = runnerTone(runner.state);
   const helper = info?.plugin || "";
   return (0, import_react24.createElement)(
@@ -2699,10 +2769,24 @@ function Live({ runner, info, t, act, pick, switching }) {
         (0, import_react24.createElement)(Icon, { name: HELPER_ICON[id] }),
         t.helpers[id]
       ))),
-      info?.access && (0, import_react24.createElement)("span", { className: `ad-pill ${info.access === "full" ? "bad" : info.access === "edit" ? "warn" : "idle"}`, title: t.access }, (0, import_react24.createElement)(Icon, { name: "shield" }), t.tier[info.access] || info.access),
+      info?.access && (0, import_react24.createElement)("button", {
+        type: "button",
+        className: `ad-pill ${info.access === "full" ? "bad" : "warn"}`,
+        title: t.switchAccess,
+        disabled: switching,
+        onClick: () => info.access === "full" ? setAccess("edit") : setAsking(!asking)
+      }, (0, import_react24.createElement)(Icon, { name: "shield" }), t.tier[info.access] || info.access),
       (0, import_react24.createElement)("span", { className: "sp" }),
       runnerDown(runner.state) || runner.state === "unpaired" ? (0, import_react24.createElement)("button", { type: "button", className: "ad-btn small", onClick: act("start") }, (0, import_react24.createElement)(Icon, { name: "play" }), t.start) : (0, import_react24.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: act("stop") }, (0, import_react24.createElement)(Icon, { name: "stop" }), t.stopRunner),
       (0, import_react24.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: act("repair") }, (0, import_react24.createElement)(Icon, { name: "refresh" }), t.pair)
+    ),
+    asking && (0, import_react24.createElement)(
+      "div",
+      { className: "ad-card-row", role: "group", "aria-label": t.switchAccess },
+      (0, import_react24.createElement)("span", { className: "ad-hint" }, t.fullOk),
+      (0, import_react24.createElement)("span", { className: "sp" }),
+      (0, import_react24.createElement)("button", { type: "button", className: "ad-btn small", disabled: switching, onClick: () => setAccess("full") }, t.useFull),
+      (0, import_react24.createElement)("button", { type: "button", className: "ad-btn quiet small", onClick: () => setAsking(false) }, t.keepEdit)
     )
   );
 }
@@ -2752,6 +2836,20 @@ function MachineView() {
       setSwitching(false);
     }
   };
+  const [asking, setAsking] = (0, import_react24.useState)(false);
+  const setAccess = async (access) => {
+    setSwitching(true);
+    setAsking(false);
+    try {
+      store.set({ status: await call("access", { access, confirmFull: access === "full" }) });
+      setError("");
+      await loadLocal();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSwitching(false);
+    }
+  };
   const act = (action) => async () => {
     try {
       store.set({ status: await call(action) });
@@ -2775,7 +2873,7 @@ function MachineView() {
       { className: "ad-mv" },
       error && (0, import_react24.createElement)("div", { className: "ad-error", role: "alert" }, error),
       local.wired === false && (0, import_react24.createElement)("p", { className: "ad-info-text ad-mv-wide" }, t.notWired),
-      (0, import_react24.createElement)(Live, { runner, info, t, act, pick, switching }),
+      (0, import_react24.createElement)(Live, { runner, info, t, act, pick, switching, asking, setAsking, setAccess }),
       (0, import_react24.createElement)(
         "div",
         { className: "ad-mv-card" },
@@ -3771,7 +3869,7 @@ function Permission({ item, t, busy, onPermit }) {
     ) : (0, import_react32.createElement)("p", { className: `said ${item.decided}` }, said)
   );
 }
-function Result({ item, t, busy, onChoose }) {
+function Result({ item, t, busy, onChoose, onSaveFile, saving }) {
   const tone = taskTone(item.status);
   const links = (item.links || []).filter(safeLink);
   return (0, import_react32.createElement)(
@@ -3783,7 +3881,13 @@ function Result({ item, t, busy, onChoose }) {
       "div",
       { className: "ad-card-row" },
       (item.choices || []).map((c, i) => (0, import_react32.createElement)("button", { key: c, type: "button", className: `ad-btn small${i ? " quiet" : ""}`, disabled: busy, onClick: () => onChoose(item.task, c) }, c)),
-      (item.files || []).map((f) => (0, import_react32.createElement)("span", { key: f.path, className: "ad-pill", title: f.path }, (0, import_react32.createElement)(Icon, { name: "file" }), f.path.split("/").pop())),
+      (item.files || []).map((f) => (0, import_react32.createElement)(
+        "button",
+        { key: f.path, type: "button", className: "ad-file-pill", title: `${t.saveFile} · ${f.path}`, disabled: Boolean(saving) || !onSaveFile, onClick: () => onSaveFile?.(f.path) },
+        (0, import_react32.createElement)(Icon, { name: "file" }),
+        (0, import_react32.createElement)("span", { className: "n" }, f.path.split("/").pop()),
+        saving === f.path ? (0, import_react32.createElement)("span", { className: "s" }, t.saving) : null
+      )),
       links.map((l) => (0, import_react32.createElement)("a", { key: l, className: "ad-btn quiet small", href: l, target: "_blank", rel: "noopener noreferrer" }, (0, import_react32.createElement)(Icon, { name: "open" }), new URL(l).host)),
       safeLink(item.sessionUrl) && (0, import_react32.createElement)("a", { className: "ad-btn quiet small", href: item.sessionUrl, target: "_blank", rel: "noopener noreferrer" }, (0, import_react32.createElement)(Icon, { name: "open" }), t.session)
     )
@@ -3811,6 +3915,7 @@ function ThreadView({ resident, id, onBack }) {
   const [draft, setDraft] = (0, import_react33.useState)("");
   const [busy, setBusy] = (0, import_react33.useState)(false);
   const [error, setError] = (0, import_react33.useState)("");
+  const [saving, setSaving] = (0, import_react33.useState)("");
   const end = (0, import_react33.useRef)(null);
   const reload = async () => {
     try {
@@ -3865,6 +3970,24 @@ function ThreadView({ resident, id, onBack }) {
   const onOpenPath = (path) => {
     void openInFiles(path).catch((e) => setError(e.message));
   };
+  const saveFile = async (path) => {
+    if (saving) return;
+    setSaving(path);
+    try {
+      const url = await blobUrl(`/web/thread/file?id=${encodeURIComponent(id)}&path=${encodeURIComponent(path)}`, { resident });
+      const a2 = document.createElement("a");
+      a2.href = url;
+      a2.download = path.split("/").pop() || "file";
+      document.body.append(a2);
+      a2.click();
+      a2.remove();
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving("");
+    }
+  };
   const onKey = (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent?.isComposing) {
       e.preventDefault();
@@ -3876,7 +3999,7 @@ function ThreadView({ resident, id, onBack }) {
   const tone = taskTone(state);
   const items = timeline(thread, session);
   const counts = countsOf(session);
-  const working = thread && thread.runs === "machine" && thread.status === "working";
+  const working = canStop(thread);
   return (0, import_react33.createElement)(
     "div",
     { className: "ad-panel ad-thread" },
@@ -3898,12 +4021,18 @@ function ThreadView({ resident, id, onBack }) {
       counts.files > 0 && (0, import_react33.createElement)("span", { className: "ad-mi", title: `${counts.files} ${t.filesN}` }, (0, import_react33.createElement)(Icon, { name: "file" }), counts.files),
       counts.commands > 0 && (0, import_react33.createElement)("span", { className: "ad-mi", title: `${counts.commands} ${t.commandsN}` }, (0, import_react33.createElement)(Icon, { name: "terminal" }), counts.commands)
     ),
-    (0, import_react33.createElement)("div", { className: "ad-timeline" }, items.map((item, i) => (0, import_react33.createElement)(Item, { key: item.id || `${item.type}-${i}`, item, t, busy, onPermit, onChoose, onOpenPath }))),
+    (0, import_react33.createElement)("div", { className: "ad-timeline" }, items.map((item, i) => (0, import_react33.createElement)(Item, { key: item.id || `${item.type}-${i}`, item, t, busy, onPermit, onChoose, onOpenPath, onSaveFile: saveFile, saving }))),
     (thread?.files || []).length > 0 && (0, import_react33.createElement)(
       "div",
       { className: "ad-tool-files" },
       (0, import_react33.createElement)("p", { className: "ad-label" }, t.files),
-      thread.files.map((f) => (0, import_react33.createElement)("span", { key: f.path, className: "ad-pathbtn", title: f.path }, (0, import_react33.createElement)(Icon, { name: "file" }), (0, import_react33.createElement)("span", null, f.path)))
+      thread.files.map((f) => (0, import_react33.createElement)(
+        "button",
+        { key: f.path, type: "button", className: "ad-pathbtn", title: t.saveFile, disabled: Boolean(saving), onClick: () => saveFile(f.path) },
+        (0, import_react33.createElement)(Icon, { name: "file" }),
+        (0, import_react33.createElement)("span", null, f.path),
+        saving === f.path ? (0, import_react33.createElement)("span", { className: "ad-save-note" }, t.saving) : null
+      ))
     ),
     error && (0, import_react33.createElement)("div", { className: "ad-error", role: "alert" }, error),
     (0, import_react33.createElement)("div", { ref: end }),
@@ -3921,31 +4050,36 @@ function ThreadView({ resident, id, onBack }) {
 
 // client/panel-threads.mjs
 var RUN_ICON = { local: "spark", linux: "cloud", machine: "laptop", retired: "exit" };
-function Row2({ item, t, local, unread = 0, onOpen }) {
+function Row2({ item, t, local, unread = 0, onOpen, onStop }) {
   const state = stateOf(item);
   const tone = taskTone(state);
   const helper = helperOf(item, local);
   const pending = (local?.sessions || []).find((s) => s.thread === item.id)?.pending || 0;
   return (0, import_react34.createElement)(
-    "button",
-    { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
+    "div",
+    { className: "ad-card-wrap" },
     (0, import_react34.createElement)(
-      "span",
-      { className: "ad-card-top" },
-      (0, import_react34.createElement)("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, (0, import_react34.createElement)(Icon, { name: HELPER_ICON[helper] })),
-      (0, import_react34.createElement)("span", { className: "ad-card-title" }, unread > 0 && (0, import_react34.createElement)("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
-      (0, import_react34.createElement)("span", { className: "ad-card-time" }, when(item.updatedAt))
+      "button",
+      { type: "button", className: `ad-card${item.waiting || pending ? " ask" : ""}`, title: t.open, onClick: () => onOpen(item.id) },
+      (0, import_react34.createElement)(
+        "span",
+        { className: "ad-card-top" },
+        (0, import_react34.createElement)("span", { className: "ad-helper", title: t.helpers[helper], "aria-label": t.helpers[helper] }, (0, import_react34.createElement)(Icon, { name: HELPER_ICON[helper] })),
+        (0, import_react34.createElement)("span", { className: "ad-card-title" }, unread > 0 && (0, import_react34.createElement)("span", { className: "ad-dot hot ad-new", role: "img", title: t.unread, "aria-label": t.unread }), item.title),
+        (0, import_react34.createElement)("span", { className: "ad-card-time" }, when(item.updatedAt))
+      ),
+      (0, import_react34.createElement)(
+        "span",
+        { className: "ad-card-row" },
+        (0, import_react34.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react34.createElement)("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
+        pending > 0 && (0, import_react34.createElement)("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, (0, import_react34.createElement)(Icon, { name: "shield" }), pending),
+        (0, import_react34.createElement)("span", { className: "sp" }),
+        (0, import_react34.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react34.createElement)(Icon, { name: "stack" }), item.tasks)
+      ),
+      isWorking(item) && stepNow(item) && (0, import_react34.createElement)("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
+      isWorking(item) && (0, import_react34.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react34.createElement)("span"))
     ),
-    (0, import_react34.createElement)(
-      "span",
-      { className: "ad-card-row" },
-      (0, import_react34.createElement)("span", { className: `ad-pill ${tone}` }, (0, import_react34.createElement)("span", { className: `ad-dot ${tone}${isWorking(item) ? " live" : ""}`, "aria-hidden": true }), t.task[state] || item.status),
-      pending > 0 && (0, import_react34.createElement)("span", { className: "ad-mi", title: t.allow, style: { color: "var(--accent-text)" } }, (0, import_react34.createElement)(Icon, { name: "shield" }), pending),
-      (0, import_react34.createElement)("span", { className: "sp" }),
-      (0, import_react34.createElement)("span", { className: "ad-mi", title: `${item.tasks} ${t.tasksN}`, "aria-label": `${item.tasks} ${t.tasksN}` }, (0, import_react34.createElement)(Icon, { name: "stack" }), item.tasks)
-    ),
-    isWorking(item) && stepNow(item) && (0, import_react34.createElement)("span", { className: "ad-step", "aria-label": stepNow(item) }, stepNow(item)),
-    isWorking(item) && (0, import_react34.createElement)("span", { className: "ad-track", "aria-hidden": true }, (0, import_react34.createElement)("span"))
+    canStop(item) && (0, import_react34.createElement)("button", { type: "button", className: "ad-icon-btn sm danger ad-card-stop", title: t.stop, "aria-label": t.stop, onClick: () => onStop(item.id) }, (0, import_react34.createElement)(Icon, { name: "stop" }))
   );
 }
 function Quota({ q, t }) {
@@ -3980,6 +4114,16 @@ function ThreadsPanel() {
       setError(e.message);
     }
   }, 1e4, [resident]);
+  const onStop = async (threadId) => {
+    try {
+      await stopThread(resident, threadId);
+      setError("");
+      const d = await loadThreads(resident);
+      setData({ loaded: true, on: Boolean(d.on), threads: d.threads || [] });
+    } catch (e) {
+      setError(e.message);
+    }
+  };
   if (id) return (0, import_react34.createElement)(ThreadView, { resident, id, onBack: () => setId("") });
   const { open, done } = splitThreads(data.threads);
   return (0, import_react34.createElement)(
@@ -3989,7 +4133,7 @@ function ThreadsPanel() {
     (0, import_react34.createElement)(Quota, { q: quota, t }),
     data.loaded && !data.on && data.threads.length === 0 && (0, import_react34.createElement)(Empty, { icon: "threads", text: t.threadsOff }),
     data.loaded && data.on && data.threads.length === 0 && (0, import_react34.createElement)(Empty, { icon: "threads", text: t.noThreads, why: t.threadsInfo }),
-    open.map((item) => (0, import_react34.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId })),
+    open.map((item) => (0, import_react34.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId, onStop })),
     done.length > 0 && (0, import_react34.createElement)(
       "button",
       { type: "button", className: "ad-fold ad-label", "aria-expanded": showDone, onClick: () => setShowDone((v) => !v) },
@@ -3997,7 +4141,7 @@ function ThreadsPanel() {
       t.done,
       (0, import_react34.createElement)("span", { className: "ad-badge" }, done.length)
     ),
-    showDone && done.map((item) => (0, import_react34.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId }))
+    showDone && done.map((item) => (0, import_react34.createElement)(Row2, { key: item.id, item, t, local, unread: waiting?.unread?.[item.id], onOpen: setId, onStop }))
   );
 }
 
@@ -4363,9 +4507,12 @@ var CHAT = `
 .ad-row.me .ad-voice-play { background: var(--accent); color: var(--on-accent); }
 .ad-voice-play svg { width: 13px; height: 13px; }
 .ad-voice .len { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.ad-stickers { display: flex; flex-wrap: wrap; gap: 6px; }
+.ad-stickers { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.ad-sticker-wrap { display: flex; flex-direction: column; align-items: flex-start; }
 .ad-sticker { border-radius: 14px; overflow: hidden; background: var(--panel); }
-.ad-sticker img, .ad-sticker video { display: block; width: 112px; height: auto; image-rendering: pixelated; }
+.ad-sticker img, .ad-sticker video { display: block; width: 128px; height: auto; image-rendering: pixelated; }
+.ad-sticker-wrap .ad-meta { margin: 2px 2px 0; }
+.ad-row.me .ad-stickers, .ad-row.me .ad-sticker-wrap { align-items: flex-end; }
 
 .ad-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
 .ad-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 28px; padding: 0 10px 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text-2); font-size: 12.5px; }
@@ -4466,6 +4613,8 @@ var MACHINE = `
 .ad-dot.big { width: 12px; height: 12px; }
 .ad-dot.big.ok { box-shadow: 0 0 0 4px var(--ok-soft); }
 .ad-mv-card .ad-pill { height: 24px; gap: 6px; font-size: 12px; }
+button.ad-pill { border: 0; font-family: inherit; cursor: pointer; }
+button.ad-pill:disabled { opacity: .6; cursor: default; }
 .ad-seg { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--line-soft); }
 .ad-seg button { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px 0 7px; border: 0; border-radius: 999px; background: transparent; color: var(--text-3); font-size: 12px; font-weight: 500; }
 .ad-seg button[aria-pressed="true"] { background: var(--panel-strong); color: var(--text-1); box-shadow: var(--shadow); }
@@ -4514,6 +4663,8 @@ var RIGHT = `
 .ad-fold svg { width: 13px; height: 13px; transition: transform .15s; }
 .ad-fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
 
+.ad-card-wrap { position: relative; }
+.ad-card-stop { position: absolute; right: 8px; bottom: 6px; width: 28px; height: 28px; }
 .ad-card { position: relative; display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: inherit; text-align: left; }
 button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-strong); }
 .ad-card.ask { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--accent-soft); }
@@ -4689,6 +4840,7 @@ var THREAD = `
 .ad-pathbtn:hover { background: var(--line-soft); color: var(--accent-text); }
 .ad-pathbtn svg { width: 12px; height: 12px; color: var(--text-4); }
 .ad-pathbtn > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-save-note { flex: none; color: var(--text-4); font-size: 11px; }
 .ad-diffn { flex: none; display: inline-flex; gap: 4px; font: 600 11px/1 var(--mono); }
 .ad-diffn b { color: var(--ok-text); font-weight: 600; } .ad-diffn i { color: var(--err-text); font-style: normal; }
 
@@ -4715,6 +4867,13 @@ var THREAD = `
 .ad-perm .said.allowed { color: var(--ok-text); } .ad-perm .said.denied { color: var(--err-text); }
 .ad-tl-result { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--line-dash); }
 .ad-tl-result .text { font-size: 13.5px; line-height: 1.6; }
+/* A file a result handed over: a pill that saves it, icon at a fixed size (an unconstrained svg would fill the pill). */
+.ad-file-pill { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; height: 24px; padding: 0 9px 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text-2); font-size: 11.5px; line-height: 1; }
+.ad-file-pill:hover:not(:disabled) { border-color: var(--line-dash); color: var(--accent-text); }
+.ad-file-pill:disabled { cursor: default; }
+.ad-file-pill svg { flex: none; width: 12px; height: 12px; color: var(--accent-text); }
+.ad-file-pill .n { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ad-file-pill .s { flex: none; color: var(--text-4); }
 `;
 
 // client/theme.mjs

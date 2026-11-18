@@ -1,5 +1,6 @@
 // Stickers and voice notes: where their bytes live, and how long a recording says it is.
-// Stickers are served publicly at `<resident prefix>/stickers/<key>`; a voice note is read from /web/media by key.
+// Stickers are served publicly at `<resident prefix>/stickers/<key>` (a root route, not under /web, so the page can show
+// it straight from the resident's origin); a voice note is read from /web/media by key.
 // Follows Aelios-resident's page (public/app.js stickerUrl/play) and src/sticker-store.ts (AGPL-3.0, same author;
 // main at b118dfb, 2026-11-07). Pure, so test/media.test.mjs can cover it.
 

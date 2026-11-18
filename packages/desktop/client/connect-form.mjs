@@ -30,7 +30,7 @@ export function ConnectForm({ defaultWorkspace = "" }) {
     field("key", t.key, { type: "password", required: true, autoComplete: "off" }),
     field("workspace", t.folder, { placeholder: defaultWorkspace }),
     h("label", null, t.helper, h("select", { value: form.helper, onChange: set("helper"), disabled: busy }, h("option", { value: "dsh" }, "DSH"), h("option", { value: "kiro" }, "Kiro"))),
-    h("label", null, t.access, h("select", { value: form.access, onChange: set("access"), disabled: busy }, ["read", "edit", "full"].map((v) => h("option", { key: v, value: v }, t.tier[v])))),
+    h("label", null, t.access, h("select", { value: form.access, onChange: set("access"), disabled: busy }, ["edit", "full"].map((v) => h("option", { key: v, value: v }, t.tier[v])))),
     form.access === "full" && h("label", { className: "check" }, h("span", null, h("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)),
     error && h("div", { className: "ad-error", role: "alert" }, error),
     h("button", { className: "ad-btn", type: "submit", disabled: busy }, busy ? t.connecting : t.connect));

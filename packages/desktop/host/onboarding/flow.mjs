@@ -46,10 +46,19 @@ export function makeWizard(deps) {
     };
   }
 
-  async function fail(card, error) {
+  // `mine` is the job that failed: a later job may already have replaced `job`, and it is not this one's to stop.
+  async function fail(card, error, mine) {
     await save({ card, failed: { card, message: redact(error.message || "The step failed"), tail: redact(error.tail ?? "") } });
-    if (job) job.running = false;
+    if (mine) mine.running = false;
   }
+
+  /** A job begins: any earlier failure is stale from here on, whatever card it was saved on. */
+  const begin = async (kind) => {
+    const mine = { kind, running: true, events: [] };
+    job = mine;
+    await save({ failed: null });
+    return mine;
+  };
 
   async function start(path = "fresh") {
     if (!PATHS[path]) throw new Error("The wizard has no such path");
@@ -61,7 +70,7 @@ export function makeWizard(deps) {
 
   async function answer(input) {
     const current = await state();
-    const card = current.card;
+    const card = current.card ?? "resident";
     const values = { ...(current.values ?? {}), ...(input.values ?? {}) };
 
     if (card === "resident") {
@@ -75,7 +84,7 @@ export function makeWizard(deps) {
         await save({ path: "existing", values: { url }, cards, card: cards.at(-1) });
         return status();
       }
-      await save({ card: "aelios", values: {} });
+      await save({ path: "fresh", card: "aelios", values: {} });
       return status();
     }
 
@@ -103,7 +112,7 @@ export function makeWizard(deps) {
 
     if (card === "helpers") {
       const helper = input.values?.helper === "kiro" ? "kiro" : "dsh";
-      const access = ["read", "edit", "full"].includes(input.values?.access) ? input.values.access : "edit";
+      const access = input.values?.access === "full" ? "full" : "edit";
       if (access === "full" && input.values?.confirmFull !== true) throw new Error("Full permission needs your confirmation");
       await save({ values: { ...values, helper, access, workspace: trim(input.values?.workspace, 500) } });
       return status();
@@ -113,9 +122,9 @@ export function makeWizard(deps) {
   }
 
   async function beginAuth() {
-    job = { kind: "auth", running: true, events: [] };
+    const mine = await begin("auth");
     try {
-      await context.authorize({ onEvent: (event) => job.events.push(event) });
+      await context.authorize({ onEvent: (event) => mine.events.push(event) });
       const who = await context.whoami();
       context.accountId = who.accountId;
       const profile = await context.readProfile();
@@ -134,27 +143,27 @@ export function makeWizard(deps) {
         await save({ card: "assistant" });
       }
     } catch (error) {
-      await fail("aelios", error);
+      await fail("aelios", error, mine);
     } finally {
-      job.running = false;
+      mine.running = false;
     }
   }
 
   async function beginLogin() {
-    job = { kind: "login", running: true, events: [] };
+    const mine = await begin("login");
     try {
       await context.login();
       await save({ card: cardsFor("fresh", "file").at(-1) });
       void beginDeploy();
     } catch (error) {
-      await fail("wrangler", error);
+      await fail("wrangler", error, mine);
     } finally {
-      job.running = false;
+      mine.running = false;
     }
   }
 
   async function beginDeploy() {
-    job = { kind: "deploy", running: true, events: [] };
+    const mine = await begin("deploy");
     try {
       const stored = (await state()).values ?? {};
       context.assistantName = stored.name ?? context.assistantName;
@@ -163,10 +172,11 @@ export function makeWizard(deps) {
       // Deploy first, then write the secrets: wrangler puts a secret on an existing script, not on a name it has not seen.
       const order = ["d1", "migrations", "vectorize", "queue", "aelios-deploy", "aelios-secret", "aelios-health", "gateway", "resident-deploy", "resident-secret", "resident-health"];
       await runner.runAll(order.filter((id) => context.steps[id]));
+      await save({ card: "helpers", failed: null }); // a retry after a failure left the owner on the assistant card
     } catch (error) {
-      await fail("assistant", error);
+      await fail("assistant", error, mine);
     } finally {
-      job.running = false;
+      mine.running = false;
     }
   }
 
@@ -183,10 +193,10 @@ export function makeWizard(deps) {
     try {
       if (current.path === "fresh") {
         if (!context.residentUrl || !context.keys.web) throw new Error("The resident is not ready yet");
-        await connect({ ...settings, url: context.residentUrl, key: context.keys.web }, deps.connect);
+        await connect({ ...settings, url: context.residentUrl, key: context.keys.web });
       } else {
         if (!webKey) throw new Error("The web key is not here any more. Enter it again on the resident card.");
-        await connect({ ...settings, url: values.url, key: webKey }, deps.connect);
+        await connect({ ...settings, url: values.url, key: webKey });
       }
       await save({ card: "done", failed: null });
     } catch (error) { await fail("helpers", error); }

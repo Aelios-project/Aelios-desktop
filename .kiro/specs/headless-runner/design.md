@@ -15,10 +15,20 @@ cloud resident <-- HTTPS, runner dials out -- Runner loop -- ACP over stdio -- h
 | Module | Job |
 |---|---|
 | `runner.mjs` | The loop: heartbeat, poll, queue per thread, say / mail / cancel rules, outbox, restart recovery. |
-| `helper.mjs` | One turn with a helper: start, initialize, open or resume the session, send the prompt, collect the answer, map it to a status. |
-| `acp.mjs` | A small JSON-RPC 2.0 client over a child process's stdio. |
-| `plugins.mjs` | How to start each helper (`kiro`, `dsh`, `command`). Nothing else differs between helpers. |
-| `permission.mjs` | Answers `session/request_permission` by tier and workspace. |
+| `turn-acpx.mjs` | One turn through acpx: start or reload the session, send the prompt, collect the answer, map it to a status. |
+| `runtime.mjs` | acpx engine. The one acpx runtime: registry, modes, pids, environment, stage hooks. |
+| `launch.mjs` | acpx engine. The registry entry and the launch identity of a thread's helper. |
+| `events.mjs`, `steps-keyed.mjs`, `ellipsis.mjs` | acpx engine. Events to text, steps keyed by tool call id, thinking and usage; middle ellipsis. |
+| `permit.mjs` | acpx engine. The permission callback, built on `permission.mjs`. |
+| `stages.mjs` | acpx engine. Time limits per stage. |
+| `env-allow.mjs` | acpx engine. The helper's environment allowlist. |
+| `store.mjs`, `retention.mjs` | acpx engine. The session store under the home: modes, retention, forget. |
+| `handoff.mjs`, `recap.mjs`, `switch.mjs` | acpx engine. New session notices, the recap, closing the old helper first. |
+| `adapters.mjs` | Pinned ACP adapters for `claude` and `codex` (experimental). |
+| `outcome.mjs`, `markers.mjs`, `reason.mjs`, `detail.mjs`, `steps.mjs`, `inbox.mjs`, `journal.mjs` | outcomes, markers, reasons, redaction, steps, prompt blocks, the local journal. |
+| `plugins.mjs` | How to start each helper (`kiro`, `dsh`, `claude`, `codex`, `command`). Nothing else differs between helpers. |
+| `permission.mjs` | Answers `session/request_permission`: `full` allows once, anything else is held for the owner. No judging. |
+| `kiro-agent.mjs` | Writes the Kiro agent config for the tier (what Kiro approves itself). |
 | `cloud.mjs` | HTTP calls: pair, register, revoke, heartbeat, poll, receipt. Sorts errors into retry, drop and revoked. |
 | `receipt.mjs` | Builds a receipt and cuts it to fit the size limit. |
 | `state.mjs` | Config and state files (mode 0600) and the home folder. |
@@ -39,7 +49,7 @@ cloud resident <-- HTTPS, runner dials out -- Runner loop -- ACP over stdio -- h
 
 ## Permissions
 
-`permission.mjs` looks at the request's kind and `locations`. `read` allows read, search and think. `edit` adds in-workspace edits and `fetch`. `full` allows all. Outside `full`, any path outside the workspace (after resolving symlinks) is refused. The runner picks only an "allow once" option. If the helper offers none, the request is cancelled and recorded as denied.
+`permission.mjs` looks at the request's kind and `locations`. `edit` allows read, search and think, in-workspace edits and `fetch` (the earlier `read` tier was removed; an old `read` means `edit`). `full` allows all. Outside `full`, any path outside the workspace (after resolving symlinks) is refused. The runner picks only an "allow once" option. If the helper offers none, the request is cancelled and recorded as denied.
 
 Limit: the check sees only what the helper asks about. See `PROTOCOL.md`.
 

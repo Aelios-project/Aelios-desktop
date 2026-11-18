@@ -26,6 +26,8 @@ export const RIGHT = `
 .ad-fold svg { width: 13px; height: 13px; transition: transform .15s; }
 .ad-fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
 
+.ad-card-wrap { position: relative; }
+.ad-card-stop { position: absolute; right: 8px; bottom: 6px; width: 28px; height: 28px; }
 .ad-card { position: relative; display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); color: inherit; text-align: left; }
 button.ad-card:hover { border-color: var(--line-dash); background: var(--panel-strong); }
 .ad-card.ask { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--accent-soft); }

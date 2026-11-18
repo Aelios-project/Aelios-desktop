@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// aelios-runner pair | start | status | unpair   (see ../README.md)
+// aelios-runner pair | start | status | unpair | forget | install-adapter   (see ../README.md)
 import { mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline/promises";
@@ -9,10 +9,13 @@ import { Journal } from "../src/journal.mjs";
 import { computerName } from "../src/machine-name.mjs";
 import { acquire, stopHolder } from "../src/lock.mjs";
 import { overview } from "../src/overview.mjs";
-import { PLUGINS, available, launchOf } from "../src/plugins.mjs";
+import { engineLabel } from "../src/engine-label.mjs";
+import { PLUGINS, available, binOf } from "../src/plugins.mjs";
 import { tierOf } from "../src/permission.mjs";
 import { Runner } from "../src/runner.mjs";
-import { StateFile, homeDir, readConfig, writeConfig } from "../src/state.mjs";
+import { StateFile, homeDir, previousConfig, readConfig, writeConfig } from "../src/state.mjs";
+import { forgetCommand, keepSwept, storeOnUnpair, storeStatus } from "./forget.mjs";
+import { installAdapter } from "../src/adapters.mjs";
 
 const [command, ...rest] = process.argv.slice(2);
 const home = homeDir();
@@ -31,17 +34,22 @@ async function webKey() {
 async function pair() {
   const { values } = parseArgs({ args: rest, options: {
     url: { type: "string" }, resident: { type: "string", default: "default" }, workspace: { type: "string" },
-    access: { type: "string", default: "read" }, plugin: { type: "string", default: "kiro" }, label: { type: "string" }, command: { type: "string" }, code: { type: "string" }
+    access: { type: "string", default: "edit" }, plugin: { type: "string", default: "kiro" }, label: { type: "string" }, command: { type: "string" }, code: { type: "string" }
   } });
   if (!values.url?.startsWith("https://") && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(values.url ?? "")) throw new Error("--url must be the resident's https address");
   if (!values.workspace || !path.isAbsolute(values.workspace)) throw new Error("--workspace must be an absolute folder path");
-  if (!tierOf(values.access)) throw new Error("--access is read, edit or full");
+  if (!tierOf(values.access)) throw new Error("--access is edit or full");
   if (!PLUGINS[values.plugin]) throw new Error(`--plugin is one of ${Object.keys(PLUGINS).join(", ")}`);
-  const config = { url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: values.access, plugin: values.plugin };
+  // The keys pair owns are replaced; every other key already in the config (timeouts, ...) stays; an old `engine` is dropped.
+  // A helper's own start-up keys (command, bin, args) belong to that helper, so they go when the helper changes.
+  const { command: _old, engine: _engine, ...before } = await previousConfig(configFile);
+  const { bin: _bin, args: _args, ...other } = before;
+  const kept = before.plugin === undefined || before.plugin === values.plugin ? before : other;
+  const config = { ...kept, url: values.url.replace(/\/+$/, ""), resident: values.resident, workspace: values.workspace, access: tierOf(values.access), plugin: values.plugin };
   if (values.command) config.command = JSON.parse(values.command);
   // Fails now, not on the first job, if the helper cannot be started.
-  const launch = launchOf(config, config.access);
-  if (!available(launch.command)) throw new Error(`cannot find "${launch.command}" to start the ${config.plugin} helper; install it, or set AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`);
+  const command = binOf(config); // Only check the executable here; no helper is started.
+  if (!available(command)) throw new Error(`cannot find "${command}" to start the ${config.plugin} helper; install it, or set AELIOS_RUNNER_${config.plugin.toUpperCase()}_BIN`);
   const release = acquire(lockFile);
   try {
     if ((await state.read()).device) throw new Error('already paired; run "aelios-runner unpair" first');
@@ -55,22 +63,31 @@ async function pair() {
 }
 
 async function start() {
-  const config = await readConfig(configFile);
+  const config = await readConfig(configFile, (line) => console.error(`aelios-runner: ${line}`));
   const release = acquire(lockFile); // one runner per folder; "unpair" stops it through this lock
   try {
     if (!(await state.read()).device) throw new Error('not paired; run "aelios-runner pair" first');
     const control = new AbortController();
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => control.abort());
     const runner = new Runner({ config, state, journal, log: (...args) => console.error(new Date().toISOString(), ...args) });
-    console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}`);
-    await runner.start(control.signal);
+    console.error(`aelios-runner: ${config.plugin}, access ${config.access}, folder ${config.workspace}, engine ${engineLabel()}`);
+    const unsweep = await keepSwept(home, config.retention, state, (...args) => console.error(new Date().toISOString(), ...args));
+    try { await runner.start(control.signal); } finally { unsweep(); }
   } finally { release(); }
 }
 
 async function status() {
   const config = await readConfig(configFile), s = await state.read();
-  console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), plugin: config.plugin, access: config.access, workspace: config.workspace,
-    threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length }, null, 2));
+  console.log(JSON.stringify({ paired: Boolean(s.device), revoked: Boolean(s.device?.revoked), engine: engineLabel(), plugin: config.plugin, access: config.access, workspace: config.workspace,
+    threads: Object.keys(s.threads).length, queued: s.queue.length, running: s.current?.workId ?? null, unsentReceipts: s.outbox.length, store: storeStatus(home) }, null, 2));
+}
+
+/** aelios-runner access edit|full: changes the tier in the config and nothing else. Start the runner again to use it. */
+async function access() {
+  const [tier] = rest;
+  if (tier !== "edit" && tier !== "full") throw new Error("usage: aelios-runner access edit|full");
+  await locked(async () => { const config = await readConfig(configFile); config.access = tier; await writeConfig(configFile, config); });
+  console.log(`Access is ${tier}. Start the runner again to use it.`);
 }
 
 async function unpair() {
@@ -83,9 +100,13 @@ async function unpair() {
     try { await revoke({ url: config.url, resident: config.resident, webKey: await webKey(), runnerId: s.device.runnerId }); }
     catch (error) { console.error("The resident did not confirm the revoke (" + error.message + "). Revoke this runner from the web page too."); }
     await state.update(next => { next.device = null; next.claimKey = null; next.queue = []; next.outbox = []; next.current = null; });
-    console.log("Unpaired. Waiting work and unsent receipts are dropped; the threads' sessions are kept.");
+    console.log("Unpaired. Waiting work and unsent receipts are dropped.");
+    console.log(await storeOnUnpair(home, rest, state));
   } finally { release(); }
 }
+
+/** Runs fn while holding the runner lock: refused while `start` runs, so state.json keeps one writer. */
+async function locked(fn) { const release = acquire(lockFile); try { return await fn(); } finally { release(); } }
 
 async function showOverview() { console.log(JSON.stringify(overview(await readConfig(configFile), await state.read(), journal))); }
 
@@ -97,6 +118,7 @@ async function permit() {
   console.log("Recorded.");
 }
 
-const commands = { pair, start, status, unpair, overview: showOverview, permit };
-if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|unpair|overview|permit"); process.exit(2); }
+const commands = { pair, start, status, access, unpair, overview: showOverview, permit, forget: async () => console.log(await forgetCommand(home, rest, state, locked)),
+  "install-adapter": async () => console.log(`Installed ${await installAdapter(home, rest[0] ?? "")}`) };
+if (!commands[command]) { console.error("usage: aelios-runner pair|start|status|access|unpair|overview|permit|forget|install-adapter"); process.exit(2); }
 commands[command]().catch(error => { console.error("aelios-runner:", error.message); process.exit(1); });

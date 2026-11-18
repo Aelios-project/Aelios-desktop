@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { pickerPacks, residentPrefix, stickerSrc, voiceLength } from "../client/media.mjs";
 
-test("media: a sticker lives under the resident's own prefix", () => {
+test("media: a sticker lives under the resident's own prefix, outside /web", () => {
   assert.equal(stickerSrc("https://r.example", "default", "abc"), "https://r.example/stickers/abc");
   assert.equal(stickerSrc("https://r.example/", "ada", "abc"), "https://r.example/r/ada/stickers/abc");
+  assert.ok(!stickerSrc("https://r.example", "ada", "abc").includes("/web/"), "the resident serves stickers at a root route, not under /web");
   assert.equal(residentPrefix(undefined), "");
 });
 
