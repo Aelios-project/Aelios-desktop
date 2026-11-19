@@ -504,6 +504,7 @@ var WORDS = {
       stepOf: "Step {n} of {total}",
       working: "Working…",
       startOver: "Start over",
+      changeKey: "Change the address or key",
       keychain: "Your Cloudflare login is kept in the keychain, so wrangler cannot borrow its token. Approve wrangler once in the browser.",
       approveWrangler: "Approve wrangler in the browser",
       helpersFound: "Found on this machine",
@@ -749,6 +750,7 @@ var WORDS = {
       stepOf: "第 {n} 步，共 {total} 步",
       working: "在处理…",
       startOver: "重新开始",
+      changeKey: "改地址或钥匙",
       keychain: "Cloudflare 的登录存在钥匙串里，wrangler 借不到它的 token。需要在浏览器里再授权 wrangler 一次。",
       approveWrangler: "在浏览器里授权 wrangler",
       helpersFound: "这台机器上找到",
@@ -2267,7 +2269,13 @@ function HelpersCard({ status, busy, act }) {
       { className: "check" },
       (0, import_react16.createElement)("span", null, (0, import_react16.createElement)("input", { type: "checkbox", checked: form.confirmFull, onChange: set("confirmFull") }), " ", t.fullOk)
     ),
-    (0, import_react16.createElement)("button", { className: "ad-btn", type: "submit", disabled: busy || status.job?.running }, busy ? t.wizard.working : t.wizard.start)
+    (0, import_react16.createElement)("button", { className: "ad-btn", type: "submit", disabled: busy || status.job?.running }, busy ? t.wizard.working : t.wizard.start),
+    status.path === "existing" && (0, import_react16.createElement)("button", {
+      className: "ad-btn quiet",
+      type: "button",
+      disabled: busy || status.job?.running,
+      onClick: () => act("onboarding.answer", { values: { back: true } })
+    }, t.wizard.changeKey)
   );
 }
 
@@ -2289,7 +2297,7 @@ function ResidentCard({ status, busy, act }) {
   }
   const submit = async (event) => {
     event.preventDefault();
-    await act("onboarding.answer", { values: { ...form, exists: true }, secret: form.key });
+    await act("onboarding.answer", { values: { url: form.url, exists: true }, secret: form.key });
     setForm((current) => ({ ...current, key: "" }));
   };
   return (0, import_react17.createElement)(
@@ -2356,7 +2364,7 @@ function Wizard() {
   };
   if (!status) return (0, import_react19.createElement)("div", { className: "ad-form" }, (0, import_react19.createElement)("p", null, error || t.connecting));
   const shared = { status, busy, act };
-  const body = status.failed ? ErrorCard({ status, act }) : {
+  const body = status.failed && status.failed.card !== "helpers" ? ErrorCard({ status, act }) : {
     resident: () => (0, import_react19.createElement)(ResidentCard, shared),
     aelios: () => (0, import_react19.createElement)(AeliosCard, shared),
     assistant: () => (0, import_react19.createElement)(AssistantCard, shared),
@@ -2372,7 +2380,11 @@ function Wizard() {
     status.job?.running && (0, import_react19.createElement)("div", { className: "ad-note" }, t.wizard.working),
     body,
     (error || status.failed) && (0, import_react19.createElement)("div", { className: "ad-error", role: "alert" }, error || status.failed.message),
-    status.card !== "done" && (0, import_react19.createElement)("button", { className: "ad-wizard-reset", onClick: () => act("onboarding.reset") }, t.wizard.startOver)
+    status.card !== "done" && (0, import_react19.createElement)("button", {
+      className: "ad-wizard-reset",
+      disabled: Boolean(status.job?.running),
+      onClick: () => act("onboarding.reset")
+    }, t.wizard.startOver)
   );
 }
 function ErrorCard({ status, act }) {

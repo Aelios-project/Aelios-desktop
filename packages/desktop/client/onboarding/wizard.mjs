@@ -37,7 +37,8 @@ export function Wizard() {
 
   if (!status) return h("div", { className: "ad-form" }, h("p", null, error || t.connecting));
   const shared = { status, busy, act };
-  const body = status.failed ? ErrorCard({ status, act }) : {
+  // A failed Start stays on the helpers card, so the folder, the helper or the key can be fixed before Start again.
+  const body = status.failed && status.failed.card !== "helpers" ? ErrorCard({ status, act }) : {
     resident: () => h(ResidentCard, shared),
     aelios: () => h(AeliosCard, shared),
     assistant: () => h(AssistantCard, shared),
@@ -54,7 +55,9 @@ export function Wizard() {
     status.job?.running && h("div", { className: "ad-note" }, t.wizard.working),
     body,
     (error || status.failed) && h("div", { className: "ad-error", role: "alert" }, error || status.failed.message),
-    status.card !== "done" && h("button", { className: "ad-wizard-reset", onClick: () => act("onboarding.reset") }, t.wizard.startOver));
+    status.card !== "done" && h("button", {
+      className: "ad-wizard-reset", disabled: Boolean(status.job?.running), onClick: () => act("onboarding.reset"),
+    }, t.wizard.startOver));
 }
 
 function ErrorCard({ status, act }) {

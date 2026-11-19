@@ -19,7 +19,7 @@ export function ResidentCard({ status, busy, act }) {
   const submit = async (event) => {
     event.preventDefault();
     // The key is sent once and cleared here, whatever the host answers.
-    await act("onboarding.answer", { values: { ...form, exists: true }, secret: form.key });
+    await act("onboarding.answer", { values: { url: form.url, exists: true }, secret: form.key });
     setForm((current) => ({ ...current, key: "" }));
   };
   return h("form", { className: "ad-form", onSubmit: submit },

@@ -131,3 +131,89 @@ test("review: the login job ending does not finish the slow deploy that replaced
   assert.equal(status.job.running, false);
   assert.equal(status.failed, null);
 });
+
+test("review 2: a failed pairing stays on the helpers card, and Start tries again", async () => {
+  let attempt = 0;
+  const progress = new MemoryProgress();
+  const connect = async () => { attempt += 1; if (attempt === 1) throw new Error("pairing refused"); };
+  const wizard = makeWizard({ progress, runner: { runAll: async () => [] }, context: context(), connect, redact: (text) => text });
+  await wizard.answer({ values: { exists: true, url: "https://res.example" }, secret: "key" });
+  await wizard.answer({ values: { helper: "dsh", access: "edit", workspace: "~/work" } });
+  const failed = await wizard.run();
+  assert.deepEqual([failed.card, failed.failed.card, failed.failed.message], ["helpers", "helpers", "pairing refused"]);
+
+  await wizard.answer({ values: { helper: "dsh", access: "edit", workspace: "/tmp/work" } });
+  const done = await wizard.run();
+  assert.deepEqual([done.card, done.failed, attempt], ["done", null, 2]);
+});
+
+test("review 2: Try again after a failed pairing calls connect again", async () => {
+  let attempt = 0;
+  const progress = new MemoryProgress();
+  const connect = async () => { attempt += 1; if (attempt === 1) throw new Error("pairing refused"); };
+  const wizard = makeWizard({ progress, runner: { runAll: async () => [] }, context: context(), connect, redact: (text) => text });
+  await wizard.answer({ values: { exists: true, url: "https://res.example" }, secret: "key" });
+  await wizard.answer({ values: { helper: "dsh", access: "edit" } });
+  await wizard.run();
+  assert.equal((await wizard.retry()).card, "done");
+  assert.equal(attempt, 2);
+});
+
+test("review 2: a refused key goes back to the resident card with the address kept", async () => {
+  const keys = [];
+  const progress = new MemoryProgress();
+  const connect = async (settings) => { keys.push(settings.key); if (settings.key === "wrong") throw new Error("the resident refused the web key"); };
+  const wizard = makeWizard({ progress, runner: { runAll: async () => [] }, context: context(), connect, redact: (text) => text });
+  await wizard.answer({ values: { exists: true, url: "https://res.example" }, secret: "wrong" });
+  await wizard.answer({ values: { helper: "dsh", access: "edit" } });
+  await wizard.run();
+
+  const back = await wizard.answer({ values: { back: true } });
+  assert.deepEqual([back.card, back.values.url, back.failed], ["resident", "https://res.example", null]);
+  await wizard.answer({ values: { exists: true, url: "https://res.example" }, secret: "right" });
+  assert.equal((await wizard.run()).card, "done");
+  assert.deepEqual(keys, ["wrong", "right"]);
+});
+
+test("review 2: the fresh path cannot go back to the key card", async () => {
+  const { wizard } = make();
+  await wizard.answer({ values: { exists: false } });
+  await wizard.answer({});
+  await settle(wizard);
+  await wizard.answer({ values: { name: "Helper" } });
+  await settle(wizard);
+  await assert.rejects(wizard.answer({ values: { back: true } }), /existing resident/);
+});
+
+test("review 2: Start over is refused while a job runs, and the old job cannot write into a new record", async () => {
+  const gate = deferred();
+  const { wizard, progress } = make({ runner: { runAll: async () => { await gate.promise; } } });
+  await wizard.answer({ values: { exists: false } });
+  await wizard.answer({});
+  await settle(wizard);
+  await wizard.answer({ values: { name: "Helper" } });
+  await assert.rejects(wizard.reset(), /still working/);
+  gate.resolve();
+  await settle(wizard);
+  const fresh = await wizard.reset();
+  assert.deepEqual([fresh.path, fresh.card, fresh.job], [null, "resident", null]);
+  assert.equal(progress.value, null);
+});
+
+test("review 2: a resident found on the account shows the note; a key this machine holds skips the key card", async () => {
+  const listWorkers = async () => [{ name: "aelios-resident", subdomain: { url: "https://aelios-resident.example.workers.dev/" } }];
+  const asked = make({ context: { listWorkers } });
+  await asked.wizard.answer({ values: { exists: false } });
+  await asked.wizard.answer({});
+  const noKey = await settle(asked.wizard);
+  assert.deepEqual([noKey.path, noKey.card, noKey.values.found], ["existing", "resident", "resident"]);
+
+  const known = make({ context: { listWorkers, secrets: { get: async (name) => (name === "web-key" ? "kept-key" : null) } } });
+  await known.wizard.answer({ values: { exists: false } });
+  await known.wizard.answer({});
+  const skipped = await settle(known.wizard);
+  assert.deepEqual([skipped.path, skipped.card], ["existing", "helpers"]);
+  await known.wizard.answer({ values: { helper: "dsh", access: "edit" } });
+  assert.equal((await known.wizard.run()).card, "done");
+  assert.deepEqual([known.calls[0][0].url, known.calls[0][0].key], ["https://aelios-resident.example.workers.dev", "kept-key"]);
+});

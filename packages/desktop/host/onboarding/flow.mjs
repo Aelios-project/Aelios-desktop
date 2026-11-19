@@ -111,6 +111,13 @@ export function makeWizard(deps) {
     }
 
     if (card === "helpers") {
+      if (input.values?.back === true) {
+        // An existing resident refused the key, or the address was wrong: back to the resident card, address kept.
+        if (current.path !== "existing") throw new Error("Only an existing resident's address and key can be changed here");
+        webKey = "";
+        await save({ card: "resident", failed: null });
+        return status();
+      }
       const helper = input.values?.helper === "kiro" ? "kiro" : "dsh";
       const access = input.values?.access === "full" ? "full" : "edit";
       if (access === "full" && input.values?.confirmFull !== true) throw new Error("Full permission needs your confirmation");
@@ -133,9 +140,14 @@ export function makeWizard(deps) {
       await save({ profileState: profile.state });
       const found = findWorkers(await context.listWorkers());
       if (found.resident) {
+        // A resident this wizard deployed earlier (Start over, a DSH restart) has its web key here already;
+        // the owner never saw that key, so asking for it would be a dead end.
+        const known = await knownWebKey();
+        if (known) webKey = known;
+        const cards = cardsFor("existing", "file");
         await save({
-          path: "existing", card: "resident", values: { url: workerUrl(found.resident) },
-          cards: cardsFor("existing", "file"),
+          path: "existing", card: known ? cards.at(-1) : "resident", cards,
+          values: { url: workerUrl(found.resident), found: "resident" },
         });
       } else if (found.aelios) {
         await save({ card: "error", failed: { card: "error", message: "This account already runs Aelios. The wizard does not change or redeploy it, and connecting a new resident to an existing Aelios comes after the contest." } });
@@ -184,7 +196,8 @@ export function makeWizard(deps) {
   async function run() {
     const current = await state();
     if (job?.running) throw new Error("The wizard is still working. Wait for it to finish.");
-    if (current.failed) throw new Error(current.failed.message);
+    // A failure this card saved (a refused key, a bad folder) is what Start retries; any other one still stands.
+    if (current.failed && current.failed.card !== "helpers") throw new Error(current.failed.message);
     const values = current.values ?? {};
     const settings = {
       helper: values.helper, access: values.access, workspace: values.workspace || undefined,
@@ -211,7 +224,20 @@ export function makeWizard(deps) {
     return run();
   }
 
-  return { status, start, answer, run, retry, state, save };
+  /** Start over. Refused while a job runs: that job would go on saving into the new, empty record. */
+  async function reset() {
+    if (job?.running) throw new Error("The wizard is still working. Wait for it to finish, then start over.");
+    webKey = "";
+    job = null;
+    await progress.set(null);
+    return status();
+  }
+
+  async function knownWebKey() {
+    try { return (await context.secrets?.get?.("web-key")) || null; } catch { return null; }
+  }
+
+  return { status, start, answer, run, retry, reset, state, save };
 }
 
 /** Waits for a background job the route started, so a test can read the end state without polling. */

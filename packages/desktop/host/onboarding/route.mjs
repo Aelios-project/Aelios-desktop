@@ -56,7 +56,12 @@ export function createOnboarding(deps) {
     }
     if (action === "answer") return answer(input);
     if (action === "run" || action === "retry") return action === "run" ? wizard.run() : wizard.retry();
-    if (action === "reset") { await progress.clear(); return wizard.status(); }
+    if (action === "reset") {
+      const next = await wizard.reset();
+      // What the last run learned is not carried into the next one; the step checks find it again.
+      Object.assign(context, { keys: {}, d1Id: null, accountId: null, token: null, aeliosUrl: null, residentUrl: null });
+      return next;
+    }
     throw new OnboardingError("The wizard has no such action");
   };
 }
