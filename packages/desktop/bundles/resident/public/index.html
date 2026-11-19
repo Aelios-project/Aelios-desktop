@@ -33,13 +33,20 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
 <!-- The page: app.css, markdown.js (x-markdown) and app.js; Alpine.js (MIT) lives in vendor/, so the page needs no CDN. -->
 <link rel="stylesheet" href="/app.css">
 <link rel="stylesheet" href="/threads.css">
+<link rel="stylesheet" href="/chat-stop.css">
 <script src="/markdown.js"></script>
 <script src="/group.js"></script>
 <script src="/machine.js"></script>
 <script src="/boxes.js"></script>
 <script src="/attach.js"></script>
+<script src="/machine-ask-kind.js"></script>
+<script src="/waiting-reason.js"></script>
 <script src="/waiting.js"></script>
+<script src="/chat-permissions.js"></script>
 <script src="/progress.js"></script>
+<script src="/recommended-roles.js"></script>
+<script src="/chat-stop.js"></script>
+<script src="/home-screen.js"></script>
 <script src="/app.js"></script>
 <script defer src="/vendor/alpine-3.14.9.min.js"></script>
 </head>
@@ -175,6 +182,13 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
           <div class="acts"><button class="icon-btn sm primary" type="button" @click="enablePush()" :disabled="push.busy" title="打开通知" aria-label="打开通知"><i class="i i-bell" aria-hidden="true"></i></button><button class="icon-btn sm" type="button" @click="dismissPush()" title="以后再说" aria-label="以后再说"><i class="i i-x" aria-hidden="true"></i></button></div>
         </div>
       </template>
+      <template x-if="homeInvite()">
+        <div class="ccard" style="align-self: center; width: min(340px, 92%)">
+          <div class="t serif">放到主屏幕，点开就是它</div>
+          <div class="note" x-text="home.can === 'ios' ? '在 Safari 里点「分享」→「添加到主屏幕」，从那里打开还能收通知。' : '不用再开浏览器找它。'"></div>
+          <div class="acts"><button class="icon-btn sm primary" type="button" x-show="home.can === 'prompt'" @click="addToHome()" title="放到主屏幕" aria-label="放到主屏幕"><i class="i i-add-home" aria-hidden="true"></i></button><button class="icon-btn sm" type="button" @click="dismissHome()" title="以后再说" aria-label="以后再说"><i class="i i-x" aria-hidden="true"></i></button></div>
+        </div>
+      </template>
       <div class="empty" x-show="loaded && !lines.length && !outbox.length">还没有聊天。说句话吧。</div>
 
       <template x-for="row in rows()" :key="row.key">
@@ -193,6 +207,17 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
               </div>
               <p :class="!openLetter[row.line.id] && 'clip'" x-text="row.line.text"></p>
               <button type="button" @click="toggleLetter(row.line.id)" :title="openLetter[row.line.id] ? '收起' : '读完整封'" :aria-label="openLetter[row.line.id] ? '收起' : '读完整封'"><i class="i" :class="openLetter[row.line.id] ? 'i-up' : 'i-down'" aria-hidden="true"></i></button>
+            </div>
+          </template>
+          <template x-if="row.type === 'permission'">
+            <div class="ccard chat-permission" role="group" aria-label="等你批准">
+              <div class="t" x-text="row.permission.title"></div>
+              <div class="note" x-text="row.permission.line"></div>
+              <pre style="white-space: pre-wrap; overflow-wrap: anywhere" x-text="row.permission.detail"></pre>
+              <div class="acts">
+                <button type="button" @click="answerChatPermission(row.permission, true)" :disabled="Boolean(choosing)">允许</button>
+                <button type="button" @click="answerChatPermission(row.permission, false)" :disabled="Boolean(choosing)">拒绝</button>
+              </div>
             </div>
           </template>
           <template x-if="row.type === 'typing'">
@@ -252,9 +277,6 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
                   </template>
                 </div>
               </template>
-              <template x-if="row.line.attached && row.line.role === 'user'">
-                <div class="docs"><template x-for="(d, i) in row.line.attached" :key="i"><span class="doc" x-text="d.name + ' · ' + fileSize(d.size)"></span></template></div>
-              </template>
               <template x-for="(s, i) in stickersOf(row.line)" :key="i">
                 <div class="sticker">
                   <template x-if="s.video"><video :src="s.url" autoplay loop muted playsinline aria-label="表情包"></video></template>
@@ -290,7 +312,7 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
               <template x-for="task in row.cards" :key="task.id">
                 <div class="ccard" :class="{ dashed: task.status === 'sent' || task.status === 'working', ask: task.waiting }">
                   <div class="head"><span>线程</span><span class="spacer"></span><span class="pill" :class="taskPill(stateOf(task))" x-text="taskStatusText(stateOf(task), task.runs)"></span></div>
-                  <div class="t" x-text="task.title"></div>
+                  <div class="t" x-text="taskTitle(task)"></div>
                   <template x-if="task.status === 'sent' || task.status === 'working'"><div class="track" aria-hidden="true"><span></span></div></template>
                   <div class="note" x-show="taskPreview(task)" x-text="taskPreview(task)"></div>
                   <template x-if="task.waiting && (task.choices || []).length">
@@ -336,6 +358,9 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
               <template x-if="row.line.voice">
                 <div class="said" x-text="(row.line.voice.missed ? '（没听清）' : row.line.text) + (row.line.at ? ' · ' + clock(row.line.at) : '')"></div>
               </template>
+              <template x-for="(f, i) in row.line.attached || []" :key="i">
+                <div class="page-card mine"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg></span><span class="txt"><b x-text="f.name"></b><span x-text="sizeText(f.size)"></span></span></div>
+              </template>
               <template x-for="(s, i) in stickersOf(row.line)" :key="i">
                 <div class="sticker">
                   <template x-if="s.video"><video :src="s.url" autoplay loop muted playsinline aria-label="表情包"></video></template>
@@ -369,6 +394,9 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
                   <span class="len" x-text="voiceLen(row.item.voice)"></span>
                 </div>
               </template>
+              <template x-for="(f, i) in row.item.files" :key="i">
+                <div class="page-card mine"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg></span><span class="txt"><b x-text="f.name"></b><span x-text="sizeText(f.size)"></span></span></div>
+              </template>
               <template x-if="row.item.sticker">
                 <div class="sticker">
                   <template x-if="row.item.sticker.video"><video :src="row.item.sticker.url" autoplay loop muted playsinline aria-label="表情包"></video></template>
@@ -381,7 +409,7 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
                   <span class="txt" x-text="row.item.text"></span>
                 </div>
               </template>
-              <div class="said" x-show="row.item.state === 'sending' && (row.item.voice || row.item.pics.length)" x-text="row.item.voice ? '在听…' : '在发…'"></div>
+              <div class="said" x-show="row.item.state === 'sending' && (row.item.voice || row.item.pics.length || row.item.files.length)" x-text="row.item.voice ? '在听…' : '在发…'"></div>
               <template x-if="row.item.state === 'failed'">
                 <div class="retry"><span x-text="row.item.error || '没发出去'"></span><button type="button" @click="retry(row.item)" aria-label="重发">!</button></div>
               </template>
@@ -429,6 +457,9 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
         <div class="rec" role="status"><span class="red" aria-hidden="true"></span><span>在录</span><span class="len" x-text="Math.floor(recording.seconds) + ' 秒'"></span><span class="spacer"></span>
           <button class="icon-btn sm" type="button" @click="stopRecord(false)" title="取消" aria-label="取消"><i class="i i-x" aria-hidden="true"></i></button></div>
       </template>
+      <button class="round stop-reply" type="button" x-cloak x-show="chatTurn" @click="stopReply()" :disabled="stopReplyBusy || (chatTurn && chatTurn.stopping)" :aria-label="chatTurn && chatTurn.stopping ? '正在停下' : '停下这次回复'" :title="chatTurn && chatTurn.stopping ? '正在停下' : '停下这次回复'">
+        <span class="stop-mark" aria-hidden="true"></span>
+      </button>
       <button class="round go" type="button" x-show="canSend() || recording" @click="recording ? stopRecord(true) : sendDraft()" :aria-label="recording ? '发出这段语音' : '发送'">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5.5 11.5L12 5l6.5 6.5"/></svg>
       </button>
@@ -727,7 +758,7 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
             <span class="sub"><span class="what" :class="{ more }" role="button" tabindex="0" :aria-expanded="more" title="点开看全文" @click="more = !more" @keydown.enter.prevent="more = !more" @keydown.space.prevent="more = !more" x-text="item.line"></span><span x-text="fmt(item.at)"></span></span>
             <span class="sub" x-show="item.detail"><span class="what more" x-text="item.detail"></span></span>
             <span class="links">
-              <template x-if="item.kind === 'permission'"><span class="links">
+              <template x-if="item.perm"><span class="links">
                 <button class="btn small primary" type="button" :disabled="Boolean(choosing)" @click="waitingPermission(item, true)">允许</button>
                 <button class="btn small" type="button" :disabled="Boolean(choosing)" @click="waitingPermission(item, false)">拒绝</button>
               </span></template>
@@ -742,7 +773,7 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
         </template>
       </div>
     </template>
-    <template x-for="item in threadsIn('open')" :key="item.id">
+    <template x-for="item in waitingThreads('open')" :key="item.id">
       <button class="trow" :class="{ working: item.status === 'sent' || item.status === 'working', ask: item.waiting }" type="button" @click="openThread(item.id)" title="打开线程">
         <span class="top-line"><span class="t"><span x-text="item.title"></span><i class="unread" x-show="unreadOf(item.id)" role="img" aria-label="有新动态" title="有新动态，点开就算看过"></i></span><span class="pill" :class="taskPill(stateOf(item))" x-text="taskStatusText(stateOf(item), item.runs)"></span></span>
         <template x-if="item.status === 'sent' || item.status === 'working'"><span class="track" aria-hidden="true"><span></span></span></template>
@@ -750,9 +781,9 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
         <span class="sub"><span x-text="runsText(item.runs) + ' · ' + item.tasks + ' 单'"></span><span x-text="fmt(item.updatedAt)"></span></span>
       </button>
     </template>
-    <p class="group-title" x-show="threadsIn('done').length">做完的</p>
-    <div class="list" x-show="threadsIn('done').length">
-      <template x-for="item in threadsIn('done')" :key="item.id">
+    <p class="group-title" x-show="waitingThreads('done').length">做完的</p>
+    <div class="list" x-show="waitingThreads('done').length">
+      <template x-for="item in waitingThreads('done')" :key="item.id">
         <button class="li" type="button" @click="openThread(item.id)" title="打开线程">
           <span class="pill" :class="taskPill(stateOf(item))" style="height: 8px; width: 8px; padding: 0; background: currentColor" aria-hidden="true"></span>
           <span class="name"><span x-text="item.title"></span><i class="unread" x-show="unreadOf(item.id)" role="img" aria-label="有新动态" title="有新动态，点开就算看过"></i></span>
@@ -775,6 +806,7 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
         <template x-for="(step, i) in line.steps" :key="i"><div class="step-l" x-text="step"></div></template>
         <div class="text" x-show="line.text && line.direct" x-text="line.text"></div>
         <div class="text md" x-show="line.text && !line.direct" x-markdown="line.text"></div>
+        <div class="note-l" x-show="line.note"><span class="who-l">顺带说的</span><span x-text="line.note"></span></div>
         <div class="links" x-show="(line.files && line.files.length) || (line.links && line.links.length) || line.sessionUrl || waitingFor(line)">
           <template x-for="file in line.files || []" :key="file.path"><button class="btn small" type="button" @click="viewFile(file)" :title="file.path" x-text="file.path.split('/').pop()"></button></template>
           <a class="icon-btn sm" x-show="line.sessionUrl" :href="line.sessionUrl || '#'" target="_blank" rel="noopener noreferrer" title="打开会话" aria-label="打开会话"><i class="i i-open" aria-hidden="true"></i></a>
@@ -799,6 +831,8 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
       <pre class="file-text" x-show="fileView.kind === 'text'" x-text="fileView.text"></pre>
       <div class="file-md md" x-show="fileView.kind === 'markdown'" x-markdown="fileView.text"></div>
       <img class="file-image" x-show="fileView.kind === 'image'" :src="fileView.url || ''" alt="">
+      <template x-if="fileView.kind === 'audio'"><audio class="file-media" controls :src="fileView.url"></audio></template>
+      <template x-if="fileView.kind === 'video'"><video class="file-media" controls playsinline :src="fileView.url"></video></template>
       <template x-if="fileView.kind === 'html'">
         <iframe class="file-page" sandbox="allow-scripts" referrerpolicy="no-referrer" :srcdoc="fileView.text" title="页面预览"></iframe>
       </template>
@@ -918,6 +952,11 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
               <button type="button" :aria-pressed="themePref === 'auto'" @click="setTheme('auto')" title="跟系统" aria-label="跟系统"><i class="i i-auto" aria-hidden="true"></i></button>
             </div>
           </div>
+          <div class="li" x-show="home.can">
+            <span class="name">主屏幕</span>
+            <span class="val" x-show="home.can === 'ios'">分享 →「添加到主屏幕」</span>
+            <button class="icon-btn sm" type="button" x-show="home.can === 'prompt'" @click="addToHome()" title="放到主屏幕" aria-label="放到主屏幕"><i class="i i-add-home" aria-hidden="true"></i></button>
+          </div>
         </div>
         <p class="hint">这里存的优先；空着的用 Cloudflare 里同名的变量，再没有就用默认。key 和 bot token 只能填不能看。</p>
         <button class="icon-btn sm danger" type="button" @click="logout()" title="锁上网页门" aria-label="锁上网页门"><i class="i i-lock" aria-hidden="true"></i></button>
@@ -1036,10 +1075,10 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
           </div>
         </template>
 
-        <template x-if="configSection === 'web' && inEffect(metaOf('WEB_FETCH')) !== 'off'">
+        <template x-if="configSection === 'web' && (inEffect(metaOf('WEB_FETCH')) !== 'off' || threadApis())">
           <div class="section">
             <div class="label"><span>带钥匙的网站</span><button class="qmark" type="button" @click="toggleHelp('sites')" :aria-expanded="Boolean(helpOpen.sites)" aria-label="说明：带钥匙的网站">?</button></div>
-            <p class="help" x-show="helpOpen.sites">跟云端环境的网络密钥一样：钥匙挂在一个网站上，读那个网站时自动带上，模型看不到，别的网站也拿不到。只认 https。
+            <p class="help" x-show="helpOpen.sites">跟云端环境的网络密钥一样：钥匙挂在一个网站上，读那个网站、线程调它的 API 时自动带上，模型看不到，别的网站也拿不到。只认 https。
 
 左边名字、右边值，不够就点 ＋ 加一行。Cloudflare 门禁：点「Cloudflare 门禁」，服务令牌的 Client ID 和 Client Secret 各粘一格，还要在那个应用里加一条动作是 Service Auth 的策略。GitHub 私库：网站填 raw.githubusercontent.com，点「一串 token」，粘一个 Contents 只读的 fine-grained token。别在聊天里发钥匙。</p>
             <template x-for="site in sites" :key="site.host">
@@ -1120,6 +1159,7 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
                 <div class="label"><span>角色</span><span class="spacer"></span>
                   <button class="icon-btn sm" type="button" x-show="!roleEdit && cloud.roles.length < 12" @click="editRole(null)" aria-label="加一个角色" title="加一个角色"><i class="i i-plus" aria-hidden="true"></i></button></div>
                 <p class="hint">派活时带上角色，要求就不用每次从头写。选的模型管住户这里和 GitHub Actions 上的线程。</p>
+                <p class="hint" x-show="machine.machine">派到机器上的活另填「机器上的模型」：写帮手自己认的 id（比如 Claude Code 的 claude-sonnet-4-6），不是上面那种 anthropic/… 的写法；不填就用帮手默认的。Kiro 一直用 auto，不用填。</p>
                 <template x-for="row in roleRows()" :key="row.key">
                   <div class="mini-row">
                     <template x-if="!editingRole(row)">
@@ -1141,6 +1181,8 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
                           <option value="…">自己填…</option>
                         </select>
                         <input x-show="roleEdit.pick === '…'" x-model="roleEdit.own" type="text" placeholder="模型 id，比如 anthropic/claude-haiku-5.5" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="模型 id">
+                        <input x-show="machine.machine || roleEdit.machineModel" x-model="roleEdit.machineModel" type="text" placeholder="机器上的模型，比如 claude-sonnet-4-6" maxlength="120" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="机器上的模型">
+                        <input x-show="machine.machine || roleEdit.machineModel || roleEdit.family" x-model="roleEdit.family" type="text" placeholder="它是哪家的，比如 anthropic、openai" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="机器上的模型是哪家的">
                         <div class="inline"><span class="spacer"></span>
                           <button class="icon-btn sm" type="button" @click="roleEdit = null" aria-label="不改了" title="不改了"><i class="i i-x" aria-hidden="true"></i></button>
                           <button class="icon-btn sm primary" type="button" :disabled="roleBusy || !roleEdit.name.trim() || !roleEdit.template.trim()" @click="saveRole()" aria-label="存" title="存"><i class="i i-check" aria-hidden="true"></i></button></div>
@@ -1148,15 +1190,29 @@ window.telegramReady = /(?:^#|[&#])tgWebAppData=/.test(location.hash) ? new Prom
                     </template>
                   </div>
                 </template>
+                <details x-show="(cloud.recommendedRoles || []).length">
+                  <summary>推荐角色包</summary>
+                  <p class="hint">按需逐个安装，不会自动加入；安装后可以编辑或删除。最多 <span x-text="cloud.rolesMax || 12"></span> 个角色。</p>
+                  <template x-for="pack in (cloud.recommendedRoles || [])" :key="pack.name">
+                    <div class="mini-row">
+                      <div class="top-line"><span class="t" x-text="pack.name"></span><span class="spacer"></span>
+                        <span class="pill" x-show="recommendedRoleInstalled(pack)">已安装</span>
+                        <button class="icon-btn sm" type="button" :disabled="roleBusy || Boolean(roleEdit) || recommendedRoleFull() || recommendedRoleInstalled(pack)" @click="installRecommendedRole(pack)" :aria-label="'安装 ' + pack.name" :title="'安装 ' + pack.name"><i class="i i-plus" aria-hidden="true"></i></button>
+                      </div>
+                      <p class="hint" style="white-space: pre-wrap" x-text="pack.template"></p>
+                    </div>
+                  </template>
+                  <p class="hint" x-show="recommendedRoleFull()">角色已满，先删掉一个再安装。</p>
+                </details>
                 <p class="error" x-show="roleError" x-text="roleError"></p>
               </div>
             </template>
             <template x-if="cloud.tasks.length">
               <div class="section">
-                <div class="label"><span>最近的活</span><span class="spacer"></span><span class="pill" x-text="'24 小时内 ' + cloud.today + ' / ' + cloud.limit + ' 单'"></span></div>
+                <div class="label"><span>最近的活</span><span class="spacer"></span><span class="pill" x-text="'24 小时内 ' + cloud.today + ' 单'"></span></div>
                 <template x-for="task in cloud.tasks" :key="task.id">
                   <div class="mini-row">
-                    <div class="top-line"><span class="t" x-text="task.title"></span><span class="pill" :class="taskPill(stateOf(task))" x-text="taskStatusText(stateOf(task), task.runs)"></span></div>
+                    <div class="top-line"><span class="t" x-text="taskTitle(task)"></span><span class="pill" :class="taskPill(stateOf(task))" x-text="taskStatusText(stateOf(task), task.runs)"></span></div>
                     <p class="hint" x-show="task.summary || task.progress" x-text="task.summary || task.progress"></p>
                     <div class="choices">
                       <button class="icon-btn sm" type="button" x-show="!task.test" @click="openThread(task.thread)" title="打开线程" aria-label="打开线程"><i class="i i-open" aria-hidden="true"></i></button>

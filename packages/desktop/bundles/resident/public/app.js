@@ -98,7 +98,7 @@ function resident() {
   var BROWSE_MAX = 150;
   var RECORD_MAX_SECONDS = 60;
   // Shown first in the picker, under the ones used recently.
-  var FAVORITES = ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-fable-5.1', 'anthropic/claude-haiku-5.5', '@cf/zai-org/glm-4.7-flash'];
+  var FAVORITES = ['anthropic/claude-opus-5.5', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-fable-5.2', 'anthropic/claude-haiku-5.5', '@cf/zai-org/glm-4.7-flash'];
   // The settings: a list of sections, each opened on its own. A field marked `more` waits behind 更多设置. `labels`
   // names a choice in words; `helps`, `defs` and `picks` depend on the voice provider picked. The long `help` sits
   // behind a question mark next to each setting. Defaults are the code's (README, 设置).
@@ -184,6 +184,8 @@ function resident() {
     { id: 'tasks', title: '后台帮忙', hint: '查资料、写东西这类活交给线程，做完回来告诉你。', fields: [
       { key: 'CLOUD_TASKS', label: '让它后台帮忙', def: 'off', labels: ON_OFF, help: '打开就能用，线程跑在住户自己这里，不能跑代码。' },
       { key: 'CLOUD_TASK_GITHUB_TOKEN', label: 'GitHub token', needs: 'CLOUD_TASKS', help: '可不填。填了能跑代码、开 PR，仓库住户自己建。' },
+      { key: 'CLOUD_TASK_HTTP', label: '线程能调 API', def: 'off', labels: ON_OFF, needs: 'CLOUD_TASKS',
+        help: '生图、语音这类 API，钥匙填在「带钥匙的网站」。出来的图和声音存成线程的文件。' },
       { key: 'CLOUD_TASK_MODEL', label: '线程用哪个模型', needs: 'CLOUD_TASKS',
         help: '留空用 Workers AI 的 glm-4.7-flash，每天有免费额度。',
         picks: ['anthropic/claude-haiku-5.5', 'anthropic/claude-sonnet-5.5'],
@@ -230,7 +232,7 @@ function resident() {
   };
   // How a cloud task stands, in words (cloud-tasks.ts TaskStatus).
   // chosen and settled: a task that waited for her and no longer does (stateOf).
-  var TASK_STATUS = { sent: '派出去了', working: '在干活', done: '做完了', failed: '没做成', needs_you: '等你拍板', quiet: '没回音', stopped: '已停下', chosen: '拍板了', settled: '处理过了' };
+  var TASK_STATUS = { sent: '派出去了', working: '在干活', queued: '排队中', done: '做完了', failed: '没做成', needs_you: '等你拍板', quiet: '没回音', stopped: '已停下', chosen: '拍板了', settled: '处理过了' };
   // A tool call in a few words (its name when it is none of these).
   var TOOL_WORDS = {
     memory_recall: '翻了记忆', memory_remember: '记下了', memory_notebook: '翻了小本本', memory_forget: '忘掉了', memory_keep_moment: '存了一刻',
@@ -310,8 +312,10 @@ function resident() {
   // Her lines from the server that already took the place of one sent from here.
   var settled = {};
   var seq = 0;
-  // A thread's files the page shows as pictures; anything else that reads as text shows as text.
+  // A thread's files the page shows as pictures, sounds and videos; anything else that reads as text shows as text.
   var IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
+  var AUDIO_TYPES = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', opus: 'audio/ogg', m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac' };
+  var VIDEO_TYPES = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
   var extOf = function (path) { var m = String(path).match(/\.([A-Za-z0-9]+)$/); return m ? m[1].toLowerCase() : ''; };
 
   return Object.assign({
@@ -493,6 +497,7 @@ function resident() {
         await this.check('');
       } else {
         this.preparePush();
+        if (this.prepareHome) this.prepareHome();
         if (this.key) await this.check(this.key);
       }
     },
@@ -673,6 +678,8 @@ function resident() {
       picLoading = {};
       this.identity = known ? { name: known.name, avatar: known.avatar } : { name: '住户', avatar: null };
       this.lines = [];
+      if (this.syncChatTurn) this.syncChatTurn(null);
+      if (this.syncChatPermissions) this.syncChatPermissions(null);
       this.outbox = [];
       this.loaded = false;
       this.unseen = 0;
@@ -769,6 +776,8 @@ function resident() {
       this.authed = false;
       this.loaded = false;
       this.lines = [];
+      if (this.syncChatTurn) this.syncChatTurn(null);
+      if (this.syncChatPermissions) this.syncChatPermissions(null);
       this.outbox = [];
       this.view = 'chat';
       this.personaLoaded = false;
@@ -812,19 +821,20 @@ function resident() {
         out.push({ key: line.id, type: 'line', line: line, cards: cards });
       });
       this.outbox.forEach(function (item) { out.push({ key: item.tid, type: 'local', item: item }); });
+      if (this.chatPermissionRows) out = out.concat(this.chatPermissionRows());
       if (this.waiting()) out.push({ key: 'typing', type: 'typing' });
       return out;
     },
     // Waiting for a reply that has not started to show.
     waiting() {
-      if (!this.sending) return false;
+      if (!this.sending && !this.chatTurn) return false;
       if (this.outbox.some(function (item) { return item.state === 'sending'; })) return true;
       var lastUser = -1;
       for (var i = this.lines.length - 1; i >= 0; i--) if (this.lines[i].role === 'user') { lastUser = i; break; }
       return !this.lines.slice(lastUser + 1).some(function (line) { return line.role === 'assistant' && line.kind === 'chat'; });
     },
     replying() {
-      return this.sending > 0 || this.lines.some(function (line) { return line.pending; });
+      return Boolean(this.chatTurn) || this.sending > 0 || this.lines.some(function (line) { return line.pending; });
     },
     // Its latest reply, once it is done, can be taken back from its menu: deleted, or answered again.
     takeBackable(line) {
@@ -848,7 +858,7 @@ function resident() {
       }
       try {
         var result = await this.api('/web/take-back', { method: 'POST', body: { id: line.id, again: again } });
-        if (again && result.status !== 'completed') throw new Error('没回出来（' + result.status + '），再点一次试试');
+        if (again && result.status !== 'completed' && result.status !== 'aborted') throw new Error('没回出来（' + result.status + '），再点一次试试');
       } catch (error) {
         this.notify(error.message);
       } finally {
@@ -996,7 +1006,9 @@ function resident() {
     },
     // What /web/messages gave: the lines, or null when nothing has changed since the version the page has.
     took(data) {
+      if (this.syncChatPermissions) this.syncChatPermissions(data);
       if (data && data.rev) seenRev = data.rev;
+      if (data && this.syncChatTurn && Object.prototype.hasOwnProperty.call(data, 'turn')) this.syncChatTurn(data.turn);
       if (data && data.same) return null;
       fullAt = Date.now();
       return (data && data.data) || [];
@@ -1075,7 +1087,7 @@ function resident() {
       if (this.pics.length) payload.pictures = this.pics.map(function (pic) { return { data: pic.data }; });
       if (this.docs.length) payload.files = this.docs.map(function (doc) { return { name: doc.name, data: doc.data }; });
       if (this.quote) payload.quote = this.quote.id;
-      var shown = { text: this.draft.trim(), pics: this.pics.map(function (pic) { return pic.url; }), quote: this.quote };
+      var shown = { text: this.draft.trim(), pics: this.pics.map(function (pic) { return pic.url; }), files: this.docs.map(function (doc) { return { name: doc.name, size: doc.size }; }), quote: this.quote };
       this.draft = '';
       this.pics = [];
       this.docs = [];
@@ -1085,7 +1097,7 @@ function resident() {
       return this.send(payload, shown);
     },
     async send(payload, shown) {
-      var item = Object.assign({ tid: 'local_' + (++seq), at: Date.now(), state: 'sending', error: '', text: '', pics: [], quote: null, voice: null, sticker: null }, shown,
+      var item = Object.assign({ tid: 'local_' + (++seq), at: Date.now(), state: 'sending', error: '', text: '', pics: [], files: [], quote: null, voice: null, sticker: null }, shown,
         { payload: payload, known: this.lines.map(function (line) { return line.id; }) });
       this.outbox.push(item);
       this.sending += 1;
@@ -1093,7 +1105,7 @@ function resident() {
       this.poll(true);
       try {
         var result = await this.api('/web/say', { method: 'POST', body: payload });
-        if (result.status === 'empty') this.dropLocal(item.tid);
+        if (result.status === 'empty' || result.status === 'aborted') this.dropLocal(item.tid);
         else if (result.status !== 'completed') throw new Error('这句没回出来（' + result.status + '），再发一次试试');
       } catch (error) {
         var still = this.outbox.find(function (o) { return o.tid === item.tid; });
@@ -1113,7 +1125,7 @@ function resident() {
     },
     retry(item) {
       this.dropLocal(item.tid);
-      var shown = { text: item.text, pics: item.pics, quote: item.quote, voice: item.voice, sticker: item.sticker };
+      var shown = { text: item.text, pics: item.pics, files: item.files, quote: item.quote, voice: item.voice, sticker: item.sticker };
       return this.send(item.payload, shown);
     },
     keydown(event) {
@@ -1414,11 +1426,17 @@ function resident() {
     // How a task stands: one that waited for her and was dealt with (picked, put aside or carried on) asks no more.
     stateOf(task) {
       if (!task) return '';
+      // Sent or taken, but the machine is at work on something else first.
+      if (task.queued && (task.status === 'sent' || task.status === 'working')) return 'queued';
       if (task.status !== 'needs_you' || task.waiting !== false) return task.status;
       return task.chosen ? 'chosen' : 'settled';
     },
     taskPill(status) {
-      return { working: 'warn', sent: 'warn', needs_you: 'hot', done: 'ok', failed: 'bad', quiet: 'bad', chosen: 'ok' }[status] || '';
+      return { working: 'warn', sent: 'warn', queued: 'warn', needs_you: 'hot', done: 'ok', failed: 'bad', quiet: 'bad', chosen: 'ok' }[status] || '';
+    },
+    // A follow-up carries its thread's title: its number says it is not the same task sent twice.
+    taskTitle(task) {
+      return task.nth > 1 ? task.title + ' · 第 ' + task.nth + ' 单' : task.title;
     },
     taskNote(task) {
       if (task.status === 'sent' || task.status === 'working') return task.progress || '派出去了，等它开工';
@@ -1894,7 +1912,9 @@ function resident() {
     },
     threadSub() {
       var latest = (this.thread.tasks || []).at(-1);
-      return this.runsText(this.thread.runs) + (this.thread.loaded ? ' · ' + this.taskStatusText(latest ? this.stateOf(latest) : this.thread.status) : '');
+      // On the machine: which helper and engine its runner says it uses now.
+      var helper = this.thread.runs === 'machine' && this.thread.helper ? '（' + this.thread.helper + '）' : '';
+      return this.runsText(this.thread.runs) + helper + (this.thread.loaded ? ' · ' + (machineThreadAskLabel(this.thread) || this.taskStatusText(latest ? this.stateOf(latest) : this.thread.status)) : '');
     },
     // The task a report in the thread is for, while it waits for her.
     waitingFor(line) {
@@ -1926,9 +1946,10 @@ function resident() {
         var kind = 'other';
         var text = '';
         var url = '';
-        if (IMAGE_TYPES[ext]) {
-          kind = 'image';
-          url = URL.createObjectURL(new Blob([bytes], { type: IMAGE_TYPES[ext] }));
+        var media = IMAGE_TYPES[ext] ? 'image' : AUDIO_TYPES[ext] ? 'audio' : VIDEO_TYPES[ext] ? 'video' : '';
+        if (media) {
+          kind = media;
+          url = URL.createObjectURL(new Blob([bytes], { type: IMAGE_TYPES[ext] || AUDIO_TYPES[ext] || VIDEO_TYPES[ext] }));
         } else {
           try {
             text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -2143,6 +2164,10 @@ function resident() {
       var f = this.field(meta.key);
       if (!f || choice === this.inEffect(meta)) return;
       this.saveConfig(meta.key, choice === (f.fromWorker.toLowerCase() || meta.def) ? '' : choice);
+    },
+    // Threads call APIs (CLOUD_TASK_HTTP) with the keys of 带钥匙的网站, so the keys show even with page reading off.
+    threadApis() {
+      return this.inEffect(this.metaOf('CLOUD_TASKS')) === 'on' && this.inEffect(this.metaOf('CLOUD_TASK_HTTP')) === 'on';
     },
     // A setting that only matters once another is on (the voice ones once a provider is picked).
     shown(meta) {
@@ -2448,13 +2473,13 @@ function resident() {
           return '开 · ' + (this.stickers.packs.length ? this.stickers.packs.length + ' 个包' : '还没有包');
         case 'web':
           return '搜网' + (this.inEffect(this.metaOf('WEB_SEARCH')) === 'off' ? '关' : '开') + ' · 读网页' + choice('WEB_FETCH')
-            + (this.sites.length && this.inEffect(this.metaOf('WEB_FETCH')) !== 'off' ? ' · ' + this.sites.length + ' 个网站带钥匙' : '');
+            + (this.sites.length && (this.inEffect(this.metaOf('WEB_FETCH')) !== 'off' || this.threadApis()) ? ' · ' + this.sites.length + ' 个网站带钥匙' : '');
         case 'mcp':
           return this.mcp.servers.length ? this.mcp.servers.map(function (server) { return server.name; }).join('、') : '没接';
         case 'tasks':
           if (this.inEffect(this.metaOf('CLOUD_TASKS')) !== 'on') return '关';
           var hands = { local: '自己的线程', linux: '自己的线程 + GitHub Actions' }[this.cloud.mode] || '开';
-          return hands + ' · 24 小时内派了 ' + this.cloud.today + ' 单';
+          return hands + (this.threadApis() ? ' · 能调 API' : '') + ' · 24 小时内派了 ' + this.cloud.today + ' 单';
         case 'thinking':
           return this.letterWriteStatus() + ' · ' + this.letterDeliveryCounts();
         case 'custom':
@@ -2870,7 +2895,7 @@ function resident() {
       var model = role ? role.model : '';
       var listed = !model || this.roleModels().indexOf(model) >= 0;
       this.roleError = '';
-      this.roleEdit = { fresh: !role, name: role ? role.name : '', template: role ? role.template : '', pick: listed ? model : '…', own: listed ? '' : model };
+      this.roleEdit = { fresh: !role, name: role ? role.name : '', template: role ? role.template : '', pick: listed ? model : '…', own: listed ? '' : model, machineModel: role ? role.machineModel || '' : '', family: role ? role.family || '' : '' };
     },
     roleModelText(role) {
       return role.model ? this.shortName(role.model) : '线程的模型';
@@ -2882,7 +2907,7 @@ function resident() {
       this.roleError = '';
       try {
         var model = edit.pick === '…' ? edit.own.trim() : edit.pick;
-        var saved = await this.api('/web/tasks/roles', { method: 'POST', body: { name: edit.name, template: edit.template, model: model } });
+        var saved = await this.api('/web/tasks/roles', { method: 'POST', body: { name: edit.name, template: edit.template, model: model, machineModel: (edit.machineModel || '').trim(), family: (edit.family || '').trim() } });
         this.cloud.roles = saved.roles;
         this.roleEdit = null;
       } catch (error) {
@@ -3105,5 +3130,5 @@ function resident() {
       this.toast = message;
       setTimeout(function () { if (self.toast === message) self.toast = ''; }, 2400);
     }
-  }, typeof groupPage === 'function' ? groupPage() : {}, typeof machinePage === 'function' ? machinePage() : {}, typeof boxesPage === 'function' ? boxesPage() : {}, typeof attachPage === 'function' ? attachPage() : {}, typeof waitingPage === 'function' ? waitingPage() : {}, typeof progressPage === 'function' ? progressPage() : {});
+  }, typeof groupPage === 'function' ? groupPage() : {}, typeof machinePage === 'function' ? machinePage() : {}, typeof boxesPage === 'function' ? boxesPage() : {}, typeof attachPage === 'function' ? attachPage() : {}, typeof waitingPage === 'function' ? waitingPage() : {}, typeof chatPermissionsPage === 'function' ? chatPermissionsPage() : {}, typeof progressPage === 'function' ? progressPage() : {}, typeof recommendedRolesPage === 'function' ? recommendedRolesPage() : {}, typeof chatStopPage === 'function' ? chatStopPage() : {}, typeof homeScreenPage === 'function' ? homeScreenPage() : {});
 }

@@ -27,8 +27,10 @@ test("bundles: Aelios carries its config, migrations and license", () => {
   assert.ok(files.includes("index.js"));
   assert.ok(files.includes("wrangler.toml"));
   assert.ok(files.includes("LICENSE"));
-  const migrations = files.filter((file) => file.startsWith("migrations/") && file.endsWith(".sql"));
-  assert.equal(migrations.length, 19);
+  // Every migration from 0001 on, with no gap; 0021 (the current handoff letter) is the newest one the wizard needs.
+  const migrations = files.filter((file) => file.startsWith("migrations/") && file.endsWith(".sql")).sort();
+  assert.ok(migrations.length >= 21, `21 or more migrations, found ${migrations.length}`);
+  migrations.forEach((file, index) => assert.ok(file.startsWith(`migrations/${String(index + 1).padStart(4, "0")}_`), `${file} is number ${index + 1}`));
   const config = readFileSync(path.join(ROOT, "aelios", "wrangler.toml"), "utf8");
   assert.match(config, /database_id = "\{\{D1_ID\}\}"/);
   assert.match(config, /migrations_dir = "\{\{MIGRATIONS\}\}"/);
