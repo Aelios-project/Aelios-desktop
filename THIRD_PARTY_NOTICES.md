@@ -24,6 +24,16 @@ When code is copied from [DS Bot](https://github.com/Fei2411/DS-Bot): put the Ap
 
 [Aelios-resident](https://github.com/Aelios-project/Aelios-resident) is AGPL-3.0 and has the same author. Styles and components copied from it are not third-party code, but each copied file says in its header where it came from.
 
+## Carried bundles
+
+`packages/desktop/bundles/` holds the prebuilt output of two projects, which the first-run wizard deploys:
+
+- Aelios (`companion-memory-proxy`), AGPL-3.0-only. The source commit is named in `bundles/manifest.json`.
+- Aelios-resident (`aelios-resident`), AGPL-3.0-only. The source commit is named in the manifest.
+
+Both are AGPL-3.0-only and by the same author as this repository, so they are not third-party code. Each bundle
+carries its own `LICENSE` file, and the manifest records a hash for every carried file.
+
 ## Runner and DSH
 
 The runner can start the `dsh` command as a helper over ACP. That runs DSH as a separate program on your machine and does not include its code here.

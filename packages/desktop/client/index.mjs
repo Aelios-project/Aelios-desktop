@@ -6,7 +6,7 @@ import { paletteOf, readSurface } from "./palette.mjs";
 import { shellTopInset } from "./platform.mjs";
 import { Chat } from "./chat.mjs";
 import { GroupChat } from "./group-chat.mjs";
-import { ConnectForm } from "./connect-form.mjs";
+import { Wizard } from "./onboarding/wizard.mjs";
 import { GroupSheet } from "./group-sheet.mjs";
 import { Left } from "./left.mjs";
 import { loadLocal, present } from "./local-api.mjs";
@@ -22,11 +22,12 @@ import { RAIL } from "./style-rail.mjs";
 import { MACHINE } from "./style-machine.mjs";
 import { RIGHT } from "./style-right.mjs";
 import { SHEET } from "./style-sheet.mjs";
+import { ONBOARDING } from "./style-onboarding.mjs";
 import { THREAD } from "./style-thread.mjs";
 import { TOKENS } from "./theme.mjs";
 
 export const inject = ["slots", "layout"];
-export const STYLES = [TOKENS, BASE, RAIL, CHAT, RIGHT, THREAD, MACHINE, SHEET].join("\n");
+export const STYLES = [TOKENS, BASE, RAIL, CHAT, RIGHT, THREAD, MACHINE, SHEET, ONBOARDING].join("\n");
 
 const PANEL = "aelios-desktop";
 const SHADOW_PRIORITY = -100; // lower renders first, so ours wins over DSH's own cell
@@ -91,7 +92,7 @@ export function Main() {
     !status ? h("div", { className: "ad-note" }, t.connecting)
       : status.connected ? [h(middle, { key: "middle" }), h(Right, { key: "right" }), h(Sheet, { key: "sheet" }),
         groupSheet && h(GroupSheet, { key: `group-${groupSheet.id || "new"}` })]
-        : h(ConnectForm, { defaultWorkspace: status.defaultWorkspace }));
+        : h(Wizard));
 }
 
 /** The whole left column while ours is in place; its foot hands the column back to DSH. */

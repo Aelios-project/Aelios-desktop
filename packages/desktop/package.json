@@ -5,17 +5,42 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=22", "dsh": "0.2.2-rc.1" },
+  "engines": {
+    "node": ">=22",
+    "dsh": "0.2.2-rc.1"
+  },
   "main": "index.js",
-  "exports": { ".": "./index.js", "./client": "./client.js", "./package.json": "./package.json" },
-  "files": ["index.js", "host/", "client.js", "cordis.patch.yml", "README.md"],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "host/",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "bundles/"
+  ],
   "scripts": {
     "build": "node scripts/build-client.mjs",
-    "test": "node --test --test-concurrency=1 test/*.test.mjs"
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "build:bundles": "node scripts/build-bundles.mjs --aelios ../Aelios --resident ../Aelios-resident"
   },
   "dsh": {
-    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-layout"] },
-    "bundle": { "patch": "./cordis.patch.yml" }
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout"
+      ]
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   },
-  "devDependencies": { "esbuild": "0.28.2" }
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
 }
